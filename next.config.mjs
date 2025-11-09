@@ -1,4 +1,4 @@
-import { createSecureHeaders } from "./src/lib/security-headers";
+import { createSecureHeaders } from "./src/lib/security-headers/index.js";
 
 const nextConfig = {
   reactStrictMode: true,
