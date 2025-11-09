@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "../../../src/lib/prisma";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireRole } from "../../../src/lib/authz";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
 
 export async function GET() {
   const user = await getCurrentUser();

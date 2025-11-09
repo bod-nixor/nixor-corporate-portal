@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../src/lib/prisma";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireRole } from "../../../src/lib/authz";
-import { audit } from "../../../src/lib/audit";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 
 const schema = z.object({
   registrationIds: z.array(z.string()).min(1)

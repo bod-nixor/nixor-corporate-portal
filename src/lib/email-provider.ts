@@ -9,7 +9,7 @@ export interface EmailPayload {
 }
 
 export interface EmailProvider {
-  send(payload: EmailPayload): Promise<void>;
+  send: (payload: EmailPayload) => Promise<void>;
 }
 
 class SMTPEmailProvider implements EmailProvider {

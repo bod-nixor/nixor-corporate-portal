@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { createSecureHeaders } from "./src/lib/security-headers";
+import { createSecureHeaders } from "@/lib/security-headers";
 
 const protectedPaths = ["/dashboard", "/hr", "/settings"];
 

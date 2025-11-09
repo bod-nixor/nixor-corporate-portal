@@ -1,5 +1,6 @@
-import NextAuth, { DefaultSession } from "next-auth";
+import type { DefaultSession } from "next-auth";
 
+/* eslint-disable no-unused-vars */
 declare module "next-auth" {
   interface Session {
     user?: {
@@ -14,3 +15,4 @@ declare module "next-auth" {
     studentId?: string | null;
   }
 }
+/* eslint-enable no-unused-vars */

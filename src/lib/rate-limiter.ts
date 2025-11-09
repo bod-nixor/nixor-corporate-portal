@@ -10,7 +10,7 @@ interface RateLimiterOptions {
 }
 
 export interface RateLimiterClient {
-  incrementAndGet(key: string, windowSeconds: number): Promise<number>;
+  incrementAndGet: (key: string, windowSeconds: number) => Promise<number>;
 }
 
 class RedisRateLimiterClient implements RateLimiterClient {

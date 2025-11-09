@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireRole } from "../../../src/lib/authz";
-import { parentRegistrationTemplate } from "../../../src/server/email/templates";
+import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
+import { parentRegistrationTemplate } from "@/server/email/templates";
 
 export async function GET() {
   const user = await getCurrentUser();

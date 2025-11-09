@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { requireAuth, requireRole, hasEntityMembership } from "../src/lib/authz";
-import type { UserWithMemberships } from "../src/lib/types";
-import { UnauthorizedError, ForbiddenError } from "../src/lib/errors";
+import { requireAuth, requireRole, hasEntityMembership } from "@/lib/authz";
+import type { UserWithMemberships } from "@/lib/types";
+import { UnauthorizedError, ForbiddenError } from "@/lib/errors";
 
 const baseUser: UserWithMemberships = {
   id: "1",

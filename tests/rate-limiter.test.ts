@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { enforceRateLimit } from "../src/lib/rate-limiter";
-import * as envModule from "../src/lib/env";
+import { enforceRateLimit } from "@/lib/rate-limiter";
+import * as envModule from "@/lib/env";
 
 beforeEach(() => {
   (envModule as unknown as { env: { REDIS_URL?: string } }).env.REDIS_URL = undefined;

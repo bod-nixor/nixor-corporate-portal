@@ -3,11 +3,11 @@ import {
   canVolunteerRegisterForEndeavour,
   canVolunteerSeeEndeavour,
   setVisibilityMode
-} from "../src/lib/visibility";
-import type { UserWithMemberships } from "../src/lib/types";
-import * as envModule from "../src/lib/env";
+} from "@/lib/visibility";
+import type { UserWithMemberships } from "@/lib/types";
+import * as envModule from "@/lib/env";
 
-vi.mock("../src/lib/env", () => ({ env: { VISIBILITY_MODE: "RESTRICTED" } }));
+vi.mock("@/lib/env", () => ({ env: { VISIBILITY_MODE: "RESTRICTED" } }));
 
 const volunteer: UserWithMemberships = {
   id: "vol",

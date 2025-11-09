@@ -18,7 +18,7 @@ async function main() {
   await prisma.entity.deleteMany();
   await prisma.user.deleteMany();
 
-  const [admin, hr, managerA, managerB, ...volunteers] = await Promise.all([
+  const [, hr, managerA, managerB, ...volunteers] = await Promise.all([
     prisma.user.create({
       data: {
         email: "admin@nixorcollege.edu.pk",

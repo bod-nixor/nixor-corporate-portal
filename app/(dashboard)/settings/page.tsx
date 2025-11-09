@@ -1,6 +1,6 @@
-import { AdminSettings } from "../../../src/components/admin-settings";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireRole } from "../../../src/lib/authz";
+import { AdminSettings } from "@/components/admin-settings";
+import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
 
 export default async function SettingsPage() {
   const user = await getCurrentUser();
