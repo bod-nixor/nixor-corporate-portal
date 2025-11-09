@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../src/lib/prisma";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireAuth } from "../../../src/lib/authz";
-import { paymentProvider } from "../../../src/lib/payment-provider";
-import { audit } from "../../../src/lib/audit";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { requireAuth } from "@/lib/authz";
+import { paymentProvider } from "@/lib/payment-provider";
+import { audit } from "@/lib/audit";
 
 const schema = z.object({ registrationId: z.string(), amountCents: z.number().int().positive() });
 

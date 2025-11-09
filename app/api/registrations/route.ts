@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../src/lib/prisma";
-import { getCurrentUser } from "../../src/lib/session";
-import { requireAuth } from "../../src/lib/authz";
-import { canVolunteerRegisterForEndeavour } from "../../src/lib/visibility";
-import { audit } from "../../src/lib/audit";
-import { sendParentRegistrationNotice } from "../../src/server/email/service";
-import { metrics } from "../../src/lib/metrics";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { requireAuth } from "@/lib/authz";
+import { canVolunteerRegisterForEndeavour } from "@/lib/visibility";
+import { audit } from "@/lib/audit";
+import { sendParentRegistrationNotice } from "@/server/email/service";
+import { metrics } from "@/lib/metrics";
 
 const createSchema = z.object({
   endeavourId: z.string()

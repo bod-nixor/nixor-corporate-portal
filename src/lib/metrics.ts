@@ -1,5 +1,5 @@
 export interface CounterMetric {
-  inc(value?: number): void;
+  inc: (value?: number) => void;
 }
 
 class NoopCounter implements CounterMetric {

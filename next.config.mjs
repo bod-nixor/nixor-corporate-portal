@@ -3,8 +3,7 @@ import { createSecureHeaders } from "./src/lib/security-headers/index.js";
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    typedRoutes: true,
-    serverActions: true
+    typedRoutes: true
   },
   headers: async () => {
     return [

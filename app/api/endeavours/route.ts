@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../src/lib/prisma";
-import { getCurrentUser } from "../../src/lib/session";
-import { requireAuth, assertEntityManager } from "../../src/lib/authz";
-import { canVolunteerRegisterForEndeavour, canVolunteerSeeEndeavour } from "../../src/lib/visibility";
-import { enforceRateLimit } from "../../src/lib/rate-limiter";
-import { env } from "../../src/lib/env";
-import { audit } from "../../src/lib/audit";
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
+import { requireAuth, assertEntityManager } from "@/lib/authz";
+import { canVolunteerRegisterForEndeavour, canVolunteerSeeEndeavour } from "@/lib/visibility";
+import { enforceRateLimit } from "@/lib/rate-limiter";
+import { env } from "@/lib/env";
+import { audit } from "@/lib/audit";
 
 const filtersSchema = z.object({
   entityId: z.string().optional(),

@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import { EndeavourList } from "../../../src/components/endeavour-list";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireAuth } from "../../../src/lib/authz";
+import { EndeavourList } from "@/components/endeavour-list";
+import { getCurrentUser } from "@/lib/session";
+import { requireAuth } from "@/lib/authz";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();

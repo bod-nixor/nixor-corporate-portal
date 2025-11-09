@@ -3,6 +3,7 @@ import { z } from "zod";
 
 type VisibilityMode = "RESTRICTED" | "OPEN";
 
+/* eslint-disable no-unused-vars */
 declare global {
   namespace NodeJS {
     interface ProcessEnv {
@@ -10,6 +11,7 @@ declare global {
     }
   }
 }
+/* eslint-enable no-unused-vars */
 
 const runtimeEnv = {
   ...process.env,

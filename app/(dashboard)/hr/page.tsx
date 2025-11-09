@@ -1,7 +1,7 @@
 import { Suspense } from "react";
-import { HRDashboard } from "../../../src/components/hr-dashboard";
-import { getCurrentUser } from "../../../src/lib/session";
-import { requireRole } from "../../../src/lib/authz";
+import { HRDashboard } from "@/components/hr-dashboard";
+import { getCurrentUser } from "@/lib/session";
+import { requireRole } from "@/lib/authz";
 
 export default async function HRPage() {
   const user = await getCurrentUser();
