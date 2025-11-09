@@ -11,7 +11,7 @@
     "format:write": "prettier --write .",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "seed": "ts-node --transpile-only prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
