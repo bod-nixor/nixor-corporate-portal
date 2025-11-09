@@ -47,12 +47,15 @@ model User {
   role       Role     @default(VOLUNTEER)
   createdAt  DateTime @default(now()) @db.DateTime(3)
   updatedAt  DateTime @updatedAt @db.DateTime(3)
-  memberships EntityMembership[]
+  memberships   EntityMembership[]
   registrations Registration[] @relation("RegistrationVolunteer")
-  participations Participation[]
-  hRNotes HRNote[] @relation("HRNoteAuthor")
-  endeavours Endeavour[] @relation("EndeavourCreator")
-  auditLogs AuditLog[] @relation("AuditActor")
+  participations Participation[] @relation("ParticipationVolunteer")
+  hrNotesAuthored HRNote[] @relation("HRNoteAuthor")
+  hrNotesAsVolunteer HRNote[] @relation("HRNoteVolunteer")
+  parentContacts ParentContact[] @relation("ParentContactVolunteer")
+  endeavours   Endeavour[] @relation("EndeavourCreator")
+  auditLogs    AuditLog[] @relation("AuditActor")
+  auditLogsTarget AuditLog[] @relation("AuditTarget")
 }
 
 model Entity {
@@ -64,6 +67,8 @@ model Entity {
   updatedAt          DateTime @updatedAt @db.DateTime(3)
   memberships        EntityMembership[]
   endeavours         Endeavour[]
+  participations     Participation[] @relation("ParticipationEntity")
+  hrNotes            HRNote[]
   auditLogs          AuditLog[]
 }
 
@@ -98,6 +103,7 @@ model Endeavour {
   creator  User   @relation("EndeavourCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   tags     EndeavourTag[]
   registrations Registration[]
+  participations Participation[] @relation("ParticipationEndeavour")
 }
 
 model Tag {
@@ -142,9 +148,9 @@ model Participation {
   endeavourId    String?
   participatedAt DateTime @db.DateTime(3)
 
-  volunteer User   @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
-  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
-  endeavour Endeavour? @relation(fields: [endeavourId], references: [id], onDelete: SetNull)
+  volunteer User   @relation("ParticipationVolunteer", fields: [volunteerId], references: [id], onDelete: Restrict)
+  entity    Entity @relation("ParticipationEntity", fields: [entityId], references: [id], onDelete: Restrict)
+  endeavour Endeavour? @relation("ParticipationEndeavour", fields: [endeavourId], references: [id], onDelete: SetNull)
 
   @@index([volunteerId, entityId])
   @@index([entityId, participatedAt])
@@ -158,7 +164,7 @@ model HRNote {
   note        String   @db.Text
   createdAt   DateTime @default(now()) @db.DateTime(3)
 
-  volunteer User   @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
+  volunteer User   @relation("HRNoteVolunteer", fields: [volunteerId], references: [id], onDelete: Restrict)
   entity    Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
   author    User   @relation("HRNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
 }
@@ -171,7 +177,7 @@ model ParentContact {
   email       String
   phone       String?
 
-  volunteer User @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
+  volunteer User @relation("ParentContactVolunteer", fields: [volunteerId], references: [id], onDelete: Restrict)
 
   @@unique([volunteerId, email])
 }
@@ -221,7 +227,7 @@ model AuditLog {
 
   actor  User?  @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   entity Entity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
-  target User?  @relation(fields: [targetUserId], references: [id], onDelete: SetNull)
+  target User?  @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
 
   @@index([subjectId])
   @@index([action, createdAt])
