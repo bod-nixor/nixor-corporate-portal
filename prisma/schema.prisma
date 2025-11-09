@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  HR
+  ENTITY_MANAGER
+  VOLUNTEER
+}
+
+enum EntityRole {
+  ENTITY_MANAGER
+  VOLUNTEER
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  SHORTLISTED
+  CONSENT_PENDING
+  PAYMENT_PENDING
+  CONFIRMED
+  REJECTED
+  WITHDRAWN
+}
+
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id         String   @id @default(uuid()) @db.Char(36)
+  googleId   String?  @unique
+  email      String   @unique
+  name       String?
+  studentId  String?  @unique
+  role       Role     @default(VOLUNTEER)
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+  updatedAt  DateTime @updatedAt @db.DateTime(3)
+  memberships EntityMembership[]
+  registrations Registration[] @relation("RegistrationVolunteer")
+  participations Participation[]
+  hRNotes HRNote[] @relation("HRNoteAuthor")
+  endeavours Endeavour[] @relation("EndeavourCreator")
+  auditLogs AuditLog[] @relation("AuditActor")
+}
+
+model Entity {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  name               String   @unique
+  slug               String   @unique
+  publishQuotaPer7d  Int
+  createdAt          DateTime @default(now()) @db.DateTime(3)
+  updatedAt          DateTime @updatedAt @db.DateTime(3)
+  memberships        EntityMembership[]
+  endeavours         Endeavour[]
+  auditLogs          AuditLog[]
+}
+
+model EntityMembership {
+  id        String     @id @default(uuid()) @db.Char(36)
+  userId    String
+  entityId  String
+  role      EntityRole
+  createdAt DateTime   @default(now()) @db.DateTime(3)
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityId])
+}
+
+model Endeavour {
+  id                      String   @id @default(uuid()) @db.Char(36)
+  entityId                String
+  title                   String
+  description             String   @db.Text
+  venue                   String
+  startAt                 DateTime @db.DateTime(3)
+  endAt                   DateTime @db.DateTime(3)
+  maxVolunteers           Int?
+  requiresTransportPayment Boolean @default(false)
+  createdByUserId         String
+  createdAt               DateTime @default(now()) @db.DateTime(3)
+  updatedAt               DateTime @updatedAt @db.DateTime(3)
+
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  creator  User   @relation("EndeavourCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  tags     EndeavourTag[]
+  registrations Registration[]
+}
+
+model Tag {
+  id    String @id @default(uuid()) @db.Char(36)
+  name  String @unique
+  slug  String @unique
+  endeavours EndeavourTag[]
+}
+
+model EndeavourTag {
+  endeavourId String
+  tagId       String
+
+  endeavour Endeavour @relation(fields: [endeavourId], references: [id], onDelete: Cascade)
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([endeavourId, tagId])
+}
+
+model Registration {
+  id           String              @id @default(uuid()) @db.Char(36)
+  endeavourId  String
+  volunteerId  String
+  status       RegistrationStatus  @default(REGISTERED)
+  registeredAt DateTime            @default(now()) @db.DateTime(3)
+  updatedAt    DateTime            @updatedAt @db.DateTime(3)
+
+  endeavour Endeavour @relation(fields: [endeavourId], references: [id], onDelete: Restrict)
+  volunteer User      @relation("RegistrationVolunteer", fields: [volunteerId], references: [id], onDelete: Restrict)
+  consentForm ConsentForm?
+  payment     Payment?
+
+  @@unique([endeavourId, volunteerId])
+  @@index([status])
+  @@index([endeavourId, status])
+}
+
+model Participation {
+  id             String   @id @default(uuid()) @db.Char(36)
+  volunteerId    String
+  entityId       String
+  endeavourId    String?
+  participatedAt DateTime @db.DateTime(3)
+
+  volunteer User   @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
+  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  endeavour Endeavour? @relation(fields: [endeavourId], references: [id], onDelete: SetNull)
+
+  @@index([volunteerId, entityId])
+  @@index([entityId, participatedAt])
+}
+
+model HRNote {
+  id          String   @id @default(uuid()) @db.Char(36)
+  volunteerId String
+  entityId    String
+  authorId    String
+  note        String   @db.Text
+  createdAt   DateTime @default(now()) @db.DateTime(3)
+
+  volunteer User   @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
+  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Restrict)
+  author    User   @relation("HRNoteAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+}
+
+model ParentContact {
+  id          String @id @default(uuid()) @db.Char(36)
+  volunteerId String
+  name        String
+  relationship String
+  email       String
+  phone       String?
+
+  volunteer User @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
+
+  @@unique([volunteerId, email])
+}
+
+model ConsentForm {
+  id               String   @id @default(uuid()) @db.Char(36)
+  registrationId   String  @unique
+  formSnapshotJson Json
+  submittedAt      DateTime @db.DateTime(3)
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Char(36)
+  registrationId String        @unique
+  amountCents    Int
+  currency       String
+  status         PaymentStatus
+  providerRef    String?
+  createdAt      DateTime @default(now()) @db.DateTime(3)
+  updatedAt      DateTime @updatedAt @db.DateTime(3)
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+}
+
+model EmailLog {
+  id          String   @id @default(uuid()) @db.Char(36)
+  toEmail     String   @db.VarChar(191)
+  template    String   @db.VarChar(191)
+  contextJson Json
+  sentAt      DateTime @default(now()) @db.DateTime(3)
+  error       String?  @db.Text
+
+  @@index([toEmail, sentAt])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Char(36)
+  actorUserId  String?
+  action       String   @db.VarChar(64)
+  entityId     String?
+  targetUserId String?
+  subjectId    String?
+  metadataJson Json
+  createdAt    DateTime @default(now()) @db.DateTime(3)
+
+  actor  User?  @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  entity Entity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  target User?  @relation(fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([subjectId])
+  @@index([action, createdAt])
+}

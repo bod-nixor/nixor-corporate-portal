@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+.dark {
+  --tw-bg-opacity: 1;
+  background-color: hsl(222.2 47.4% 11.2% / var(--tw-bg-opacity));
+  color: hsl(210 40% 98%);
+}
