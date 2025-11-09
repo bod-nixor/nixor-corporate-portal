@@ -5,6 +5,11 @@ import { getCurrentUser } from "../../../src/lib/session";
 import { requireRole } from "../../../src/lib/authz";
 import { env } from "../../../src/lib/env";
 import { audit } from "../../../src/lib/audit";
+import {
+  getVisibilityMode,
+  setVisibilityMode
+} from "../../../src/lib/visibility";
+import type { VisibilityMode } from "../../../src/lib/types";
 
 const schema = z.object({ visibilityMode: z.enum(["RESTRICTED", "OPEN"]) });
 
@@ -19,7 +24,13 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
     select: { metadataJson: true }
   });
-  const visibilityMode = (lastSetting?.metadataJson as { visibilityMode?: string } | undefined)?.visibilityMode ?? env.VISIBILITY_MODE;
+  const persistedMode = (lastSetting?.metadataJson as { visibilityMode?: string } | undefined)
+    ?.visibilityMode as VisibilityMode | undefined;
+  const visibilityMode = persistedMode ?? getVisibilityMode();
+
+  if (persistedMode && persistedMode !== getVisibilityMode()) {
+    setVisibilityMode(persistedMode);
+  }
   return NextResponse.json({ visibilityMode, entities });
 }
 
@@ -32,6 +43,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
   process.env.VISIBILITY_MODE = parsed.data.visibilityMode;
+  setVisibilityMode(parsed.data.visibilityMode);
   await audit({
     actorUserId: user.id,
     action: "settings.visibility",
