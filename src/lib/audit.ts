@@ -1,6 +1,17 @@
-// src/lib/audit.ts
-import { getPrismaClient } from "./prisma";
 import { Prisma } from "@prisma/client";
+import { getPrismaClient } from "./prisma";
+
+// Accept both regular JSON and the Prisma JsonNull sentinel
+type JsonInput = Prisma.InputJsonValue | typeof Prisma.JsonNull;
+
+function toJsonInput(value: unknown): JsonInput {
+  // If undefined/null, use Prisma’s JsonNull sentinel for JSON columns
+  if (value === undefined || value === null) {
+    return Prisma.JsonNull;
+  }
+  // Ensure plain JSON-serializable value
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 interface AuditArgs {
   actorUserId?: string | null;
@@ -8,19 +19,7 @@ interface AuditArgs {
   entityId?: string | null;
   targetUserId?: string | null;
   subjectId?: string | null;
-  metadata?: Record<string, unknown> | null | undefined;
-}
-
-// Allow both JSON values and the Prisma JsonNull sentinel
-type JsonInput = Prisma.InputJsonValue | Prisma.JsonNull;
-
-function toJsonInput(value: unknown): JsonInput {
-  if (value === undefined || value === null) {
-    // Store JSON null (not DB null) in a JSON column
-    return Prisma.JsonNull;
-  }
-  // Deep-clone to ensure it's plain JSON-serializable data
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  metadata?: Record<string, unknown>;
 }
 
 export async function audit({
@@ -39,7 +38,8 @@ export async function audit({
       entityId: entityId ?? undefined,
       targetUserId: targetUserId ?? undefined,
       subjectId: subjectId ?? undefined,
-      metadataJson: toJsonInput(metadata)
-    }
+      // Use the helper to convert metadata into a valid Prisma input
+      metadataJson: toJsonInput(metadata),
+    },
   });
 }
