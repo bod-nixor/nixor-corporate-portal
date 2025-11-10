@@ -13,7 +13,7 @@ export interface PaymentProvider {
 }
 
 class MockPaymentProvider implements PaymentProvider {
-  async createIntent(amountCents: number, currency: string) {
+  async createIntent(amountCents: number, currency: string): Promise<PaymentIntent> {
     return {
       id: `mock_${Date.now()}`,
       amountCents,
@@ -21,7 +21,8 @@ class MockPaymentProvider implements PaymentProvider {
       status: "INITIATED"
     };
   }
-  async markPaid() {
+
+  async markPaid(_id: string): Promise<void> {
     return;
   }
 }

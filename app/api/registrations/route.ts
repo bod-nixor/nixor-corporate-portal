@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   metrics.registrationsCreated.inc();
 
-  const parents = await prisma.parentContact.findMany({
+  const parents: Array<{ email: string; name: string }> = await prisma.parentContact.findMany({
     where: { volunteerId: user.id },
     select: { email: true, name: true }
   });

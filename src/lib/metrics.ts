@@ -3,7 +3,7 @@ export interface CounterMetric {
 }
 
 class NoopCounter implements CounterMetric {
-  inc() {}
+  inc(_value?: number) {}
 }
 
 export const metrics = {
