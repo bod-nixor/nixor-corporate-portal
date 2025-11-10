@@ -28,7 +28,7 @@ class RedisRateLimiterClient implements RateLimiterClient {
     await this.ensureConnected();
     const multi = this.client.multi();
     multi.incr(key);
-    multi.expire(key, windowSeconds, { nx: true });
+    multi.expire(key, windowSeconds, "NX");
     const [, count] = (await multi.exec()) as [number, number];
     return count;
   }

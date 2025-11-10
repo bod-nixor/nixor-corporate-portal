@@ -1,6 +1,6 @@
-import type { Header } from "next/dist/lib/load-custom-routes";
+export type SecureHeader = { key: string; value: string };
 
-export function createSecureHeaders(): Header[] {
+export function createSecureHeaders(): SecureHeader[] {
   const csp = [
     "default-src 'self'",
     "img-src 'self' data:",

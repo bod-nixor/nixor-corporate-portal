@@ -1,8 +1,13 @@
 import { ForbiddenError, UnauthorizedError } from "./errors";
 import type { UserWithMemberships } from "./types";
 
-export function requireAuth<T extends UserWithMemberships | null | undefined>(
-  user: T,
+type UserMembership = {
+  entityId: string;
+  role: string;
+};
+
+export function requireAuth(
+  user: UserWithMemberships | null | undefined,
   allowedRoles: Array<UserWithMemberships["role"]>
 ): asserts user is UserWithMemberships {
   if (!user) {
@@ -22,12 +27,16 @@ export function requireRole(
 
 export function hasEntityMembership(user: UserWithMemberships | null, entityId: string) {
   if (!user) return false;
-  return user.memberships.some((membership) => membership.entityId === entityId);
+  return user.memberships.some(
+    (membership: UserMembership) => membership.entityId === entityId
+  );
 }
 
 export function assertEntityManager(user: UserWithMemberships | null, entityId: string) {
   if (!user) throw new UnauthorizedError();
-  const membership = user.memberships.find((m) => m.entityId === entityId);
+  const membership = user.memberships.find(
+    (userMembership: UserMembership) => userMembership.entityId === entityId
+  );
   if (!membership || membership.role !== "ENTITY_MANAGER") {
     throw new ForbiddenError();
   }

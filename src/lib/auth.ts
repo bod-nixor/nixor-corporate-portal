@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
           data: {
             googleId: account.providerAccountId
           }
-        }).catch((error) => {
+        }).catch((error: unknown) => {
           console.error("Failed to sync googleId", error);
         });
       }

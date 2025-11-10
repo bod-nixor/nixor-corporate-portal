@@ -3,11 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireRole } from "@/lib/authz";
 
+type CandidateRegistration = {
+  id: string;
+  status: string;
+  volunteer: {
+    id: string;
+    name: string | null;
+    email: string;
+    studentId: string | null;
+    participations: Array<{
+      entityId: string;
+      participatedAt: Date;
+    }>;
+  };
+  endeavour: {
+    title: string;
+    entityId: string;
+  };
+};
+
 export async function GET() {
   const user = await getCurrentUser();
   requireRole(user, ["HR", "ADMIN"]);
 
-  const candidates = await prisma.registration.findMany({
+  const candidates: CandidateRegistration[] = await prisma.registration.findMany({
     select: {
       id: true,
       status: true,
@@ -33,9 +52,9 @@ export async function GET() {
 
   return NextResponse.json({
     candidates: await Promise.all(
-      candidates.map(async (registration) => {
+      candidates.map(async (registration: CandidateRegistration) => {
         const participationCount = registration.volunteer.participations.filter(
-          (p) => p.entityId === registration.endeavour.entityId
+          (participation) => participation.entityId === registration.endeavour.entityId
         );
         const latestNote = await prisma.hRNote.findFirst({
           where: {
