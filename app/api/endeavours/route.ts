@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth, assertEntityManager } from "@/lib/authz";
@@ -37,34 +36,45 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const endeavours = await prisma.endeavour.findMany(
-    Prisma.validator<Prisma.EndeavourFindManyArgs>()({
-      where: {
-        entityId: parsed.data.entityId ?? undefined,
-        tags: parsed.data.tag
-          ? { some: { tag: { slug: parsed.data.tag } } }
-          : undefined
-      },
-      orderBy: { startAt: "asc" },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        startAt: true,
-        endAt: true,
-        venue: true,
-        entityId: true,
-        entity: { select: { name: true } },
-        requiresTransportPayment: true,
-        maxVolunteers: true,
-        tags: { select: { tag: { select: { name: true } } } },
-        registrations: {
-          where: { volunteerId: user.id },
-          select: { status: true }
-        }
+  type EndeavourForListing = {
+    id: string;
+    title: string;
+    description: string;
+    startAt: Date;
+    endAt: Date;
+    venue: string;
+    entityId: string;
+    entity: { name: string };
+    requiresTransportPayment: boolean;
+    maxVolunteers: number | null;
+    tags: { tag: { name: string } }[];
+    registrations: { status: string }[];
+  };
+
+  const endeavours = (await prisma.endeavour.findMany({
+    where: {
+      entityId: parsed.data.entityId ?? undefined,
+      tags: parsed.data.tag ? { some: { tag: { slug: parsed.data.tag } } } : undefined
+    },
+    orderBy: { startAt: "asc" },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      startAt: true,
+      endAt: true,
+      venue: true,
+      entityId: true,
+      entity: { select: { name: true } },
+      requiresTransportPayment: true,
+      maxVolunteers: true,
+      tags: { select: { tag: { select: { name: true } } } },
+      registrations: {
+        where: { volunteerId: user.id },
+        select: { status: true }
       }
-    })
-  );
+    }
+  })) as EndeavourForListing[];
 
   const visible = endeavours.filter((endeavour) => canVolunteerSeeEndeavour(user, endeavour.entityId));
 
