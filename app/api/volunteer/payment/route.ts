@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth } from "@/lib/authz";
 import { paymentProvider } from "@/lib/payment-provider";
 import { audit } from "@/lib/audit";
+
+export const dynamic = "force-dynamic";
 
 const schema = z.object({ registrationId: z.string(), amountCents: z.number().int().positive() });
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   requireAuth(user, ["VOLUNTEER", "ENTITY_MANAGER"]);
+  const prisma = getPrismaClient();
   const body = await request.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

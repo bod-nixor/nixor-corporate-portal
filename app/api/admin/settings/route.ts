@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireRole } from "@/lib/authz";
 import { audit } from "@/lib/audit";
@@ -10,11 +10,14 @@ import {
 } from "@/lib/visibility";
 import type { VisibilityMode } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 const schema = z.object({ visibilityMode: z.enum(["RESTRICTED", "OPEN"]) });
 
 export async function GET() {
   const user = await getCurrentUser();
   requireRole(user, ["ADMIN"]);
+  const prisma = getPrismaClient();
   const entities = await prisma.entity.findMany({
     select: { id: true, name: true, publishQuotaPer7d: true }
   });

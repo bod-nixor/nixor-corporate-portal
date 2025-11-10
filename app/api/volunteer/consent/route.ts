@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+
+export const dynamic = "force-dynamic";
 
 const consentSchema = z.object({
   registrationId: z.string(),
@@ -13,6 +15,7 @@ const consentSchema = z.object({
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   requireAuth(user, ["VOLUNTEER", "ENTITY_MANAGER"]);
+  const prisma = getPrismaClient();
   const body = await request.json();
   const parsed = consentSchema.safeParse(body);
   if (!parsed.success) {

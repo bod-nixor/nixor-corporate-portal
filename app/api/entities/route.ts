@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth, requireRole } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+
+export const dynamic = "force-dynamic";
 
 const entitySchema = z.object({
   name: z.string().min(2),
@@ -14,6 +16,7 @@ const entitySchema = z.object({
 export async function GET() {
   const user = await getCurrentUser();
   requireAuth(user, ["VOLUNTEER", "ENTITY_MANAGER", "HR", "ADMIN"]);
+  const prisma = getPrismaClient();
   const entities = await prisma.entity.findMany({
     select: { id: true, name: true, slug: true, publishQuotaPer7d: true }
   });
@@ -23,6 +26,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   requireRole(user, ["ADMIN"]);
+  const prisma = getPrismaClient();
   const body = await request.json();
   const parsed = entitySchema.safeParse(body);
   if (!parsed.success) {

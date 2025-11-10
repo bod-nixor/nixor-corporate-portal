@@ -5,3 +5,4 @@
 
 # Dependencies
 node_modules/
+tsconfig.tsbuildinfo

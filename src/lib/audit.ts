@@ -1,4 +1,4 @@
-import { prisma } from "./prisma";
+import { getPrismaClient } from "./prisma";
 
 interface AuditArgs {
   actorUserId?: string | null;
@@ -17,6 +17,7 @@ export async function audit({
   subjectId,
   metadata
 }: AuditArgs) {
+  const prisma = getPrismaClient();
   await prisma.auditLog.create({
     data: {
       actorUserId: actorUserId ?? undefined,

@@ -29,7 +29,7 @@ const runtimeEnv = {
   DOMAIN_ALLOWLIST: process.env.DOMAIN_ALLOWLIST ?? "nixorcollege.edu.pk",
   VISIBILITY_MODE: process.env.VISIBILITY_MODE ?? "RESTRICTED",
   RATE_LIMIT_REDIS_NAMESPACE: process.env.RATE_LIMIT_REDIS_NAMESPACE ?? "nixor:endeavour:quota",
-  REDIS_URL: process.env.REDIS_URL
+  REDIS_URL: process.env.REDIS_URL ?? ""
 };
 
 export const env = createEnv({
@@ -45,7 +45,10 @@ export const env = createEnv({
     SMTP_USER: z.string().min(1),
     SMTP_PASS: z.string().min(1),
     SMTP_FROM: z.string().email(),
-    REDIS_URL: z.string().url().optional(),
+    REDIS_URL: z
+      .union([z.string().url(), z.literal("")])
+      .transform((value) => (value === "" ? undefined : value))
+      .optional(),
     DOMAIN_ALLOWLIST: z.string().min(1),
     VISIBILITY_MODE: z.enum(["RESTRICTED", "OPEN"]).default("RESTRICTED"),
     RATE_LIMIT_REDIS_NAMESPACE: z.string().min(1).default("nixor:endeavour:quota")

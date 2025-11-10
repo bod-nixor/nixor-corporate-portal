@@ -1,6 +1,9 @@
-export type SecureHeader = { key: string; value: string };
+export type Header = { key: string; value: string };
 
-export function createSecureHeaders(): SecureHeader[] {
+/**
+ * Create the set of security headers shared between middleware and Next config.
+ */
+export function createSecureHeaders(): Header[] {
   const csp = [
     "default-src 'self'",
     "img-src 'self' data:",
