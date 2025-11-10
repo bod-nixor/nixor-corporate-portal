@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireRole } from "@/lib/authz";
 
@@ -22,9 +22,12 @@ type CandidateRegistration = {
   };
 };
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const user = await getCurrentUser();
   requireRole(user, ["HR", "ADMIN"]);
+  const prisma = getPrismaClient();
 
   const candidates: CandidateRegistration[] = await prisma.registration.findMany({
     select: {

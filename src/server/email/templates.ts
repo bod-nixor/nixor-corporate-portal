@@ -1,4 +1,9 @@
-import mjml2html from "mjml";
+// For server-only code we can rely on the CommonJS export from mjml.
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const mjml2html = require("mjml") as (
+  markup: string,
+  options?: Record<string, unknown>
+) => { html: string };
 
 export function parentRegistrationTemplate({
   volunteerName,

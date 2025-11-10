@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth, assertEntityManager } from "@/lib/authz";
 import { canVolunteerRegisterForEndeavour, canVolunteerSeeEndeavour } from "@/lib/visibility";
 import { enforceRateLimit } from "@/lib/rate-limiter";
 import { env } from "@/lib/env";
 import { audit } from "@/lib/audit";
+
+export const dynamic = "force-dynamic";
 
 const filtersSchema = z.object({
   entityId: z.string().optional(),
@@ -25,6 +27,7 @@ const createSchema = z.object({
 });
 
 export async function GET(request: Request) {
+  const prisma = getPrismaClient();
   const user = await getCurrentUser();
   requireAuth(user, ["VOLUNTEER", "ENTITY_MANAGER", "HR", "ADMIN"]);
   const { searchParams } = new URL(request.url);
@@ -98,6 +101,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const prisma = getPrismaClient();
   const user = await getCurrentUser();
   requireAuth(user, ["ENTITY_MANAGER", "ADMIN"]);
   const body = await request.json();

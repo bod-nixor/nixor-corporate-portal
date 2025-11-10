@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth } from "@/lib/authz";
 import { canVolunteerRegisterForEndeavour } from "@/lib/visibility";
@@ -8,11 +8,14 @@ import { audit } from "@/lib/audit";
 import { sendParentRegistrationNotice } from "@/server/email/service";
 import { metrics } from "@/lib/metrics";
 
+export const dynamic = "force-dynamic";
+
 const createSchema = z.object({
   endeavourId: z.string()
 });
 
 export async function POST(request: Request) {
+  const prisma = getPrismaClient();
   const user = await getCurrentUser();
   requireAuth(user, ["VOLUNTEER", "ENTITY_MANAGER"]);
   const body = await request.json();

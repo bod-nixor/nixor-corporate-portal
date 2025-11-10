@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireAuth } from "@/lib/authz";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const user = await getCurrentUser();
   requireAuth(user, ["VOLUNTEER", "ENTITY_MANAGER"]);
+  const prisma = getPrismaClient();
   const registrations = await prisma.registration.findMany({
     where: { volunteerId: user.id },
     select: {

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
+import { getPrismaClient } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { requireRole } from "@/lib/authz";
 import { audit } from "@/lib/audit";
+
+export const dynamic = "force-dynamic";
 
 const schema = z.object({ publishQuotaPer7d: z.number().int().min(1) });
 
@@ -13,6 +15,7 @@ export async function POST(
 ) {
   const user = await getCurrentUser();
   requireRole(user, ["ADMIN"]);
+  const prisma = getPrismaClient();
   const body = await request.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

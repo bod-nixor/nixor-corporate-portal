@@ -1,5 +1,5 @@
 import { emailProvider } from "../../lib/email-provider";
-import { prisma } from "../../lib/prisma";
+import { getPrismaClient } from "../../lib/prisma";
 import { parentRegistrationTemplate, volunteerConsentReminderTemplate } from "./templates";
 
 export async function sendParentRegistrationNotice(params: {
@@ -10,6 +10,7 @@ export async function sendParentRegistrationNotice(params: {
   venue: string;
   consentUrl: string;
 }) {
+  const prisma = getPrismaClient();
   const html = parentRegistrationTemplate(params);
   await emailProvider.send({
     to: params.parentEmail,
@@ -31,6 +32,7 @@ export async function sendVolunteerConsentReminder(params: {
   endeavourTitle: string;
   consentUrl: string;
 }) {
+  const prisma = getPrismaClient();
   const html = volunteerConsentReminderTemplate(params);
   await emailProvider.send({
     to: params.volunteerEmail,

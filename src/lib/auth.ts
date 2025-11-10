@@ -1,10 +1,12 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { prisma } from "./prisma";
+import { getPrismaClient } from "./prisma";
 import { env } from "./env";
 import { isEmailAllowed } from "./email-domain";
 import { audit } from "./audit";
+
+const prisma = getPrismaClient();
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
