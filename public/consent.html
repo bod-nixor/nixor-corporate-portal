@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-client-id" content="">
+    <title>Consent Form &mdash; Nixor Endeavours</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body data-page="consent">
+    <header class="top-bar">
+        <h1>Volunteer Consent</h1>
+        <div class="user-controls">
+            <div id="user-info" class="user-info hidden"></div>
+            <button id="logout-button" class="secondary hidden">Sign out</button>
+        </div>
+    </header>
+
+    <main class="consent-layout">
+        <section class="card">
+            <h2 id="endeavour-title">Endeavour Title</h2>
+            <p id="endeavour-description"></p>
+            <form id="consent-form">
+                <fieldset>
+                    <legend>Emergency Contact</legend>
+                    <label>
+                        Parent/Guardian Name
+                        <input type="text" name="parentName" required maxlength="128">
+                    </label>
+                    <label>
+                        Relationship
+                        <input type="text" name="relationship" required maxlength="64">
+                    </label>
+                    <label>
+                        Email
+                        <input type="email" name="email" required maxlength="191">
+                    </label>
+                    <label>
+                        Phone
+                        <input type="tel" name="phone" maxlength="32">
+                    </label>
+                </fieldset>
+
+                <fieldset>
+                    <legend>Consent</legend>
+                    <label class="checkbox">
+                        <input type="checkbox" name="agreed" required>
+                        I consent to my child participating in this endeavour and acknowledge responsibility for safety.
+                    </label>
+                    <label class="checkbox">
+                        <input type="checkbox" name="transport" value="1">
+                        I request transport assistance and agree to the associated payment if required.
+                    </label>
+                </fieldset>
+
+                <button class="primary" type="submit">Submit Consent</button>
+            </form>
+        </section>
+    </main>
+
+    <script src="/assets/js/app.js" defer></script>
+</body>
+</html>

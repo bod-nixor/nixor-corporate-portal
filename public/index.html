@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-client-id" content="">
+    <title>Nixor Entities Endeavour Dashboard</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body data-page="dashboard">
+    <header class="top-bar">
+        <h1>Nixor Endeavour Dashboard</h1>
+        <div class="user-controls">
+            <div id="user-info" class="user-info hidden"></div>
+            <button id="login-button" class="primary">Sign in with Google</button>
+            <button id="logout-button" class="secondary hidden">Sign out</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="filters">
+            <label>
+                Entity
+                <select id="filter-entity">
+                    <option value="">All</option>
+                </select>
+            </label>
+            <label>
+                Tags
+                <input type="text" id="filter-tags" placeholder="leadership, fundraising">
+            </label>
+            <label>
+                Date from
+                <input type="date" id="filter-start">
+            </label>
+            <label>
+                Date to
+                <input type="date" id="filter-end">
+            </label>
+            <button id="apply-filters" class="secondary">Apply</button>
+        </section>
+
+        <section id="endeavour-list" class="endeavour-list"></section>
+    </main>
+
+    <template id="endeavour-card-template">
+        <article class="endeavour-card">
+            <header>
+                <h2 class="title"></h2>
+                <span class="entity"></span>
+            </header>
+            <p class="description"></p>
+            <dl class="meta">
+                <div>
+                    <dt>Venue</dt>
+                    <dd class="venue"></dd>
+                </div>
+                <div>
+                    <dt>Schedule</dt>
+                    <dd class="schedule"></dd>
+                </div>
+                <div>
+                    <dt>Status</dt>
+                    <dd class="status-chip"></dd>
+                </div>
+            </dl>
+            <div class="actions">
+                <button class="primary register-button">Register Interest</button>
+                <button class="secondary details-toggle">Details</button>
+            </div>
+            <section class="details hidden">
+                <h3>Details</h3>
+                <div class="tags"></div>
+                <p class="transport"></p>
+            </section>
+        </article>
+    </template>
+
+    <script src="/assets/js/app.js" defer></script>
+</body>
+</html>
