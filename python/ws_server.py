@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import json
 import os
 import time
@@ -13,6 +14,7 @@ WS_HOST = os.environ.get("WS_HOST", "0.0.0.0")
 WS_PORT = int(os.environ.get("WS_PORT", "8765"))
 HTTP_PORT = int(os.environ.get("WS_HTTP_PORT", "8790"))
 APP_URL = os.environ.get("APP_URL", "http://localhost")
+PUBLISH_TOKEN = os.environ.get("WS_PUBLISH_TOKEN")
 
 active_channels: Dict[str, Set[WebSocketServerProtocol]] = {}
 
@@ -50,6 +52,36 @@ def verify_jwt(token: str) -> dict:
     return payload
 
 
+def _normalize_identifier(value: object) -> str:
+    return str(value)
+
+
+def is_channel_authorized(ws: WebSocketServerProtocol, channel: str) -> bool:
+    claims = getattr(ws, "claims", {})
+    role = claims.get("role")
+    elevated_roles = {"ADMIN", "HR"}
+
+    if channel.startswith("public:"):
+        return True
+
+    if channel.startswith("user:"):
+        target = channel.split(":", 1)[1]
+        if target == _normalize_identifier(claims.get("sub")):
+            return True
+        return role in elevated_roles
+
+    if channel.startswith("entity:"):
+        target = channel.split(":", 1)[1]
+        allowed_entities = {
+            _normalize_identifier(entity_id) for entity_id in claims.get("entityIds", [])
+        }
+        if target in allowed_entities:
+            return True
+        return role in elevated_roles
+
+    return False
+
+
 async def register_connection(ws: WebSocketServerProtocol, claims: dict) -> None:
     ws.claims = claims
     await subscribe(ws, f"user:{claims['sub']}")
@@ -58,6 +90,18 @@ async def register_connection(ws: WebSocketServerProtocol, claims: dict) -> None
 
 
 async def subscribe(ws: WebSocketServerProtocol, channel: str) -> None:
+    if not is_channel_authorized(ws, channel):
+        if ws.open:
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": "unauthorized_channel",
+                        "channel": channel,
+                    }
+                )
+            )
+        return
     bucket = active_channels.setdefault(channel, set())
     bucket.add(ws)
     ws.subscriptions = getattr(ws, "subscriptions", set())
@@ -157,6 +201,16 @@ async def http_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWrite
     token = auth_header.replace("Bearer ", "")
     if not token:
         writer.write(b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n")
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+        return
+
+    publish_token = headers.get("x-publish-token", "")
+    if not PUBLISH_TOKEN or not publish_token or not hmac.compare_digest(
+        publish_token, PUBLISH_TOKEN
+    ):
+        writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
         await writer.drain()
         writer.close()
         await writer.wait_closed()
