@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google-client-id" content="">
+    <title>HR Dashboard &mdash; Nixor Endeavours</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body data-page="hr">
+    <header class="top-bar">
+        <h1>HR & Shortlisting</h1>
+        <div class="user-controls">
+            <div id="user-info" class="user-info hidden"></div>
+            <button id="logout-button" class="secondary hidden">Sign out</button>
+        </div>
+    </header>
+
+    <main class="hr-layout">
+        <section class="table-container">
+            <header class="section-header">
+                <h2>Registrations</h2>
+                <div class="section-actions">
+                    <button id="export-csv" class="secondary">Export CSV</button>
+                </div>
+            </header>
+            <table id="registrations-table">
+                <thead>
+                    <tr>
+                        <th>Volunteer</th>
+                        <th>Entity</th>
+                        <th>Endeavour</th>
+                        <th>Status</th>
+                        <th>Registered</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+        <aside id="notes-drawer" class="notes-drawer hidden">
+            <header>
+                <h3>Volunteer Notes</h3>
+                <button id="close-notes" aria-label="Close">&times;</button>
+            </header>
+            <div class="notes-list"></div>
+            <form id="note-form">
+                <textarea name="note" rows="4" placeholder="Add note..." required></textarea>
+                <button class="primary" type="submit">Save Note</button>
+            </form>
+        </aside>
+    </main>
+
+    <script src="/assets/js/app.js" defer></script>
+</body>
+</html>
