@@ -1,9 +1,10 @@
 (function () {
-    const apiBase = '/api';
+    const apiBase = document.querySelector('meta[name="api-base"]')?.content || '/api';
     let session = null;
     let wsClient = null;
     let csrfToken = null;
     let appConfig = {};
+    let googleInitScheduled = false;
 
     document.addEventListener('DOMContentLoaded', () => {
         fetchConfig().then((config) => {
@@ -45,9 +46,20 @@
             })
             .catch(() => renderLoggedOut());
 
-        if (window.google && window.google.accounts && window.google.accounts.id) {
+        initializeGoogleIdentity();
+    }
+
+    function initializeGoogleIdentity() {
+        const clientId = getGoogleClientId();
+        if (!clientId) {
+            console.warn('Google Identity Services client ID is not configured; login is disabled until it is provided.');
+            return;
+        }
+
+        const setup = () => {
+            if (!(window.google && window.google.accounts && window.google.accounts.id)) return false;
             google.accounts.id.initialize({
-                client_id: window.GOOGLE_CLIENT_ID || document.querySelector('meta[name="google-client-id"]')?.content,
+                client_id: clientId,
                 callback: handleGoogleCredential,
                 auto_select: false,
             });
@@ -55,13 +67,19 @@
             if (button) {
                 button.addEventListener('click', () => google.accounts.id.prompt());
             }
-        } else {
-            window.addEventListener('load', () => {
-                if (window.google && window.google.accounts && window.google.accounts.id) {
-                    initAuth();
-                }
-            });
+            return true;
+        };
+
+        if (!setup() && !googleInitScheduled) {
+            googleInitScheduled = true;
+            window.addEventListener('load', setup, { once: true });
         }
+    }
+
+    function getGoogleClientId() {
+        const metaValue = document.querySelector('meta[name="google-client-id"]')?.content || '';
+        const provided = window.GOOGLE_CLIENT_ID || metaValue;
+        return provided.trim();
     }
 
     function handleGoogleCredential(response) {
