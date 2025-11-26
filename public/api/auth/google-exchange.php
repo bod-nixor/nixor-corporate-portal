@@ -9,7 +9,7 @@ use App\Auth\GoogleVerifier;
 use App\Lib\Response;
 use App\Lib\Session;
 use App\Lib\Env;
-use Throwable;
+use App\Lib\Logger;
 
 Session::start();
 
@@ -36,6 +36,7 @@ try {
         'wsToken' => $jwt,
         'wsUrl' => Env::get('WS_URL'),
     ]);
-} catch (Throwable $exception) {
+} catch (\Throwable $exception) {
+    Logger::exception($exception, ['endpoint' => 'auth/google-exchange']);
     Response::json(['message' => 'Authentication failed', 'error' => $exception->getMessage()], 401);
 }
