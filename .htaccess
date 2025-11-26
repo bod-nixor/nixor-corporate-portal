@@ -1,0 +1,18 @@
+# Route all web traffic to the public folder by default
+DirectoryIndex public/index.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Send root requests to the public/ directory
+    RewriteRule ^$ public/ [L]
+
+    # Allow direct access to existing files/folders
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Disable directory browsing at the repo root
+Options -Indexes
