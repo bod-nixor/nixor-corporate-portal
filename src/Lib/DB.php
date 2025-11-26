@@ -6,6 +6,7 @@ namespace App\Lib;
 
 use PDO;
 use PDOException;
+use App\Lib\Logger;
 
 final class DB
 {
@@ -31,6 +32,7 @@ final class DB
                 PDO::ATTR_EMULATE_PREPARES => false,
             ]);
         } catch (PDOException $exception) {
+            Logger::exception($exception, ['dsn' => $dsn]);
             http_response_code(500);
             echo json_encode(['error' => 'Database connection failed']);
             exit;
