@@ -42,6 +42,10 @@ All legacy keys are preserved. Append-only additions are marked with (*).
 1. Create the schema via `sql/schema.sql`.
 2. (Optional) Seed baseline entities: `php scripts/seed.php`.
 
+### Troubleshooting: Database connection errors
+
+- **`SQLSTATE[HY000] [1045] Access denied for user ''@'localhost' (using password: NO)`** – The application is trying to connect without credentials. Populate `DB_USER` and `DB_PASS` in your `.env` file (and ensure `DB_HOST`, `DB_PORT`, and `DB_NAME` are correct) so PDO can authenticate against MySQL.
+
 ### ERD Notes (textual)
 
 - `User` has global `role` and can join entities via `EntityMembership` (role-scoped per entity).
