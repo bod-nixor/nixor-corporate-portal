@@ -1,11 +1,11 @@
 # Route all web traffic to the public folder by default
-DirectoryIndex public/index.html
+DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Send root requests to the public/ directory
-    RewriteRule ^$ public/ [L]
+    # Send root requests directly to the public index
+    RewriteRule ^$ public/index.html [L]
 
     # Allow direct access to existing files/folders
     RewriteCond %{REQUEST_URI} !^/public/
