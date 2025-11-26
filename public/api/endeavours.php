@@ -29,7 +29,7 @@ switch ($_SERVER['REQUEST_METHOD']) {
         break;
     case 'POST':
         Session::requireCsrf($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null);
-        $auth->enforceRoles($user, ['ADMIN', 'ENTITY_MANAGER']);
+        $auth->enforceRoles($user, ['ADMIN', 'ENTITY_MANAGER', 'HR']);
         $input = json_decode(file_get_contents('php://input') ?: 'null', true) ?? [];
         try {
             $payload = [
