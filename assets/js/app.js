@@ -5,6 +5,7 @@
     let csrfToken = null;
     let appConfig = {};
     let googleInitScheduled = false;
+    let endeavourCache = [];
 
     document.addEventListener('DOMContentLoaded', () => {
         fetchConfig().then((config) => {
@@ -16,6 +17,7 @@
         });
         bindGlobalControls();
         bootstrapPage();
+        renderNavigation();
     });
 
     function fetchConfig() {
@@ -132,6 +134,7 @@
             info.textContent = '';
             info.classList.add('hidden');
         }
+        renderNavigation();
     }
 
     function updateUserUi() {
@@ -145,6 +148,7 @@
             info.textContent = `${session.name} (${session.role})`;
             info.classList.remove('hidden');
         }
+        renderNavigation();
     }
 
     function onSessionReady() {
@@ -156,6 +160,7 @@
         } else if (page === 'hr') {
             ensureRole(['HR', 'ADMIN']);
             loadRegistrations();
+            populateEntitiesForHr();
             bindHrEvents();
         } else if (page === 'admin') {
             ensureRole(['ADMIN']);
@@ -170,20 +175,22 @@
     function ensureRole(allowed) {
         if (!session || !allowed.includes(session.role)) {
             alert('You do not have access to this area.');
-            window.location.href = '/index.html';
+            window.location.href = '/';
         }
     }
 
     function setupDashboardEvents() {
-        document.getElementById('apply-filters')?.addEventListener('click', () => loadEndeavours());
+        document.getElementById('search-endeavours')?.addEventListener('input', () => {
+            renderEndeavours(filterEndeavours());
+        });
     }
 
-    function loadEntities() {
+    function loadEntities(selectId = 'filter-entity') {
+        const select = document.getElementById(selectId);
+        if (!select) return;
         fetch(`${apiBase}/entities.php`, { credentials: 'include' })
             .then((res) => res.ok ? res.json() : Promise.reject())
             .then((data) => {
-                const select = document.getElementById('filter-entity');
-                if (!select) return;
                 select.innerHTML = '<option value="">All</option>';
                 data.data.forEach((entity) => {
                     const option = document.createElement('option');
@@ -198,20 +205,35 @@
     function loadEndeavours() {
         const params = new URLSearchParams();
         const entity = document.getElementById('filter-entity')?.value;
-        const tags = document.getElementById('filter-tags')?.value;
         const start = document.getElementById('filter-start')?.value;
         const end = document.getElementById('filter-end')?.value;
         if (entity) params.set('entityId', entity);
-        if (tags) params.set('tags', tags);
         if (start) params.set('startFrom', start);
         if (end) params.set('endTo', end);
 
         fetch(`${apiBase}/endeavours.php?${params.toString()}`, { credentials: 'include' })
             .then((res) => res.ok ? res.json() : Promise.reject(res))
-            .then((data) => renderEndeavours(data.data || []))
+            .then((data) => {
+                endeavourCache = data.data || [];
+                renderEndeavours(filterEndeavours());
+            })
             .catch(() => {
                 document.getElementById('endeavour-list').innerHTML = '<p class="empty">No endeavours found.</p>';
             });
+    }
+
+    function filterEndeavours() {
+        const term = document.getElementById('search-endeavours')?.value?.toLowerCase().trim();
+        if (!term) return endeavourCache;
+        return endeavourCache.filter((item) => {
+            const haystack = [
+                item.title,
+                item.description,
+                item.entity?.name,
+                (item.tags || []).map((tag) => tag.name).join(' '),
+            ].join(' ').toLowerCase();
+            return haystack.includes(term);
+        });
     }
 
     function renderEndeavours(items) {
@@ -219,6 +241,10 @@
         const tpl = document.getElementById('endeavour-card-template');
         if (!container || !tpl) return;
         container.innerHTML = '';
+        if (!items.length) {
+            container.innerHTML = '<p class="empty">No endeavours match your search right now.</p>';
+            return;
+        }
         items.forEach((item) => {
             const node = tpl.content.cloneNode(true);
             node.querySelector('.title').textContent = item.title;
@@ -339,6 +365,37 @@
         document.getElementById('close-notes')?.addEventListener('click', () => {
             document.getElementById('notes-drawer')?.classList.add('hidden');
         });
+
+        document.getElementById('endeavour-form')?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const form = event.target;
+            const payload = {
+                entityId: form.entityId.value,
+                title: form.title.value.trim(),
+                description: form.description.value.trim(),
+                venue: form.venue.value.trim(),
+                startAt: form.startAt.value,
+                endAt: form.endAt.value,
+                maxVolunteers: form.maxVolunteers.value ? parseInt(form.maxVolunteers.value, 10) : null,
+                requiresTransportPayment: form.requiresTransportPayment.checked,
+                tags: [],
+            };
+            fetch(`${apiBase}/endeavours.php`, {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
+                credentials: 'include',
+                body: JSON.stringify(payload),
+            })
+                .then((res) => {
+                    if (!res.ok) return res.json().then((d) => { throw new Error(d.message || 'Unable to create endeavour'); });
+                    return res.json();
+                })
+                .then(() => {
+                    form.reset();
+                    alert('Endeavour created successfully.');
+                })
+                .catch((err) => alert(err.message));
+        });
     }
 
     function updateRegistrationStatus(id, status) {
@@ -437,7 +494,7 @@
                 alert('Consent is required.');
                 return;
             }
-            fetch(`${apiBase}/consent.php`, {
+        fetch(`${apiBase}/consent.php`, {
                 method: 'POST',
                 headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders()),
                 credentials: 'include',
@@ -488,6 +545,23 @@
         return csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
     }
 
+    function populateEntitiesForHr() {
+        fetch(`${apiBase}/entities.php`, { credentials: 'include' })
+            .then((res) => res.ok ? res.json() : Promise.reject())
+            .then((data) => {
+                const select = document.getElementById('endeavour-entity');
+                if (!select) return;
+                select.innerHTML = '<option value="" disabled selected>Select an entity</option>';
+                data.data.forEach((entity) => {
+                    const option = document.createElement('option');
+                    option.value = entity.id;
+                    option.textContent = entity.name;
+                    select.appendChild(option);
+                });
+            })
+            .catch(() => {});
+    }
+
     function formatDate(value) {
         if (!value) return '';
         const date = new Date(value);
@@ -507,5 +581,36 @@
             '"': '&quot;',
             "'": '&#39;',
         })[char]);
+    }
+
+    function renderNavigation() {
+        const container = document.getElementById('nav-links');
+        if (!container) return;
+        const role = session?.role;
+        const links = [
+            { label: 'Home', href: '/', roles: ['ANY'] },
+            { label: 'HR', href: '/hr', roles: ['HR', 'ADMIN'] },
+            { label: 'Admin', href: '/admin', roles: ['ADMIN'] },
+            { label: 'Consent', href: '/consent', roles: ['VOLUNTEER', 'HR', 'ADMIN', 'ENTITY_MANAGER'] },
+        ];
+        container.innerHTML = '';
+        let currentPath = window.location.pathname.replace(/\.html$/, '') || '/';
+        if (currentPath === '/index') currentPath = '/';
+        links.forEach((link) => {
+            if (!canAccessLink(link.roles, role)) return;
+            const anchor = document.createElement('a');
+            anchor.href = link.href;
+            anchor.textContent = link.label;
+            if (currentPath === link.href) {
+                anchor.classList.add('active');
+            }
+            container.appendChild(anchor);
+        });
+    }
+
+    function canAccessLink(roles, currentRole) {
+        if (roles.includes('ANY')) return true;
+        if (!currentRole) return false;
+        return roles.includes(currentRole);
     }
 })();

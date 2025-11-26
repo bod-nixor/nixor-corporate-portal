@@ -11,14 +11,69 @@
 </head>
 <body data-page="hr">
     <header class="top-bar">
-        <h1>HR & Shortlisting</h1>
+        <div class="brand">
+            <div class="logo-mark">HR</div>
+            <div>
+                <p class="eyebrow">Talent Operations</p>
+                <h1>HR &amp; Shortlisting</h1>
+            </div>
+        </div>
+        <nav class="nav-links" id="nav-links"></nav>
         <div class="user-controls">
             <div id="user-info" class="user-info hidden"></div>
+            <button id="login-button" class="primary hidden">Sign in</button>
             <button id="logout-button" class="secondary hidden">Sign out</button>
         </div>
     </header>
 
     <main class="hr-layout">
+        <section class="card" id="hr-create">
+            <header class="section-header">
+                <div>
+                    <p class="eyebrow">Create</p>
+                    <h2>Publish a new endeavour</h2>
+                </div>
+                <p class="muted">Available to HR and admins.</p>
+            </header>
+            <form id="endeavour-form" class="form-grid">
+                <label>
+                    Entity
+                    <select id="endeavour-entity" name="entityId" required></select>
+                </label>
+                <label>
+                    Title
+                    <input type="text" name="title" required minlength="5" maxlength="191" placeholder="Community outreach drive">
+                </label>
+                <label class="wide">
+                    Description
+                    <textarea name="description" rows="4" required minlength="10" maxlength="2000" placeholder="Describe the endeavour, goals, and volunteer expectations."></textarea>
+                </label>
+                <label>
+                    Venue
+                    <input type="text" name="venue" required minlength="3" maxlength="191" placeholder="Main campus auditorium">
+                </label>
+                <label>
+                    Starts
+                    <input type="datetime-local" name="startAt" required>
+                </label>
+                <label>
+                    Ends
+                    <input type="datetime-local" name="endAt" required>
+                </label>
+                <label>
+                    Max volunteers
+                    <input type="number" name="maxVolunteers" min="0" max="1000" placeholder="Leave blank for no cap">
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="requiresTransportPayment">
+                    Transport payment required
+                </label>
+                <div class="form-actions">
+                    <button class="primary" type="submit">Create endeavour</button>
+                </div>
+            </form>
+        </section>
+
         <section class="table-container">
             <header class="section-header">
                 <h2>Registrations</h2>

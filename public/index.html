@@ -11,35 +11,31 @@
 </head>
 <body data-page="dashboard">
     <header class="top-bar">
-        <h1>Nixor Endeavour Dashboard</h1>
+        <div class="brand">
+            <div class="logo-mark">N</div>
+            <div>
+                <p class="eyebrow">Nixor Corporate Portal</p>
+                <h1>Endeavour Spotlight</h1>
+            </div>
+        </div>
+        <nav class="nav-links" id="nav-links"></nav>
         <div class="user-controls">
             <div id="user-info" class="user-info hidden"></div>
-            <button id="login-button" class="primary">Sign in with Google</button>
+            <button id="login-button" class="primary">Sign in</button>
             <button id="logout-button" class="secondary hidden">Sign out</button>
         </div>
     </header>
 
     <main>
-        <section class="filters">
-            <label>
-                Entity
-                <select id="filter-entity">
-                    <option value="">All</option>
-                </select>
-            </label>
-            <label>
-                Tags
-                <input type="text" id="filter-tags" placeholder="leadership, fundraising">
-            </label>
-            <label>
-                Date from
-                <input type="date" id="filter-start">
-            </label>
-            <label>
-                Date to
-                <input type="date" id="filter-end">
-            </label>
-            <button id="apply-filters" class="secondary">Apply</button>
+        <section class="hero">
+            <div>
+                <p class="eyebrow">Discover &amp; volunteer</p>
+                <h2>Explore every available endeavour in one modern view.</h2>
+                <p class="muted">Use the search bar to instantly filter cards by title, description, tags, or entity.</p>
+            </div>
+            <div class="search-bar">
+                <input type="search" id="search-endeavours" placeholder="Search endeavours by keyword">
+            </div>
         </section>
 
         <section id="endeavour-list" class="endeavour-list"></section>

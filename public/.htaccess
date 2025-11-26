@@ -7,3 +7,11 @@
 </IfModule>
 
 Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(admin|hr|consent)/?$ $1.html [L]
+    RewriteRule ^$ index.html [L]
+</IfModule>
