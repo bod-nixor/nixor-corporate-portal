@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS Endeavour (
     createdByUserId CHAR(36) NOT NULL,
     createdAt DATETIME(3) NOT NULL,
     updatedAt DATETIME(3) NOT NULL,
+    INDEX idx_endeavour_start (startAt),
     INDEX idx_endeavour_entity (entityId, startAt),
     CONSTRAINT fk_endeavour_entity FOREIGN KEY (entityId) REFERENCES Entity(id) ON DELETE RESTRICT,
     CONSTRAINT fk_endeavour_creator FOREIGN KEY (createdByUserId) REFERENCES User(id) ON DELETE RESTRICT
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS Registration (
     status ENUM('REGISTERED','SHORTLISTED','CONSENT_PENDING','PAYMENT_PENDING','CONFIRMED','REJECTED','WITHDRAWN') NOT NULL DEFAULT 'REGISTERED',
     registeredAt DATETIME(3) NOT NULL,
     updatedAt DATETIME(3) NOT NULL,
+    INDEX idx_registration_volunteer (volunteerId, registeredAt),
     UNIQUE KEY uniq_registration (endeavourId, volunteerId),
     INDEX idx_registration_status (status),
     INDEX idx_registration_composite (endeavourId, status),
@@ -155,6 +157,7 @@ CREATE TABLE IF NOT EXISTS AuditLog (
     subjectId CHAR(36) NULL,
     metadataJson JSON NULL,
     createdAt DATETIME(3) NOT NULL,
+    INDEX idx_audit_created_at (createdAt),
     INDEX idx_audit_subject (subjectId),
     INDEX idx_audit_action_date (action, createdAt),
     CONSTRAINT fk_audit_actor FOREIGN KEY (actorUserId) REFERENCES User(id) ON DELETE RESTRICT
