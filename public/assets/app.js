@@ -8,24 +8,32 @@ const DEFAULT_API_BASE = '/api';
 const FALLBACK_API_BASE = '/api/index.php';
 const API_BASE = window.API_BASE || DEFAULT_API_BASE;
 let preferredBase = API_BASE;
-const WS_URL = window.WS_URL || 'ws://localhost:8765';
-const WS_TOKEN = window.WS_TOKEN || '';
+let portalConfig = {
+  ws_url: window.WS_URL || '',
+  ws_token: window.WS_TOKEN || '',
+  poll_interval: 8
+};
 let csrfToken = '';
 
 export function setCsrfToken(token) {
   csrfToken = token || '';
 }
 
+export function getCsrfToken() {
+  const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+  const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+  return cookieToken || csrfToken;
+}
+
 export async function apiFetch(path, options = {}) {
   const { skipFallback, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
-  const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-  const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
-  const resolvedCsrf = cookieToken || csrfToken;
+  const resolvedCsrf = getCsrfToken();
   const headers = {
     ...(fetchOptions.headers || {})
   };
-  if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type']) {
+  const isFormData = fetchOptions.body instanceof FormData;
+  if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type'] && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && resolvedCsrf) {
@@ -73,10 +81,15 @@ export async function apiFetch(path, options = {}) {
 }
 
 export function connectWebsocket(onMessage) {
+  const wsUrl = portalConfig.ws_url;
+  const wsToken = portalConfig.ws_token || '';
+  if (!wsUrl) {
+    return null;
+  }
   let socket;
   let retries = 0;
   let shouldReconnect = true;
-  const wsEndpoint = WS_TOKEN ? `${WS_URL}?token=${encodeURIComponent(WS_TOKEN)}` : WS_URL;
+  const wsEndpoint = wsToken ? `${wsUrl}?token=${encodeURIComponent(wsToken)}` : wsUrl;
 
   const connect = () => {
     try {
@@ -105,4 +118,84 @@ export function connectWebsocket(onMessage) {
 
   connect();
   return socket;
+}
+
+export async function loadConfig() {
+  try {
+    const response = await apiFetch('/config', { skipFallback: true });
+    portalConfig = {
+      ...portalConfig,
+      ...(response?.data || {})
+    };
+  } catch (err) {
+    console.warn('Failed to load config', err);
+  }
+  return portalConfig;
+}
+
+export function getConfig() {
+  return portalConfig;
+}
+
+export async function subscribeUpdates(onEvent) {
+  await loadConfig();
+  const pollInterval = Math.max(4, parseInt(portalConfig.poll_interval, 10) || 8);
+  let lastEventId = 0;
+  let pollingTimer;
+  let isPolling = false;
+  const poll = async () => {
+    if (isPolling) {
+      return;
+    }
+    isPolling = true;
+    try {
+      const response = await apiFetch(`/updates?since=${lastEventId}`);
+      const events = response?.data?.events || [];
+      events.forEach((event) => onEvent?.(event, response?.data?.related || {}));
+      lastEventId = response?.data?.last_event_id || lastEventId;
+    } catch (err) {
+      console.warn('Polling updates failed', err);
+    } finally {
+      isPolling = false;
+      pollingTimer = setTimeout(poll, pollInterval * 1000);
+    }
+  };
+
+  const socket = connectWebsocket((data) => {
+    onEvent?.(data, {});
+  });
+
+  if (!socket) {
+    poll();
+    return () => {
+      clearTimeout(pollingTimer);
+      isPolling = false;
+    };
+  }
+
+  const fallbackTimer = setTimeout(() => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      poll();
+    }
+  }, 3000);
+
+  socket.addEventListener('open', () => {
+    clearTimeout(fallbackTimer);
+    isPolling = false;
+    clearTimeout(pollingTimer);
+  });
+  socket.addEventListener('close', () => {
+    clearTimeout(pollingTimer);
+    poll();
+  });
+  socket.addEventListener('error', () => {
+    clearTimeout(pollingTimer);
+    poll();
+  });
+  return () => {
+    clearTimeout(fallbackTimer);
+    clearTimeout(pollingTimer);
+    isPolling = false;
+    socket.close();
+  };
 }

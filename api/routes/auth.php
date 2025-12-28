@@ -36,7 +36,17 @@ function handle_auth(string $method, array $segments): void {
 
     if ($action === 'me' && $method === 'GET') {
         $user = current_user();
-        respond(['ok' => true, 'data' => ['user' => $user ? sanitize_user($user) : null]]);
+        $entities = [];
+        if ($user) {
+            if (in_array($user['global_role'], ['admin', 'board'], true)) {
+                $entities = db()->query('SELECT * FROM entities ORDER BY name')->fetchAll();
+            } else {
+                $stmt = db()->prepare('SELECT e.* FROM entities e JOIN entity_memberships em ON e.id = em.entity_id WHERE em.user_id = ? ORDER BY e.name');
+                $stmt->execute([$user['id']]);
+                $entities = $stmt->fetchAll();
+            }
+        }
+        respond(['ok' => true, 'data' => ['user' => $user ? sanitize_user($user) : null, 'entities' => $entities]]);
     }
 
     if ($action === 'csrf' && $method === 'GET') {

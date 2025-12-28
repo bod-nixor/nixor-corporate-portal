@@ -5,25 +5,64 @@ function handle_endeavours(string $method, array $segments): void {
 
     if ($method === 'GET' && !$id) {
         $user = require_auth();
-        $rows = db()->query('SELECT e.*, en.name AS entity_name FROM endeavours e JOIN entities en ON e.entity_id = en.id ORDER BY e.created_at DESC')->fetchAll();
+        $params = [];
+        $filters = [];
+        if (!in_array($user['global_role'], ['admin', 'board'], true)) {
+            $filters[] = 'e.entity_id IN (SELECT entity_id FROM entity_memberships WHERE user_id = ?)';
+            $params[] = $user['id'];
+        }
+        if (!empty($_GET['entity_id'])) {
+            $filters[] = 'e.entity_id = ?';
+            $params[] = (int)$_GET['entity_id'];
+        }
+        if (!empty($_GET['status'])) {
+            $allowedStatuses = [
+                'draft',
+                'pending_board_approval',
+                'board_approved_ops_plan_required',
+                'ops_plan_pending_board_approval',
+                'ops_plan_approved_mou_optional',
+                'mou_pending_board_approval',
+                'mou_approved_pre_financial_required',
+                'pre_financial_pending_board_approval',
+                'finance_approved_hr_posting_optional',
+                'volunteer_posting_pending_board_approval',
+                'volunteer_posting_approved_hr_publish',
+                'live_volunteer_posting',
+                'post_financial_pending_board_approval',
+                'closed_ops_epilogue_required',
+                'completed',
+                'rejected'
+            ];
+            if (!in_array($_GET['status'], $allowedStatuses, true)) {
+                respond(['ok' => false, 'error' => 'Invalid status filter'], 400);
+            }
+            $filters[] = 'e.status = ?';
+            $params[] = $_GET['status'];
+        }
+        $where = $filters ? ('WHERE ' . implode(' AND ', $filters)) : '';
+        $stmt = db()->prepare("SELECT e.*, en.name AS entity_name FROM endeavours e JOIN entities en ON e.entity_id = en.id {$where} ORDER BY e.created_at DESC");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
         respond(['ok' => true, 'data' => $rows, 'meta' => ['user' => $user]]);
     }
 
     if ($method === 'POST' && !$id) {
         $user = require_role(['admin', 'ceo']);
         $data = read_json();
-        if (empty($data['entity_id']) || empty($data['name'])) {
-            respond(['ok' => false, 'error' => 'entity_id and name are required'], 400);
+        if (empty($data['entity_id'])) {
+            respond(['ok' => false, 'error' => 'entity_id is required'], 400);
         }
+        $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, venue, schedule, start_date, end_date, transport_payment_required, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $data['entity_id'],
             $user['id'],
-            $data['name'],
+            $name,
             $data['type_id'] ?? null,
-            $data['description'] ?? '',
-            $data['venue'] ?? '',
-            $data['schedule'] ?? '',
+            sanitize_text($data['description'] ?? '', 2000),
+            sanitize_text($data['venue'] ?? '', 190),
+            sanitize_text($data['schedule'] ?? '', 500),
             $data['start_date'] ?? null,
             $data['end_date'] ?? null,
             $data['transport_payment_required'] ?? 0,
@@ -40,9 +79,37 @@ function handle_endeavours(string $method, array $segments): void {
         $stmt = db()->prepare('SELECT e.*, en.name AS entity_name FROM endeavours e JOIN entities en ON e.entity_id = en.id WHERE e.id = ?');
         $stmt->execute([$id]);
         $endeavour = $stmt->fetch();
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        ensure_entity_access((int)$endeavour['entity_id'], []);
+        $docsStmt = db()->prepare('SELECT ed.*, u.full_name FROM endeavour_documents ed JOIN users u ON ed.uploaded_by = u.id WHERE ed.endeavour_id = ? ORDER BY ed.uploaded_at DESC');
+        $docsStmt->execute([$id]);
+        $postsStmt = db()->prepare('SELECT vp.* FROM volunteer_posts vp WHERE vp.endeavour_id = ? ORDER BY vp.created_at DESC');
+        $postsStmt->execute([$id]);
+        $appsStmt = db()->prepare('SELECT va.*, u.full_name, s.student_id FROM volunteer_applications va JOIN students s ON va.student_id = s.id JOIN users u ON s.user_id = u.id WHERE va.volunteer_post_id IN (SELECT id FROM volunteer_posts WHERE endeavour_id = ?) ORDER BY va.created_at DESC');
+        $appsStmt->execute([$id]);
+        $appIdStmt = db()->prepare('SELECT va.id FROM volunteer_applications va JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE vp.endeavour_id = ?');
+        $appIdStmt->execute([$id]);
+        $applicationIds = array_map(fn($row) => (int)$row['id'], $appIdStmt->fetchAll());
+        $payments = [];
+        $attendance = [];
+        $consents = [];
+        if ($applicationIds) {
+            $placeholders = implode(',', array_fill(0, count($applicationIds), '?'));
+            $paymentsStmt = db()->prepare("SELECT * FROM payments WHERE volunteer_application_id IN ({$placeholders})");
+            $paymentsStmt->execute($applicationIds);
+            $payments = $paymentsStmt->fetchAll();
+            $attendanceStmt = db()->prepare("SELECT * FROM attendance WHERE volunteer_application_id IN ({$placeholders})");
+            $attendanceStmt->execute($applicationIds);
+            $attendance = $attendanceStmt->fetchAll();
+            $consentStmt = db()->prepare("SELECT * FROM consents WHERE volunteer_application_id IN ({$placeholders})");
+            $consentStmt->execute($applicationIds);
+            $consents = $consentStmt->fetchAll();
+        }
         $activity = db()->prepare('SELECT a.*, u.full_name FROM activity_log a LEFT JOIN users u ON a.actor_id = u.id WHERE entity_type = "endeavour" AND entity_id = ? ORDER BY a.created_at DESC');
         $activity->execute([$id]);
-        respond(['ok' => true, 'data' => ['endeavour' => $endeavour, 'activity' => $activity->fetchAll()], 'meta' => ['user' => $user]]);
+        respond(['ok' => true, 'data' => ['endeavour' => $endeavour, 'documents' => $docsStmt->fetchAll(), 'posts' => $postsStmt->fetchAll(), 'applications' => $appsStmt->fetchAll(), 'payments' => $payments, 'attendance' => $attendance, 'consents' => $consents, 'activity' => $activity->fetchAll()], 'meta' => ['user' => $user]]);
     }
 
     if ($method === 'PUT' && $id && !$action) {
@@ -52,15 +119,13 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
         }
         $data = read_json();
-        if (empty($data['name'])) {
-            respond(['ok' => false, 'error' => 'name is required'], 400);
-        }
+        $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ? WHERE id = ?');
         $stmt->execute([
-            $data['name'],
-            $data['description'] ?? null,
-            $data['venue'] ?? null,
-            $data['schedule'] ?? null,
+            $name,
+            sanitize_text($data['description'] ?? '', 2000),
+            sanitize_text($data['venue'] ?? '', 190),
+            sanitize_text($data['schedule'] ?? '', 500),
             $data['start_date'] ?? null,
             $data['end_date'] ?? null,
             $data['transport_payment_required'] ?? 0,
@@ -102,13 +167,17 @@ function handle_endeavours(string $method, array $segments): void {
     if ($id && $action === 'request_post_to_feed' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['hr']);
         $data = read_json();
+        $description = require_non_empty($data['description'] ?? '', 'description', 2000);
+        $eligibility = sanitize_text($data['eligibility_notes'] ?? '', 1000);
+        $venue = sanitize_text($data['venue'] ?? '', 190);
+        $schedule = sanitize_text($data['schedule'] ?? '', 500);
         $stmt = db()->prepare('INSERT INTO volunteer_posts (endeavour_id, description, eligibility_notes, venue, schedule, transport_payment, questionnaire_mode, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $id,
-            $data['description'] ?? '',
-            $data['eligibility_notes'] ?? '',
-            $data['venue'] ?? '',
-            $data['schedule'] ?? '',
+            $description,
+            $eligibility,
+            $venue,
+            $schedule,
             $data['transport_payment'] ?? 0,
             $data['questionnaire_mode'] ?? 0,
             $user['id']
@@ -167,10 +236,22 @@ function handle_endeavours(string $method, array $segments): void {
         if (!$student) {
             respond(['ok' => false, 'error' => 'Student profile required'], 400);
         }
+        $attendanceDate = $data['attendance_date'] ?? null;
+        if ($attendanceDate !== null) {
+            $dt = DateTime::createFromFormat('Y-m-d', $attendanceDate);
+            if (!$dt || $dt->format('Y-m-d') !== $attendanceDate) {
+                respond(['ok' => false, 'error' => 'Invalid attendance_date format (expected Y-m-d)'], 400);
+            }
+        }
         $stmt = db()->prepare('INSERT INTO volunteer_applications (volunteer_post_id, student_id, answers_json) VALUES (?, ?, ?)');
         $stmt->execute([$postId, $student['id'], json_encode($data['answers'] ?? [])]);
+        $applicationId = (int)db()->lastInsertId();
+        $payment = db()->prepare('INSERT INTO payments (volunteer_application_id, transport_payment_due) VALUES (?, ?)');
+        $payment->execute([$applicationId, $data['transport_payment_due'] ?? 0]);
+        $attendance = db()->prepare('INSERT INTO attendance (volunteer_application_id, attendance_date) VALUES (?, ?)');
+        $attendance->execute([$applicationId, $attendanceDate]);
         emit_ws_event('endeavour.application_submitted', ['id' => $id]);
-        respond(['ok' => true, 'data' => ['id' => (int)db()->lastInsertId()]]);
+        respond(['ok' => true, 'data' => ['id' => $applicationId]]);
     }
 
     if ($id && $action === 'shortlist' && $method === 'POST') {
@@ -189,7 +270,43 @@ function handle_endeavours(string $method, array $segments): void {
         $stmt->execute([$applicationId, $user['id']]);
         $update = db()->prepare('UPDATE volunteer_applications SET status = "shortlisted" WHERE id = ?');
         $update->execute([$applicationId]);
+        log_activity($user['id'], 'endeavour', $id, 'shortlisted', 'Application shortlisted', ['application_id' => $applicationId]);
         emit_ws_event('endeavour.shortlisted', ['id' => $id]);
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'consent' && ($segments[3] ?? '') === 'request' && $method === 'POST') {
+        $user = ensure_entity_access(fetch_entity_id($id), ['hr']);
+        $data = read_json();
+        if (empty($data['application_id']) || !is_numeric($data['application_id'])) {
+            respond(['ok' => false, 'error' => 'application_id required'], 400);
+        }
+        $applicationId = (int)$data['application_id'];
+        $check = db()->prepare('SELECT va.id, s.parent_email, s.parent_email_secondary FROM volunteer_applications va JOIN students s ON va.student_id = s.id JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE va.id = ? AND vp.endeavour_id = ?');
+        $check->execute([$applicationId, $id]);
+        $row = $check->fetch();
+        if (!$row) {
+            respond(['ok' => false, 'error' => 'Application not found'], 404);
+        }
+        $parentEmail = $row['parent_email'] ?: $row['parent_email_secondary'];
+        if (!$parentEmail) {
+            respond(['ok' => false, 'error' => 'Parent email missing'], 400);
+        }
+        $token = bin2hex(random_bytes(24));
+        $existing = db()->prepare('SELECT id, token FROM consents WHERE volunteer_application_id = ? AND status = "pending"');
+        $existing->execute([$applicationId]);
+        $consent = $existing->fetch();
+        if ($consent) {
+            $token = $consent['token'];
+        } else {
+            $insert = db()->prepare('INSERT INTO consents (volunteer_application_id, parent_email, token) VALUES (?, ?, ?)');
+            $insert->execute([$applicationId, $parentEmail, $token]);
+        }
+        $link = base_url() . '/consent.html?token=' . urlencode($token) . '&endeavour_id=' . urlencode((string)$id);
+        $body = '<p>Please sign the parent consent for the Nixor endeavour.</p><p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">Sign consent</a></p>';
+        send_email($parentEmail, 'Parent Consent Required', $body, true);
+        log_activity($user['id'], 'endeavour', $id, 'consent_requested', 'Consent requested', ['application_id' => $applicationId]);
+        emit_ws_event('endeavour.consent_requested', ['id' => $id]);
         respond(['ok' => true]);
     }
 
@@ -202,8 +319,15 @@ function handle_endeavours(string $method, array $segments): void {
         if (empty($data['token']) || !preg_match('/^[a-zA-Z0-9_-]{32,}$/', $data['token'])) {
             respond(['ok' => false, 'error' => 'Invalid token'], 400);
         }
-        $stmt = db()->prepare('UPDATE consents SET status = "signed", signed_at = NOW(), signature_name = ? WHERE token = ?');
-        $stmt->execute([$data['signature_name'] ?? '', $data['token']]);
+        $check = db()->prepare('SELECT c.id FROM consents c JOIN volunteer_applications va ON c.volunteer_application_id = va.id JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE c.token = ? AND vp.endeavour_id = ?');
+        $check->execute([$data['token'], $id]);
+        $row = $check->fetch();
+        if (!$row) {
+            respond(['ok' => false, 'error' => 'Consent not found'], 404);
+        }
+        $stmt = db()->prepare('UPDATE consents SET status = "signed", signed_at = NOW(), signature_name = ? WHERE id = ?');
+        $stmt->execute([sanitize_text($data['signature_name'] ?? '', 190), $row['id']]);
+        log_activity(null, 'endeavour', $id, 'consent_signed', 'Consent signed');
         emit_ws_event('endeavour.consent_signed', ['id' => $id]);
         respond(['ok' => true]);
     }
@@ -223,6 +347,7 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $stmt = db()->prepare('UPDATE payments SET paid_flag = 1, paid_by = ?, paid_at = NOW(), receipt_ref = ? WHERE volunteer_application_id = ?');
         $stmt->execute([$user['id'], $receiptRef, $applicationId]);
+        log_activity($user['id'], 'endeavour', $id, 'payment_marked', 'Payment marked', ['application_id' => $applicationId]);
         emit_ws_event('endeavour.payment_marked', ['id' => $id]);
         respond(['ok' => true]);
     }
@@ -256,6 +381,7 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $stmt = db()->prepare('UPDATE attendance SET status = ?, marked_by = ?, marked_at = NOW() WHERE volunteer_application_id = ?');
         $stmt->execute([$status, $user['id'], $applicationId]);
+        log_activity($user['id'], 'endeavour', $id, 'attendance_marked', 'Attendance marked', ['application_id' => $applicationId, 'status' => $status]);
         emit_ws_event('endeavour.attendance_marked', ['id' => $id]);
         respond(['ok' => true]);
     }

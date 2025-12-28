@@ -28,103 +28,107 @@
           <p id="endeavour-meta" class="text-sm text-slate-400">Entity: Nixor Community Entity · 12 Apr - 14 Apr</p>
         </div>
         <div class="flex gap-3">
-          <button class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-sm" onclick="alert('Approval request coming soon')">Request Board Approval</button>
-          <button class="bg-indigo-500 px-4 py-2 rounded-xl text-sm" onclick="alert('Document upload coming soon')">Upload Document</button>
+          <button id="open-approval" class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-sm">Record Approval</button>
+          <button id="open-upload" class="bg-indigo-500 px-4 py-2 rounded-xl text-sm">Upload Document</button>
         </div>
       </header>
+  <div id="action-status" class="hidden text-sm rounded-xl px-4 py-3 mt-4" role="status" aria-live="polite"></div>
+  <div id="page-loading" class="text-sm text-slate-400 mt-4">Loading endeavour...</div>
 
       <section class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2 space-y-6">
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <h2 class="text-lg font-semibold">Stage Timeline</h2>
-            <div class="mt-4 space-y-4">
-              <div class="flex items-start gap-4">
-                <div class="w-3 h-3 rounded-full bg-emerald-400 mt-1"></div>
-                <div>
-                  <p class="text-sm font-medium">Board Approved / Ops Plan Required</p>
-                  <p class="text-xs text-slate-500">Approved by Board · 10 Apr 2024 11:12 AM</p>
-                </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <div class="w-3 h-3 rounded-full bg-amber-300 mt-1"></div>
-                <div>
-                  <p class="text-sm font-medium">Ops Plan Pending Board Approval</p>
-                  <p class="text-xs text-slate-500">Uploaded by Operations · 11 Apr 2024 4:20 PM</p>
-                </div>
-              </div>
-              <div class="flex items-start gap-4">
-                <div class="w-3 h-3 rounded-full bg-slate-600 mt-1"></div>
-                <div>
-                  <p class="text-sm font-medium">Finance Pre-Financial Pending Board Approval</p>
-                  <p class="text-xs text-slate-500">Awaiting upload</p>
-                </div>
-              </div>
-            </div>
+            <div id="timeline-list" class="mt-4 space-y-4 text-sm text-slate-400" role="status" aria-live="polite"></div>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <div class="flex items-center justify-between">
               <h2 class="text-lg font-semibold">Documents</h2>
-              <button class="text-sm text-indigo-300">Upload new</button>
+              <button id="upload-shortcut" class="text-sm text-indigo-300">Upload new</button>
             </div>
-            <div class="mt-4 space-y-3 text-sm">
-              <div class="flex justify-between items-center">
-                <span>Operations Plan.pdf</span>
-                <span class="text-slate-500">Uploaded 11 Apr</span>
-              </div>
-              <div class="flex justify-between items-center">
-                <span>MoU Draft.docx</span>
-                <span class="text-slate-500">Pending</span>
-              </div>
-            </div>
+            <div id="documents-list" class="mt-4 space-y-3 text-sm" role="status" aria-live="polite"></div>
+            <p id="documents-empty" class="hidden text-sm text-slate-500 mt-4">No documents uploaded yet.</p>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <h2 class="text-lg font-semibold">Volunteer Pipeline</h2>
             <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
                 <p class="text-slate-400">Applicants</p>
-                <p class="text-2xl font-semibold mt-2">48</p>
+                <p id="pipeline-applicants" class="text-2xl font-semibold mt-2">0</p>
               </div>
               <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
                 <p class="text-slate-400">Shortlisted</p>
-                <p class="text-2xl font-semibold mt-2">18</p>
+                <p id="pipeline-shortlisted" class="text-2xl font-semibold mt-2">0</p>
               </div>
               <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
                 <p class="text-slate-400">Consent Received</p>
-                <p class="text-2xl font-semibold mt-2">12</p>
+                <p id="pipeline-consent" class="text-2xl font-semibold mt-2">0</p>
               </div>
             </div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h2 class="text-lg font-semibold">Volunteer Posts</h2>
+            <div id="posts-list" class="mt-4 space-y-3 text-sm" role="status" aria-live="polite"></div>
+            <div class="mt-6 border-t border-slate-800 pt-4">
+              <h3 class="text-sm font-semibold text-slate-300">Request Volunteer Posting</h3>
+              <form id="post-form" class="space-y-3 mt-3">
+                <textarea name="description" rows="3" required class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Volunteer description"></textarea>
+                <input name="venue" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Venue" />
+                <input name="schedule" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Schedule" />
+                <input name="transport_payment" type="number" min="0" step="0.01" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Transport payment" />
+                <div id="post-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+                <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Request Post</button>
+              </form>
+            </div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h2 class="text-lg font-semibold">Applications</h2>
+            <div class="overflow-x-auto mt-4">
+              <table class="w-full text-sm">
+                <thead class="text-slate-400">
+                  <tr>
+                    <th class="text-left py-2">Applicant</th>
+                    <th class="text-left py-2">Status</th>
+                    <th class="text-left py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="applications-list" role="status" aria-live="polite"></tbody>
+              </table>
+            </div>
+            <p id="applications-empty" class="hidden text-sm text-slate-500 mt-4">No applications yet.</p>
           </div>
         </div>
         <aside class="space-y-6">
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <h2 class="text-lg font-semibold">Approvals</h2>
-            <div class="mt-4 space-y-3 text-sm">
-              <div class="flex items-center justify-between">
-                <span>Board</span>
-                <span class="text-emerald-400">Approved</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span>Admin</span>
-                <span class="text-amber-300">Pending</span>
-              </div>
-            </div>
+            <form id="approval-form" class="mt-4 space-y-3 text-sm">
+              <select name="decision" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm">
+                <option value="approved">Approve</option>
+                <option value="rejected">Reject</option>
+              </select>
+              <textarea name="notes" rows="3" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm" placeholder="Notes (optional)"></textarea>
+              <div id="approval-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+              <button type="submit" class="w-full bg-slate-800 rounded-xl px-4 py-2">Submit Decision</button>
+            </form>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <h2 class="text-lg font-semibold">Activity</h2>
-            <div class="mt-4 space-y-4 text-sm">
-              <div>
-                <p class="text-slate-400">Ops plan uploaded</p>
-                <p class="text-xs text-slate-500">by Omar Khan · 2 hours ago</p>
-              </div>
-              <div>
-                <p class="text-slate-400">Board approved draft</p>
-                <p class="text-xs text-slate-500">by Board Team · Yesterday</p>
-              </div>
-              <div>
-                <p class="text-slate-400">Volunteer post requested</p>
-                <p class="text-xs text-slate-500">by HR · 2 days ago</p>
-              </div>
-            </div>
+            <h2 class="text-lg font-semibold">Upload Document</h2>
+            <form id="document-form" class="mt-4 space-y-3 text-sm">
+              <select name="doc_type" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm">
+                <option value="ops_plan">Operations Plan</option>
+                <option value="mou">MoU</option>
+                <option value="pre_financial">Pre-Financial</option>
+                <option value="post_financial">Post-Financial</option>
+                <option value="epilogue">Epilogue</option>
+              </select>
+              <input name="document" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" class="w-full text-sm text-slate-300" />
+              <div id="document-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+              <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-2">Upload</button>
+            </form>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h2 class="text-lg font-semibold">Recent Activity</h2>
+            <div id="activity-list" class="mt-4 space-y-4 text-sm text-slate-400" role="status" aria-live="polite"></div>
           </div>
         </aside>
       </section>
@@ -134,29 +138,348 @@
     import { apiFetch } from '/assets/app.js';
 
     const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
     const nameEl = document.getElementById('endeavour-name');
-    if (!id) {
-      if (nameEl) nameEl.textContent = 'Missing endeavour ID';
-    } else {
-      apiFetch(`/endeavours/${id}`)
-        .then(({ data }) => {
-          const endeavour = data?.endeavour;
-          if (!endeavour) return;
-          const statusEl = document.getElementById('endeavour-status');
-          const metaEl = document.getElementById('endeavour-meta');
-          if (statusEl) statusEl.textContent = (endeavour.status || '').replace(/_/g, ' ');
-          if (nameEl) nameEl.textContent = endeavour.name || 'Endeavour';
-          if (metaEl) {
-            const dates = [endeavour.start_date, endeavour.end_date].filter(Boolean).join(' - ');
-            metaEl.textContent = `Entity: ${endeavour.entity_name || 'Nixor Entity'}${dates ? ` · ${dates}` : ''}`;
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to load endeavour:', err);
-          if (nameEl) nameEl.textContent = 'Failed to load endeavour';
-        });
+    if (!nameEl) {
+      return;
     }
+    const id = params.get('id');
+    if (id && !/^\d+$/.test(id)) {
+      nameEl.textContent = 'Invalid endeavour ID';
+      return;
+    }
+    const statusEl = document.getElementById('endeavour-status');
+    const metaEl = document.getElementById('endeavour-meta');
+    const timelineList = document.getElementById('timeline-list');
+    const documentsList = document.getElementById('documents-list');
+    const documentsEmpty = document.getElementById('documents-empty');
+    const pipelineApplicants = document.getElementById('pipeline-applicants');
+    const pipelineShortlisted = document.getElementById('pipeline-shortlisted');
+    const pipelineConsent = document.getElementById('pipeline-consent');
+    const postsList = document.getElementById('posts-list');
+    const applicationsList = document.getElementById('applications-list');
+    const applicationsEmpty = document.getElementById('applications-empty');
+    const activityList = document.getElementById('activity-list');
+    const approvalForm = document.getElementById('approval-form');
+    const documentForm = document.getElementById('document-form');
+    const postForm = document.getElementById('post-form');
+    const approvalStatus = document.getElementById('approval-status');
+    const documentStatus = document.getElementById('document-status');
+    const postStatus = document.getElementById('post-status');
+    const actionStatus = document.getElementById('action-status');
+
+    const normalizeError = (err) => {
+      const message = err?.message || '';
+      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
+    };
+
+    const setStatus = (el, message, ok) => {
+      el.textContent = message;
+      el.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      el.classList.remove('hidden');
+    };
+
+    const loadingEl = document.getElementById('page-loading');
+
+    const loadEndeavour = async () => {
+      if (!id) {
+        nameEl.textContent = 'Missing endeavour ID';
+        if (loadingEl) loadingEl.classList.add('hidden');
+        return;
+      }
+      try {
+        const { data } = await apiFetch(`/endeavours/${id}`);
+        const endeavour = data?.endeavour;
+          if (!endeavour) {
+            if (loadingEl) loadingEl.classList.add('hidden');
+            return;
+          }
+        statusEl.textContent = (endeavour.status || '').replace(/_/g, ' ');
+        nameEl.textContent = endeavour.name || 'Endeavour';
+        const dates = [endeavour.start_date, endeavour.end_date].filter(Boolean).join(' - ');
+        metaEl.textContent = `Entity: ${endeavour.entity_name || 'Nixor Entity'}${dates ? ` · ${dates}` : ''}`;
+
+        timelineList.innerHTML = '';
+        const timelineItems = (data.activity || []).slice(0, 6);
+        if (!timelineItems.length) {
+          const empty = document.createElement('p');
+          empty.className = 'text-sm text-slate-500';
+          empty.textContent = 'No activity logged yet.';
+          timelineList.appendChild(empty);
+        }
+        timelineItems.forEach((entry) => {
+          const item = document.createElement('div');
+          item.className = 'flex items-start gap-4';
+          const dot = document.createElement('div');
+          dot.className = 'w-3 h-3 rounded-full bg-indigo-400 mt-1';
+          const content = document.createElement('div');
+          const title = document.createElement('p');
+          title.className = 'text-sm font-medium text-slate-200';
+          title.textContent = entry.action.replace(/_/g, ' ');
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-slate-500';
+          const who = entry.full_name ? `by ${entry.full_name}` : 'system';
+          meta.textContent = `${who} · ${new Date(entry.created_at).toLocaleString()}`;
+          content.appendChild(title);
+          content.appendChild(meta);
+          item.appendChild(dot);
+          item.appendChild(content);
+          timelineList.appendChild(item);
+        });
+
+        documentsList.innerHTML = '';
+        const documents = data.documents || [];
+        if (documents.length) {
+          documentsEmpty.classList.add('hidden');
+          documents.forEach((doc) => {
+            const row = document.createElement('div');
+            row.className = 'flex justify-between items-center';
+            const left = document.createElement('span');
+            left.textContent = doc.original_name || doc.doc_type;
+            const right = document.createElement('a');
+            const params = new URLSearchParams({ type: 'endeavour_document', id: String(doc.id) });
+            right.href = `/api/files/download?${params.toString()}`;
+            right.className = 'text-indigo-300 text-xs';
+            right.textContent = 'Download';
+            row.appendChild(left);
+            row.appendChild(right);
+            documentsList.appendChild(row);
+          });
+        } else {
+          documentsEmpty.classList.remove('hidden');
+        }
+
+        const apps = data.applications || [];
+        const shortlisted = apps.filter((app) => app.status === 'shortlisted').length;
+        const consented = (data.consents || []).filter((consent) => consent.status === 'signed').length;
+        pipelineApplicants.textContent = apps.length;
+        pipelineShortlisted.textContent = shortlisted;
+        pipelineConsent.textContent = consented;
+
+        postsList.innerHTML = '';
+        (data.posts || []).forEach((post) => {
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between bg-slate-950 border border-slate-800 rounded-xl p-3';
+          const info = document.createElement('div');
+          const title = document.createElement('p');
+          title.textContent = post.description || 'Volunteer post';
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-slate-500';
+          meta.textContent = post.published ? 'Published' : 'Pending approval';
+          info.appendChild(title);
+          info.appendChild(meta);
+          row.appendChild(info);
+            if (!post.published) {
+              const publishBtn = document.createElement('button');
+              publishBtn.className = 'text-xs bg-indigo-500 px-3 py-1 rounded-lg';
+              publishBtn.textContent = 'Publish';
+              publishBtn.addEventListener('click', async () => {
+                publishBtn.disabled = true;
+                const originalText = publishBtn.textContent;
+                publishBtn.textContent = 'Publishing...';
+                try {
+                  await apiFetch(`/endeavours/${id}/publish_post`, { method: 'POST', body: JSON.stringify({ post_id: post.id }) });
+                  loadEndeavour();
+                } catch (err) {
+                  setStatus(actionStatus, normalizeError(err) || 'Publish failed', false);
+                } finally {
+                  publishBtn.disabled = false;
+                  publishBtn.textContent = originalText;
+                }
+              });
+              row.appendChild(publishBtn);
+            }
+          postsList.appendChild(row);
+        });
+
+        applicationsList.innerHTML = '';
+        if (!apps.length) {
+          applicationsEmpty.classList.remove('hidden');
+        } else {
+          applicationsEmpty.classList.add('hidden');
+          apps.forEach((app) => {
+            const row = document.createElement('tr');
+            row.className = 'border-b border-slate-800';
+            const nameCell = document.createElement('td');
+            nameCell.className = 'py-2';
+            nameCell.textContent = app.full_name;
+            const statusCell = document.createElement('td');
+            statusCell.className = 'py-2 text-slate-400';
+            statusCell.textContent = app.status;
+            const actionCell = document.createElement('td');
+            actionCell.className = 'py-2';
+            const actions = document.createElement('div');
+            actions.className = 'flex flex-wrap gap-2';
+            const shortlistBtn = document.createElement('button');
+            shortlistBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
+            shortlistBtn.textContent = 'Shortlist';
+            shortlistBtn.addEventListener('click', async () => {
+              shortlistBtn.disabled = true;
+              const originalText = shortlistBtn.textContent;
+              shortlistBtn.textContent = 'Shortlisting...';
+              try {
+                await apiFetch(`/endeavours/${id}/shortlist`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
+                loadEndeavour();
+              } catch (err) {
+                setStatus(actionStatus, normalizeError(err) || 'Shortlist failed', false);
+              } finally {
+                shortlistBtn.disabled = false;
+                shortlistBtn.textContent = originalText;
+              }
+            });
+            const consentBtn = document.createElement('button');
+            consentBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
+            consentBtn.textContent = 'Request consent';
+            consentBtn.addEventListener('click', async () => {
+              consentBtn.disabled = true;
+              const originalText = consentBtn.textContent;
+              consentBtn.textContent = 'Requesting...';
+              try {
+                await apiFetch(`/endeavours/${id}/consent/request`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
+                loadEndeavour();
+              } catch (err) {
+                setStatus(actionStatus, normalizeError(err) || 'Consent request failed', false);
+              } finally {
+                consentBtn.disabled = false;
+                consentBtn.textContent = originalText;
+              }
+            });
+            const paymentBtn = document.createElement('button');
+            paymentBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
+            paymentBtn.textContent = 'Mark paid';
+            paymentBtn.addEventListener('click', async () => {
+              const receiptRef = window.prompt('Enter receipt reference');
+              if (!receiptRef || !receiptRef.trim()) {
+                setStatus(actionStatus, 'Receipt reference is required.', false);
+                return;
+              }
+              paymentBtn.disabled = true;
+              const originalText = paymentBtn.textContent;
+              paymentBtn.textContent = 'Marking...';
+              try {
+                await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef.trim() }) });
+                loadEndeavour();
+              } catch (err) {
+                setStatus(actionStatus, normalizeError(err) || 'Payment update failed', false);
+              } finally {
+                paymentBtn.disabled = false;
+                paymentBtn.textContent = originalText;
+              }
+            });
+            const attendanceBtn = document.createElement('button');
+            attendanceBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
+            attendanceBtn.textContent = 'Mark present';
+            attendanceBtn.addEventListener('click', async () => {
+              attendanceBtn.disabled = true;
+              const originalText = attendanceBtn.textContent;
+              attendanceBtn.textContent = 'Updating...';
+              try {
+                await apiFetch(`/endeavours/${id}/attendance/mark`, { method: 'POST', body: JSON.stringify({ application_id: app.id, status: 'present' }) });
+                loadEndeavour();
+              } catch (err) {
+                setStatus(actionStatus, normalizeError(err) || 'Attendance update failed', false);
+              } finally {
+                attendanceBtn.disabled = false;
+                attendanceBtn.textContent = originalText;
+              }
+            });
+            actions.appendChild(shortlistBtn);
+            actions.appendChild(consentBtn);
+            actions.appendChild(paymentBtn);
+            actions.appendChild(attendanceBtn);
+            actionCell.appendChild(actions);
+            row.appendChild(nameCell);
+            row.appendChild(statusCell);
+            row.appendChild(actionCell);
+            applicationsList.appendChild(row);
+          });
+        }
+
+        activityList.innerHTML = '';
+        const activityItems = (data.activity || []).slice(0, 8);
+        if (!activityItems.length) {
+          const empty = document.createElement('p');
+          empty.className = 'text-sm text-slate-500';
+          empty.textContent = 'No recent activity.';
+          activityList.appendChild(empty);
+        }
+        activityItems.forEach((entry) => {
+          const wrapper = document.createElement('div');
+          const line = document.createElement('p');
+          line.textContent = entry.notes || entry.action;
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-slate-500';
+          const who = entry.full_name ? `by ${entry.full_name}` : 'system';
+          meta.textContent = `${who} · ${new Date(entry.created_at).toLocaleString()}`;
+          wrapper.appendChild(line);
+          wrapper.appendChild(meta);
+          activityList.appendChild(wrapper);
+        });
+        if (loadingEl) loadingEl.classList.add('hidden');
+      } catch (err) {
+        console.error('Failed to load endeavour:', err);
+        nameEl.textContent = 'Failed to load endeavour';
+        if (loadingEl) loadingEl.classList.add('hidden');
+      }
+    };
+
+    document.getElementById('upload-shortcut').addEventListener('click', () => {
+      documentForm.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    approvalForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await apiFetch(`/endeavours/${id}/approve`, { method: 'POST', body: JSON.stringify({ decision: approvalForm.decision.value, notes: approvalForm.notes.value }) });
+        setStatus(approvalStatus, 'Decision recorded.', true);
+        loadEndeavour();
+      } catch (err) {
+        setStatus(approvalStatus, normalizeError(err), false);
+      }
+    });
+
+    documentForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(documentForm);
+      const docType = formData.get('doc_type');
+      if (!docType) {
+        setStatus(documentStatus, 'Document type is required.', false);
+        return;
+      }
+      const allowedTypes = ['ops_plan', 'mou', 'pre_financial', 'post_financial', 'epilogue'];
+      if (!allowedTypes.includes(docType)) {
+        setStatus(documentStatus, 'Invalid document type.', false);
+        return;
+      }
+      try {
+        await apiFetch(`/endeavours/${id}/submit_${docType}`, {
+          method: 'POST',
+          body: formData
+        });
+        setStatus(documentStatus, 'Document uploaded.', true);
+        documentForm.reset();
+        loadEndeavour();
+      } catch (err) {
+        setStatus(documentStatus, normalizeError(err), false);
+      }
+    });
+
+    postForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(postForm).entries());
+      try {
+        await apiFetch(`/endeavours/${id}/request_post_to_feed`, { method: 'POST', body: JSON.stringify(payload) });
+        setStatus(postStatus, 'Volunteer post requested.', true);
+        postForm.reset();
+        loadEndeavour();
+      } catch (err) {
+        setStatus(postStatus, normalizeError(err), false);
+      }
+    });
+
+    document.getElementById('open-approval').addEventListener('click', () => approvalForm.scrollIntoView({ behavior: 'smooth' }));
+    document.getElementById('open-upload').addEventListener('click', () => documentForm.scrollIntoView({ behavior: 'smooth' }));
+
+    loadEndeavour();
   </script>
 </body>
 </html>

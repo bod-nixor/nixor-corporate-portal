@@ -22,10 +22,7 @@ function handle_drive(string $method, array $segments): void {
         if (empty($data['entity_id'])) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
-        $name = trim($data['name'] ?? 'New Folder');
-        if ($name === '' || strlen($name) > 255) {
-            respond(['ok' => false, 'error' => 'Invalid folder name'], 400);
-        }
+        $name = require_non_empty($data['name'] ?? 'New Folder', 'name', 190);
         ensure_entity_access((int)$data['entity_id'], []);
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
         $stmt->execute([
@@ -36,7 +33,10 @@ function handle_drive(string $method, array $segments): void {
             $data['sharing_scope'] ?? 'entity',
             $user['id']
         ]);
-        respond(['ok' => true, 'data' => ['id' => (int)db()->lastInsertId()]]);
+        $folderId = (int)db()->lastInsertId();
+        log_activity($user['id'], 'drive_item', $folderId, 'created', 'Drive folder created');
+        emit_ws_event('drive.folder_created', ['id' => $folderId]);
+        respond(['ok' => true, 'data' => ['id' => $folderId]]);
     }
 
     if ($method === 'POST' && $action === 'upload') {
@@ -61,7 +61,10 @@ function handle_drive(string $method, array $segments): void {
             $_POST['sharing_scope'] ?? 'entity',
             $user['id']
         ]);
-        respond(['ok' => true, 'data' => ['id' => (int)db()->lastInsertId()]]);
+        $fileId = (int)db()->lastInsertId();
+        log_activity($user['id'], 'drive_item', $fileId, 'uploaded', 'Drive file uploaded');
+        emit_ws_event('drive.file_uploaded', ['id' => $fileId]);
+        respond(['ok' => true, 'data' => ['id' => $fileId]]);
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);

@@ -26,47 +26,207 @@
           <h1 class="text-2xl font-semibold">Entity Dashboard</h1>
           <p class="text-slate-400">High-level pulse on docs, meetings, deadlines, and announcements.</p>
         </div>
-        <button class="bg-indigo-500 px-4 py-2 rounded-xl font-medium" onclick="alert('Announcement composer coming soon')">Create Announcement</button>
+        <div class="flex flex-col md:flex-row gap-3">
+          <select id="entity-select" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+          <button id="announcement-button" class="bg-indigo-500 px-4 py-2 rounded-xl font-medium">Create Announcement</button>
+        </div>
       </header>
       <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-sm text-slate-400">Documentation Progress</h2>
-          <p class="text-3xl font-semibold mt-4">82%</p>
-          <p class="text-sm text-slate-500 mt-2">Ops plans and financials up to date across 5 endeavours.</p>
+          <p id="doc-progress" class="text-3xl font-semibold mt-4">--</p>
+          <p id="doc-summary" class="text-sm text-slate-500 mt-2"></p>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-sm text-slate-400">Upcoming Meetings</h2>
-          <ul class="mt-4 space-y-3 text-sm">
-            <li class="flex justify-between"><span>Board Sync</span><span class="text-slate-500">Tomorrow 4:00 PM</span></li>
-            <li class="flex justify-between"><span>Ops Planning</span><span class="text-slate-500">Fri 10:00 AM</span></li>
-            <li class="flex justify-between"><span>HR Shortlist Review</span><span class="text-slate-500">Mon 2:30 PM</span></li>
-          </ul>
+          <ul id="meetings-list" class="mt-4 space-y-3 text-sm"></ul>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-sm text-slate-400">Critical Deadlines</h2>
-          <ul class="mt-4 space-y-3 text-sm">
-            <li class="flex justify-between"><span>Pre-Financial Approval</span><span class="text-amber-400">2 days</span></li>
-            <li class="flex justify-between"><span>Volunteer Posting Review</span><span class="text-rose-400">1 day</span></li>
-            <li class="flex justify-between"><span>Ops Epilogue</span><span class="text-slate-500">1 week</span></li>
-          </ul>
+          <ul id="deadlines-list" class="mt-4 space-y-3 text-sm"></ul>
         </div>
       </section>
       <section class="mt-10">
         <h2 class="text-lg font-semibold">Announcements</h2>
-        <div class="mt-4 space-y-4">
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <p class="text-sm text-indigo-300">Operations</p>
-            <h3 class="text-lg font-semibold mt-2">Ops plans due by Friday</h3>
-            <p class="text-sm text-slate-400 mt-2">Please upload operational plans for all new endeavours so Board can review.</p>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <p class="text-sm text-emerald-300">Finance</p>
-            <h3 class="text-lg font-semibold mt-2">Transport payments ready</h3>
-            <p class="text-sm text-slate-400 mt-2">Admin can begin marking payments for approved external events.</p>
-          </div>
-        </div>
+        <div id="announcements-list" class="mt-4 space-y-4"></div>
+        <p id="announcements-empty" class="hidden text-sm text-slate-400 mt-4">No announcements yet.</p>
       </section>
     </main>
   </div>
+  <div id="announcement-modal" class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">New Announcement</h3>
+        <button id="announcement-close" class="text-slate-400 hover:text-slate-200">✕</button>
+      </div>
+      <form id="announcement-form" class="mt-4 space-y-4">
+        <input name="title" required placeholder="Announcement title" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+        <textarea name="message" rows="4" required placeholder="Announcement message" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+        <div id="announcement-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+        <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 font-medium">Publish</button>
+      </form>
+    </div>
+  </div>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+    const entitySelect = document.getElementById('entity-select');
+    const docProgress = document.getElementById('doc-progress');
+    const docSummary = document.getElementById('doc-summary');
+    const meetingsList = document.getElementById('meetings-list');
+    const deadlinesList = document.getElementById('deadlines-list');
+    const announcementsList = document.getElementById('announcements-list');
+    const announcementsEmpty = document.getElementById('announcements-empty');
+    const modal = document.getElementById('announcement-modal');
+    const modalOpen = document.getElementById('announcement-button');
+    const modalClose = document.getElementById('announcement-close');
+    const form = document.getElementById('announcement-form');
+    const statusEl = document.getElementById('announcement-status');
+
+    const normalizeError = (err) => {
+      const message = err?.message || '';
+      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
+    };
+
+    const setStatus = (message, ok) => {
+      statusEl.textContent = message;
+      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      statusEl.classList.remove('hidden');
+    };
+
+    const loadDashboard = async (entityId) => {
+      meetingsList.innerHTML = '';
+      deadlinesList.innerHTML = '';
+      announcementsList.innerHTML = '';
+      announcementsEmpty.classList.add('hidden');
+      try {
+        const response = await apiFetch(`/dashboard?entity_id=${entityId}`);
+        const data = response?.data || {};
+        docProgress.textContent = `${data.doc_progress || 0}%`;
+        docSummary.textContent = `Tracking ${data.total_endeavours || 0} endeavours.`;
+        if (data.calendar?.length) {
+          data.calendar.forEach((event) => {
+            const item = document.createElement('li');
+            item.className = 'flex justify-between';
+            const left = document.createElement('span');
+            left.textContent = event.title;
+            const right = document.createElement('span');
+            right.className = 'text-slate-500';
+            right.textContent = new Date(event.event_date).toLocaleString();
+            item.appendChild(left);
+            item.appendChild(right);
+            meetingsList.appendChild(item);
+          });
+        } else {
+          const empty = document.createElement('li');
+          empty.className = 'text-slate-500';
+          empty.textContent = 'No upcoming meetings.';
+          meetingsList.appendChild(empty);
+        }
+
+        if (data.deadlines?.length) {
+          data.deadlines.forEach((deadline) => {
+            const item = document.createElement('li');
+            item.className = 'flex justify-between';
+            const left = document.createElement('span');
+            left.textContent = deadline.name;
+            const right = document.createElement('span');
+            right.className = 'text-amber-400';
+            right.textContent = deadline.days_until === null ? 'TBD' : `${deadline.days_until} days`;
+            item.appendChild(left);
+            item.appendChild(right);
+            deadlinesList.appendChild(item);
+          });
+        } else {
+          const empty = document.createElement('li');
+          empty.className = 'text-slate-500';
+          empty.textContent = 'No upcoming deadlines.';
+          deadlinesList.appendChild(empty);
+        }
+
+        if (data.announcements?.length) {
+          data.announcements.forEach((announcement) => {
+            const card = document.createElement('div');
+            card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
+            const title = document.createElement('h3');
+            title.className = 'text-lg font-semibold';
+            title.textContent = announcement.title;
+            const message = document.createElement('p');
+            message.className = 'text-sm text-slate-400 mt-2';
+            message.textContent = announcement.message;
+            const meta = document.createElement('p');
+            meta.className = 'text-xs text-slate-500 mt-3';
+            meta.textContent = `By ${announcement.creator_name || announcement.full_name || 'Unknown'}`;
+            card.appendChild(title);
+            card.appendChild(message);
+            card.appendChild(meta);
+            announcementsList.appendChild(card);
+          });
+        } else {
+          announcementsEmpty.classList.remove('hidden');
+        }
+
+        modalOpen.disabled = !data.can_post_announcements;
+        modalOpen.classList.toggle('opacity-60', !data.can_post_announcements);
+        modalOpen.classList.toggle('cursor-not-allowed', !data.can_post_announcements);
+      } catch (err) {
+        docProgress.textContent = '--';
+        docSummary.textContent = err.message || 'Unable to load dashboard.';
+      }
+    };
+
+    apiFetch('/auth/me')
+      .then((response) => {
+        const entities = response?.data?.entities || [];
+        entitySelect.innerHTML = '';
+        entities.forEach((entity) => {
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          entitySelect.appendChild(option);
+        });
+        const selected = entities[0]?.id;
+        if (selected) {
+          entitySelect.value = selected;
+          loadDashboard(selected);
+        }
+      })
+      .catch(() => {
+        const option = document.createElement('option');
+        option.textContent = 'No entities';
+        entitySelect.appendChild(option);
+        modalOpen.disabled = true;
+        modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
+      });
+
+    entitySelect.addEventListener('change', () => loadDashboard(entitySelect.value));
+
+    modalOpen.addEventListener('click', () => {
+      if (modalOpen.disabled) {
+        return;
+      }
+      statusEl.classList.add('hidden');
+      modal.classList.remove('hidden');
+    });
+    modalClose.addEventListener('click', () => modal.classList.add('hidden'));
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await apiFetch('/announcements', {
+          method: 'POST',
+          body: JSON.stringify({
+            entity_id: entitySelect.value,
+            title: form.title.value,
+            message: form.message.value
+          })
+        });
+        setStatus('Announcement published.', true);
+        form.reset();
+        loadDashboard(entitySelect.value);
+      } catch (err) {
+        setStatus(normalizeError(err), false);
+      }
+    });
+  </script>
 </body>
 </html>

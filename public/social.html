@@ -25,19 +25,150 @@
         <h1 class="text-2xl font-semibold">Social Feed</h1>
         <p class="text-slate-400">Professional updates limited to involved members.</p>
       </header>
-      <section class="mt-8 space-y-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <p class="text-sm text-indigo-300">Operations · Health Camp</p>
-          <p class="text-base mt-2">Ops plan draft is ready for board review. Please comment by EOD.</p>
-          <p class="text-xs text-slate-500 mt-3">Posted 2 hours ago</p>
+      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6">
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Posts</h2>
+            <select id="social-entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+          </div>
+          <div id="social-posts" class="space-y-4"></div>
+          <p id="social-empty" class="hidden text-sm text-slate-500 mt-4">No posts yet.</p>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <p class="text-sm text-emerald-300">HR · Volunteer Feed</p>
-          <p class="text-base mt-2">Shortlisting underway. HR will send consent emails tomorrow.</p>
-          <p class="text-xs text-slate-500 mt-3">Posted yesterday</p>
+          <h2 class="text-lg font-semibold">New Post</h2>
+          <form id="social-form" class="mt-4 space-y-3 text-sm">
+            <textarea name="content" rows="4" required class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Share an update"></textarea>
+            <div id="social-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Post Update</button>
+          </form>
         </div>
       </section>
     </main>
   </div>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+    const entitySelect = document.getElementById('social-entity');
+    const postsEl = document.getElementById('social-posts');
+    const emptyEl = document.getElementById('social-empty');
+    const form = document.getElementById('social-form');
+    const statusEl = document.getElementById('social-status');
+
+    const normalizeError = (err) => {
+      const message = err?.message || '';
+      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
+    };
+
+    const setStatus = (message, ok) => {
+      statusEl.textContent = message;
+      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      statusEl.classList.remove('hidden');
+    };
+
+    const loadPosts = async () => {
+      const entityId = entitySelect.value;
+      if (!entityId) return;
+      try {
+        const response = await apiFetch(`/social?entity_id=${entityId}`);
+        const posts = response?.data?.posts || [];
+        const comments = response?.data?.comments || [];
+        postsEl.innerHTML = '';
+        if (!posts.length) {
+          emptyEl.classList.remove('hidden');
+          return;
+        }
+        emptyEl.classList.add('hidden');
+        posts.forEach((post) => {
+          const card = document.createElement('div');
+          card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
+          const header = document.createElement('p');
+          header.className = 'text-sm text-indigo-300';
+          header.textContent = post.full_name;
+          const content = document.createElement('p');
+          content.className = 'text-base mt-2';
+          content.textContent = post.content;
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-slate-500 mt-3';
+          meta.textContent = new Date(post.created_at).toLocaleString();
+          const commentList = document.createElement('div');
+          commentList.className = 'mt-4 space-y-2 text-sm text-slate-400';
+          comments.filter((c) => c.post_id === post.id).forEach((comment) => {
+            const line = document.createElement('p');
+            line.textContent = `${comment.full_name}: ${comment.comment}`;
+            commentList.appendChild(line);
+          });
+          const commentForm = document.createElement('form');
+          commentForm.className = 'mt-4 flex gap-2';
+          const commentInput = document.createElement('input');
+          commentInput.className = 'flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm';
+          commentInput.placeholder = 'Write a comment';
+          const commentButton = document.createElement('button');
+          commentButton.className = 'bg-slate-800 px-3 py-2 rounded-xl text-xs';
+          commentButton.textContent = 'Send';
+          commentForm.appendChild(commentInput);
+          commentForm.appendChild(commentButton);
+          commentForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!commentInput.value.trim()) return;
+            try {
+              await apiFetch(`/social/${post.id}/comments`, { method: 'POST', body: JSON.stringify({ comment: commentInput.value }) });
+              commentInput.value = '';
+              loadPosts();
+            } catch (err) {
+              setStatus(normalizeError(err) || 'Comment failed', false);
+            }
+          });
+          card.appendChild(header);
+          card.appendChild(content);
+          card.appendChild(meta);
+          if (commentList.children.length) {
+            card.appendChild(commentList);
+          }
+          card.appendChild(commentForm);
+          postsEl.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Failed to load social posts:', err);
+        postsEl.innerHTML = '';
+        emptyEl.textContent = 'Failed to load posts. Please try again.';
+        emptyEl.classList.remove('hidden');
+        setStatus('Unable to load posts.', false);
+      }
+    };
+
+    apiFetch('/auth/me')
+      .then((response) => {
+        const entities = response?.data?.entities || [];
+        entitySelect.innerHTML = '';
+        entities.forEach((entity) => {
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          entitySelect.appendChild(option);
+        });
+        if (entities.length) {
+          entitySelect.value = entities[0].id;
+          loadPosts();
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load entities:', err);
+        entitySelect.innerHTML = '';
+        emptyEl.textContent = 'Unable to load posts without access.';
+        emptyEl.classList.remove('hidden');
+      });
+
+    entitySelect.addEventListener('change', loadPosts);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await apiFetch('/social', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, content: form.content.value }) });
+        setStatus('Post published.', true);
+        form.reset();
+        loadPosts();
+      } catch (err) {
+        setStatus(normalizeError(err), false);
+      }
+    });
+  </script>
 </body>
 </html>

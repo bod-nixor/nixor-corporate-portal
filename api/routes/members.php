@@ -1,6 +1,6 @@
 <?php
 function handle_members(string $method, array $segments): void {
-    require_role(['admin']);
+    $user = require_role(['admin']);
     $id = $segments[1] ?? null;
 
     if ($method === 'GET' && !$id) {
@@ -36,6 +36,15 @@ function handle_members(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'User not found'], 404);
         }
         $department = $data['department'] ?? 'other';
+        $allowedDepartments = ['operations', 'finance', 'hr', 'communications', 'management', 'other'];
+        if (!in_array($department, $allowedDepartments, true)) {
+            respond(['ok' => false, 'error' => 'Invalid department'], 400);
+        }
+        $role = $data['role'] ?? 'member';
+        $allowedRoles = ['manager', 'executive', 'member', 'volunteer'];
+        if (!in_array($role, $allowedRoles, true)) {
+            respond(['ok' => false, 'error' => 'Invalid role'], 400);
+        }
         $stmt = db()->prepare('SELECT id FROM entity_memberships WHERE entity_id = ? AND user_id = ? AND department = ?');
         $stmt->execute([$entityId, $userId, $department]);
         if ($stmt->fetch()) {
@@ -46,11 +55,13 @@ function handle_members(string $method, array $segments): void {
             $entityId,
             $userId,
             $department,
-            $data['role'] ?? 'member',
+            $role,
             $data['start_date'] ?? null,
             $data['end_date'] ?? null
         ]);
-        respond(['ok' => true, 'data' => ['id' => (int)db()->lastInsertId()]]);
+        $membershipId = (int)db()->lastInsertId();
+        log_activity($user['id'], 'member', $membershipId, 'created', 'Membership created');
+        respond(['ok' => true, 'data' => ['id' => $membershipId]]);
     }
 
     if ($method === 'DELETE' && $id) {
@@ -61,6 +72,7 @@ function handle_members(string $method, array $segments): void {
         }
         $stmt = db()->prepare('DELETE FROM entity_memberships WHERE id = ?');
         $stmt->execute([$id]);
+        log_activity($user['id'], 'member', (int)$id, 'deleted', 'Membership deleted');
         respond(['ok' => true]);
     }
 

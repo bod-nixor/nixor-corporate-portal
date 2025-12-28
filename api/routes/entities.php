@@ -20,11 +20,10 @@ function handle_entities(string $method, array $segments): void {
 
     if ($method === 'POST' && !$id) {
         $data = read_json();
-        if (empty($data['name'])) {
-            respond(['ok' => false, 'error' => 'Name is required'], 400);
-        }
+        $name = require_non_empty($data['name'] ?? '', 'name', 190);
+        $description = sanitize_text($data['description'] ?? '', 2000);
         $stmt = db()->prepare('INSERT INTO entities (name, description) VALUES (?, ?)');
-        $stmt->execute([$data['name'] ?? '', $data['description'] ?? '']);
+        $stmt->execute([$name, $description]);
         $entityId = (int)db()->lastInsertId();
         log_activity($user['id'], 'entity', $entityId, 'created', 'Entity created');
         respond(['ok' => true, 'data' => ['id' => $entityId]]);
@@ -32,8 +31,10 @@ function handle_entities(string $method, array $segments): void {
 
     if ($method === 'PUT' && $id) {
         $data = read_json();
+        $name = require_non_empty($data['name'] ?? '', 'name', 190);
+        $description = sanitize_text($data['description'] ?? '', 2000);
         $stmt = db()->prepare('UPDATE entities SET name = ?, description = ? WHERE id = ?');
-        $stmt->execute([$data['name'] ?? '', $data['description'] ?? '', $id]);
+        $stmt->execute([$name, $description, $id]);
         log_activity($user['id'], 'entity', (int)$id, 'updated', 'Entity updated');
         respond(['ok' => true, 'data' => ['id' => (int)$id]]);
     }
