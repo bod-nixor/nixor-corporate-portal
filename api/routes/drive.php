@@ -16,12 +16,16 @@ function handle_drive(string $method, array $segments): void {
         if (empty($data['entity_id'])) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
+        $name = trim($data['name'] ?? 'New Folder');
+        if ($name === '' || strlen($name) > 255) {
+            respond(['ok' => false, 'error' => 'Invalid folder name'], 400);
+        }
         ensure_entity_access((int)$data['entity_id'], []);
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
         $stmt->execute([
             $data['entity_id'],
             $data['parent_id'] ?? null,
-            $data['name'] ?? 'New Folder',
+            $name,
             $data['tags'] ?? '',
             $data['sharing_scope'] ?? 'entity',
             $user['id']
@@ -34,6 +38,10 @@ function handle_drive(string $method, array $segments): void {
         ensure_entity_access($entityId, []);
         if (!isset($_FILES['file'])) {
             respond(['ok' => false, 'error' => 'File missing'], 400);
+        }
+        $maxSize = 10 * 1024 * 1024;
+        if (($_FILES['file']['size'] ?? 0) > $maxSize) {
+            respond(['ok' => false, 'error' => 'File too large'], 400);
         }
         $uploaded = save_drive_file((string)$entityId, $_FILES['file']);
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, file_path, size_bytes, tags, sharing_scope, created_by) VALUES (?, ?, "file", ?, ?, ?, ?, ?, ?)');

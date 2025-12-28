@@ -135,13 +135,15 @@
 
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
-    if (id) {
+    const nameEl = document.getElementById('endeavour-name');
+    if (!id) {
+      if (nameEl) nameEl.textContent = 'Missing endeavour ID';
+    } else {
       apiFetch(`/endeavours/${id}`)
         .then(({ data }) => {
           const endeavour = data?.endeavour;
           if (!endeavour) return;
           const statusEl = document.getElementById('endeavour-status');
-          const nameEl = document.getElementById('endeavour-name');
           const metaEl = document.getElementById('endeavour-meta');
           if (statusEl) statusEl.textContent = (endeavour.status || '').replace(/_/g, ' ');
           if (nameEl) nameEl.textContent = endeavour.name || 'Endeavour';
@@ -150,7 +152,10 @@
             metaEl.textContent = `Entity: ${endeavour.entity_name || 'Nixor Entity'}${dates ? ` · ${dates}` : ''}`;
           }
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error('Failed to load endeavour:', err);
+          if (nameEl) nameEl.textContent = 'Failed to load endeavour';
+        });
     }
   </script>
 </body>

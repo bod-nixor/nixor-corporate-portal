@@ -11,9 +11,10 @@ export async function apiFetch(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
   const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
     headers,
     credentials: 'include',
-    ...options
+    method
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -31,6 +32,9 @@ export function connectWebsocket(onMessage) {
   const connect = () => {
     try {
       socket = new WebSocket(wsEndpoint);
+      socket.addEventListener('open', () => {
+        retries = 0;
+      });
       socket.addEventListener('message', (event) => {
         try {
           const data = JSON.parse(event.data);

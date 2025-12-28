@@ -69,7 +69,10 @@ function verify_google_id_token(string $idToken): array {
         respond(['ok' => false, 'error' => 'Invalid token response'], 401);
     }
     $clientId = env_value('GOOGLE_CLIENT_ID');
-    if ($clientId && ($payload['aud'] ?? '') !== $clientId) {
+    if (!$clientId) {
+        respond(['ok' => false, 'error' => 'Google OAuth not configured'], 500);
+    }
+    if (($payload['aud'] ?? '') !== $clientId) {
         respond(['ok' => false, 'error' => 'Invalid token audience'], 401);
     }
     $issuer = $payload['iss'] ?? '';

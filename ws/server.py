@@ -32,7 +32,7 @@ async def broadcast(message: str):
 
 async def tail_queue():
     Path(QUEUE_FILE).parent.mkdir(parents=True, exist_ok=True)
-    open(QUEUE_FILE, "a").close()
+    Path(QUEUE_FILE).touch(exist_ok=True)
     with open(QUEUE_FILE, "r", encoding="utf-8") as file:
         file.seek(0, os.SEEK_END)
         while True:

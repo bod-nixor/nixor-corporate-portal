@@ -44,6 +44,10 @@ function handle_endeavours(string $method, array $segments): void {
 
     if ($method === 'PUT' && $id && !$action) {
         $user = require_role(['admin', 'ceo']);
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
         $data = read_json();
         $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ? WHERE id = ?');
         $stmt->execute([

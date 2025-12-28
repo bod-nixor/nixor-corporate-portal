@@ -3,7 +3,10 @@ function emit_ws_event(string $event, array $payload = []): void {
     $queueFile = env_value('WS_QUEUE_FILE', dirname(__DIR__, 2) . '/ws/events.queue');
     $queueDir = dirname($queueFile);
     if (!is_dir($queueDir)) {
-        mkdir($queueDir, 0775, true);
+        if (!mkdir($queueDir, 0775, true) && !is_dir($queueDir)) {
+            error_log("Failed to create websocket queue directory: {$queueDir}");
+            return;
+        }
     }
     try {
         $line = json_encode([

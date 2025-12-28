@@ -1,12 +1,19 @@
 <?php
 function current_user(): ?array {
+    static $cachedUser = null;
+    static $checkedSession = false;
+    if ($checkedSession) {
+        return $cachedUser;
+    }
+    $checkedSession = true;
     if (!isset($_SESSION['user_id'])) {
         return null;
     }
     $stmt = db()->prepare('SELECT * FROM users WHERE id = ? AND status = ?');
     $stmt->execute([$_SESSION['user_id'], 'active']);
     $user = $stmt->fetch();
-    return $user ?: null;
+    $cachedUser = $user ?: null;
+    return $cachedUser;
 }
 
 function require_auth(): array {
@@ -31,7 +38,7 @@ function ensure_entity_access(int $entityId, array $roles = []): array {
     if (in_array($user['global_role'], ['admin', 'board'], true)) {
         return $user;
     }
-    $stmt = db()->prepare('SELECT * FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
+    $stmt = db()->prepare('SELECT department FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
     $stmt->execute([$entityId, $user['id']]);
     $membership = $stmt->fetch();
     if (!$membership) {
