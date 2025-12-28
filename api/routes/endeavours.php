@@ -180,6 +180,11 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Invalid application_id'], 400);
         }
         $applicationId = (int)$data['application_id'];
+        $check = db()->prepare('SELECT va.id FROM volunteer_applications va JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE va.id = ? AND vp.endeavour_id = ?');
+        $check->execute([$applicationId, $id]);
+        if (!$check->fetch()) {
+            respond(['ok' => false, 'error' => 'Application not found for endeavour'], 404);
+        }
         $stmt = db()->prepare('INSERT INTO shortlists (volunteer_application_id, shortlisted_by) VALUES (?, ?)');
         $stmt->execute([$applicationId, $user['id']]);
         $update = db()->prepare('UPDATE volunteer_applications SET status = "shortlisted" WHERE id = ?');
@@ -198,7 +203,7 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Invalid token'], 400);
         }
         $stmt = db()->prepare('UPDATE consents SET status = "signed", signed_at = NOW(), signature_name = ? WHERE token = ?');
-        $stmt->execute([$data['signature_name'] ?? '', $data['token'] ?? '']);
+        $stmt->execute([$data['signature_name'] ?? '', $data['token']]);
         emit_ws_event('endeavour.consent_signed', ['id' => $id]);
         respond(['ok' => true]);
     }
@@ -211,6 +216,11 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $applicationId = (int)$data['application_id'];
         $receiptRef = $data['receipt_ref'] ?? '';
+        $check = db()->prepare('SELECT va.id FROM volunteer_applications va JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE va.id = ? AND vp.endeavour_id = ?');
+        $check->execute([$applicationId, $id]);
+        if (!$check->fetch()) {
+            respond(['ok' => false, 'error' => 'Application not found for endeavour'], 404);
+        }
         $stmt = db()->prepare('UPDATE payments SET paid_flag = 1, paid_by = ?, paid_at = NOW(), receipt_ref = ? WHERE volunteer_application_id = ?');
         $stmt->execute([$user['id'], $receiptRef, $applicationId]);
         emit_ws_event('endeavour.payment_marked', ['id' => $id]);
