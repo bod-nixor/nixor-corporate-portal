@@ -64,6 +64,9 @@ function save_uploaded_file(string $endeavourId, string $docType, array $file): 
     $relative = str_starts_with($normalizedPath, $normalizedBase)
         ? ltrim(substr($normalizedPath, strlen($normalizedBase)), '/')
         : 'endeavours/' . $endeavourId . '/' . $docType . '/' . $filename;
+    if (!str_starts_with($normalizedPath, $normalizedBase)) {
+        error_log("Upload path mismatch: normalized={$normalizedPath} base={$normalizedBase}");
+    }
     return ['path' => $relative, 'original' => $file['name']];
 }
 
@@ -92,6 +95,9 @@ function save_drive_file(string $entityId, array $file): array {
     $relative = str_starts_with($normalizedPath, $normalizedBase)
         ? ltrim(substr($normalizedPath, strlen($normalizedBase)), '/')
         : 'drive/' . $safeEntityId . '/' . $filename;
+    if (!str_starts_with($normalizedPath, $normalizedBase)) {
+        error_log("Drive upload path mismatch: normalized={$normalizedPath} base={$normalizedBase}");
+    }
     return ['path' => $relative, 'original' => $basename, 'size' => $file['size'] ?? 0];
 }
 
@@ -101,5 +107,11 @@ function resolve_upload_path(string $relativePath): string {
         $prev = $relativePath;
         $relativePath = str_replace(['../', '..\\', '..'], '', $relativePath);
     } while ($prev !== $relativePath);
-    return upload_base_path() . '/' . $relativePath;
+    $base = realpath(upload_base_path());
+    $fullPath = upload_base_path() . '/' . $relativePath;
+    $resolved = realpath($fullPath);
+    if ($base && $resolved && !str_starts_with($resolved, $base . DIRECTORY_SEPARATOR)) {
+        respond(['ok' => false, 'error' => 'File not found'], 404);
+    }
+    return $fullPath;
 }

@@ -32,6 +32,7 @@
           <button id="open-upload" class="bg-indigo-500 px-4 py-2 rounded-xl text-sm">Upload Document</button>
         </div>
       </header>
+      <div id="action-status" class="hidden text-sm rounded-xl px-4 py-3 mt-4"></div>
 
       <section class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2 space-y-6">
@@ -156,6 +157,7 @@
     const approvalStatus = document.getElementById('approval-status');
     const documentStatus = document.getElementById('document-status');
     const postStatus = document.getElementById('post-status');
+    const actionStatus = document.getElementById('action-status');
 
     const normalizeError = (err) => {
       const message = err?.message || '';
@@ -262,7 +264,7 @@
                 await apiFetch(`/endeavours/${id}/publish_post`, { method: 'POST', body: JSON.stringify({ post_id: post.id }) });
                 loadEndeavour();
               } catch (err) {
-                alert(err.message || 'Publish failed');
+                setStatus(actionStatus, normalizeError(err) || 'Publish failed', false);
               }
             });
             row.appendChild(publishBtn);
@@ -296,7 +298,7 @@
                 await apiFetch(`/endeavours/${id}/shortlist`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
                 loadEndeavour();
               } catch (err) {
-                alert(err.message || 'Shortlist failed');
+                setStatus(actionStatus, normalizeError(err) || 'Shortlist failed', false);
               }
             });
             const consentBtn = document.createElement('button');
@@ -307,7 +309,7 @@
                 await apiFetch(`/endeavours/${id}/consent/request`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
                 loadEndeavour();
               } catch (err) {
-                alert(err.message || 'Consent request failed');
+                setStatus(actionStatus, normalizeError(err) || 'Consent request failed', false);
               }
             });
             const paymentBtn = document.createElement('button');
@@ -318,7 +320,7 @@
                 await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: '' }) });
                 loadEndeavour();
               } catch (err) {
-                alert(err.message || 'Payment update failed');
+                setStatus(actionStatus, normalizeError(err) || 'Payment update failed', false);
               }
             });
             const attendanceBtn = document.createElement('button');
@@ -329,7 +331,7 @@
                 await apiFetch(`/endeavours/${id}/attendance/mark`, { method: 'POST', body: JSON.stringify({ application_id: app.id, status: 'present' }) });
                 loadEndeavour();
               } catch (err) {
-                alert(err.message || 'Attendance update failed');
+                setStatus(actionStatus, normalizeError(err) || 'Attendance update failed', false);
               }
             });
             actions.appendChild(shortlistBtn);

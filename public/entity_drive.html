@@ -93,6 +93,19 @@
       </section>
     </main>
   </div>
+  <div id="folder-modal" class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">New Folder</h3>
+        <button id="folder-close" class="text-slate-400 hover:text-slate-200">✕</button>
+      </div>
+      <form id="folder-form" class="mt-4 space-y-3 text-sm">
+        <input name="folder_name" required placeholder="Folder name" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+        <div id="folder-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+        <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium">Create Folder</button>
+      </form>
+    </div>
+  </div>
   <input id="upload-input" type="file" class="hidden" />
   <script type="module">
     import { apiFetch, getCsrfToken as csrfToken } from '/assets/app.js';
@@ -203,14 +216,34 @@
       });
 
     entitySelect.addEventListener('change', loadDrive);
-    document.getElementById('new-folder').addEventListener('click', async () => {
-      const name = prompt('Folder name');
-      if (!name) return;
+    const folderModal = document.getElementById('folder-modal');
+    const folderForm = document.getElementById('folder-form');
+    const folderStatus = document.getElementById('folder-status');
+    document.getElementById('new-folder').addEventListener('click', () => {
+      folderStatus.classList.add('hidden');
+      folderModal.classList.remove('hidden');
+    });
+    document.getElementById('folder-close').addEventListener('click', () => {
+      folderModal.classList.add('hidden');
+    });
+    folderForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = folderForm.folder_name.value.trim();
+      if (!name) {
+        folderStatus.textContent = 'Folder name is required.';
+        folderStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
+        folderStatus.classList.remove('hidden');
+        return;
+      }
       try {
         await apiFetch('/drive/create_folder', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, name }) });
+        folderForm.reset();
+        folderModal.classList.add('hidden');
         loadDrive();
       } catch (err) {
-        alert(err.message || 'Failed to create folder');
+        folderStatus.textContent = err.message || 'Failed to create folder';
+        folderStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
+        folderStatus.classList.remove('hidden');
       }
     });
     document.getElementById('upload-file').addEventListener('click', () => uploadInput.click());

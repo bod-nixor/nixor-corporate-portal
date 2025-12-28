@@ -52,8 +52,12 @@ function handle_setup(): void {
         try {
             db()->exec($statement);
         } catch (PDOException $e) {
-            if (stripos($statement, 'create database') === false) {
+            // Allow CREATE DATABASE to fail (may already exist).
+            if (stripos($statement, 'create database') !== false) {
+                error_log('CREATE DATABASE step failed (may be expected): ' . $e->getMessage());
+            } else {
                 error_log('Schema step failed: ' . $e->getMessage());
+                respond(['ok' => false, 'error' => 'Schema execution failed'], 500);
             }
         }
     }
