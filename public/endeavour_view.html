@@ -137,12 +137,15 @@
     import { apiFetch, getCsrfToken } from '/assets/app.js';
 
     const params = new URLSearchParams(window.location.search);
+    const nameEl = document.getElementById('endeavour-name');
+    if (!nameEl) {
+      return;
+    }
     const id = params.get('id');
     if (id && !/^\d+$/.test(id)) {
       nameEl.textContent = 'Invalid endeavour ID';
       return;
     }
-    const nameEl = document.getElementById('endeavour-name');
     const statusEl = document.getElementById('endeavour-status');
     const metaEl = document.getElementById('endeavour-meta');
     const timelineList = document.getElementById('timeline-list');

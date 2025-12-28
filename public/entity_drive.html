@@ -182,7 +182,7 @@
             inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${((Number(item.size_bytes) || 0) / 1024).toFixed(1)} KB`;
             if (item.item_type === 'file') {
               inspectorDownload.classList.remove('hidden');
-              inspectorDownload.href = `/api/files/download?type=drive&id=${item.id}`;
+              inspectorDownload.href = `/api/files/download?type=drive&id=${encodeURIComponent(item.id)}`;
             } else {
               inspectorDownload.classList.add('hidden');
             }
