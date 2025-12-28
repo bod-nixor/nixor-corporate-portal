@@ -2,10 +2,9 @@
  * API base URL resolution:
  * - Uses window.API_BASE if set (e.g., for custom deployments)
  * - Falls back to DEFAULT_API_BASE (/api)
- * - Automatic fallback to /api/index.php only applies when using DEFAULT_API_BASE
+ * - Automatic fallback to /api/index.php applies when API_BASE ends with /api
  */
 const DEFAULT_API_BASE = '/api';
-const FALLBACK_API_BASE = '/api/index.php';
 const API_BASE = window.API_BASE || DEFAULT_API_BASE;
 let preferredBase = API_BASE;
 let portalConfig = {
@@ -23,6 +22,14 @@ export function getCsrfToken() {
   const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
   const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
   return cookieToken || csrfToken;
+}
+
+function resolveFallbackBase(base) {
+  const trimmed = base.replace(/\/+$/, '');
+  if (trimmed.endsWith('/api')) {
+    return `${trimmed}/index.php`;
+  }
+  return null;
 }
 
 export async function apiFetch(path, options = {}) {
@@ -54,19 +61,20 @@ export async function apiFetch(path, options = {}) {
   };
 
   let { res, data } = await request(preferredBase);
+  const fallbackBase = resolveFallbackBase(preferredBase);
   const shouldFallback = !skipFallback
-    && preferredBase === DEFAULT_API_BASE
+    && fallbackBase
     && !res.ok
     && res.status === 404;
   if (shouldFallback) {
-    console.warn(`API base fallback triggered for ${path}; retrying ${FALLBACK_API_BASE}`);
+    console.warn(`API base fallback triggered for ${path}; retrying ${fallbackBase}`);
     const initialError = data.error;
     const initialStatus = res.status;
-    const fallbackResponse = await request(FALLBACK_API_BASE);
+    const fallbackResponse = await request(fallbackBase);
     res = fallbackResponse.res;
     data = fallbackResponse.data;
     if (res.ok) {
-      preferredBase = FALLBACK_API_BASE;
+      preferredBase = fallbackBase;
     } else {
       console.warn(
         `API fallback failed for ${path}; initial status ${initialStatus}, fallback status ${res.status}.`
