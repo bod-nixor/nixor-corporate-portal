@@ -1,5 +1,6 @@
 USE nixor_portal;
 
+-- Example users (replace with secure, unique passwords before use)
 INSERT INTO users (email, password_hash, full_name, global_role)
 VALUES
 ('board@nixor.io', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Board Member', 'board'),

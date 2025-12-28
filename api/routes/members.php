@@ -17,10 +17,28 @@ function handle_members(string $method, array $segments): void {
 
     if ($method === 'POST') {
         $data = read_json();
+        if (empty($data['entity_id']) || !is_numeric($data['entity_id'])) {
+            respond(['ok' => false, 'error' => 'entity_id required'], 400);
+        }
+        if (empty($data['user_id']) || !is_numeric($data['user_id'])) {
+            respond(['ok' => false, 'error' => 'user_id required'], 400);
+        }
+        $entityId = (int)$data['entity_id'];
+        $userId = (int)$data['user_id'];
+        $entityCheck = db()->prepare('SELECT id FROM entities WHERE id = ?');
+        $entityCheck->execute([$entityId]);
+        if (!$entityCheck->fetch()) {
+            respond(['ok' => false, 'error' => 'Entity not found'], 404);
+        }
+        $userCheck = db()->prepare('SELECT id FROM users WHERE id = ?');
+        $userCheck->execute([$userId]);
+        if (!$userCheck->fetch()) {
+            respond(['ok' => false, 'error' => 'User not found'], 404);
+        }
         $stmt = db()->prepare('INSERT INTO entity_memberships (entity_id, user_id, department, role, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)');
         $stmt->execute([
-            $data['entity_id'],
-            $data['user_id'],
+            $entityId,
+            $userId,
             $data['department'] ?? 'other',
             $data['role'] ?? 'member',
             $data['start_date'] ?? null,

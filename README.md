@@ -20,6 +20,11 @@ A centralized, lightweight portal for entity documentation, endeavours, approval
    ```bash
    mysql -u root -p < sql/seed.sql
    ```
+3. Create an admin account (use a strong password and bcrypt hash):
+   ```bash
+   php -r "echo password_hash('STRONG_PASSWORD', PASSWORD_BCRYPT), PHP_EOL;"
+   ```
+   Then insert the generated hash into the users table.
 
 ### 2) Environment
 Copy and edit the environment file:

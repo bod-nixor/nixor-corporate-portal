@@ -47,8 +47,5 @@ function verify_password(string $password, string $hash): bool {
     if (str_starts_with($hash, '$2y$')) {
         return password_verify($password, $hash);
     }
-    if (strlen($hash) === 64) {
-        return hash('sha256', $password) === $hash;
-    }
     return false;
 }

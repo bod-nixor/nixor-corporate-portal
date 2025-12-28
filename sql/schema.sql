@@ -340,6 +340,3 @@ INSERT INTO entities (name, description) VALUES
 INSERT INTO endeavour_types (name, category) VALUES
 ('External Outreach', 'External'),
 ('Internal Training', 'Internal');
-
-INSERT INTO users (email, password_hash, full_name, global_role)
-VALUES ('admin@nixor.io', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Portal Admin', 'admin');
