@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entities' Endeavours</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="flex">
+    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+      <nav class="mt-8 space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      </nav>
+    </aside>
+    <main class="flex-1 p-6 md:p-10">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold">Entities’ Endeavours</h1>
+          <p class="text-slate-400">Track approvals, documents, and volunteer pipelines.</p>
+        </div>
+        <div class="flex gap-3">
+          <select class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">
+            <option>All Statuses</option>
+            <option>Pending Board Approval</option>
+            <option>Finance Approved</option>
+          </select>
+          <select class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">
+            <option>All Entities</option>
+            <option>Nixor Community Entity</option>
+          </select>
+        </div>
+      </header>
+      <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
+          <div class="flex items-center justify-between">
+            <span class="text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">Active</span>
+            <span class="text-xs text-slate-500">External</span>
+          </div>
+          <h2 class="text-lg font-semibold mt-4">Community Health Camp</h2>
+          <p class="text-sm text-slate-400 mt-2">Board approved. Ops plan uploaded and finance pre-financial awaiting admin.</p>
+          <div class="mt-4 text-xs text-slate-500 space-y-1">
+            <p>Dates: 12 Apr - 14 Apr</p>
+            <p>Entity: Nixor Community Entity</p>
+            <p>Volunteer posts: 38</p>
+          </div>
+          <a href="/endeavour_view.html?id=1" class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center">View</a>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
+          <div class="flex items-center justify-between">
+            <span class="text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-300">Starting</span>
+            <span class="text-xs text-slate-500">Internal</span>
+          </div>
+          <h2 class="text-lg font-semibold mt-4">Leadership Bootcamp</h2>
+          <p class="text-sm text-slate-400 mt-2">Ops plan pending board approval with travel budget in review.</p>
+          <div class="mt-4 text-xs text-slate-500 space-y-1">
+            <p>Dates: 20 Apr - 22 Apr</p>
+            <p>Entity: Nixor Learning</p>
+            <p>Applicants: 12</p>
+          </div>
+          <a href="/endeavour_view.html?id=2" class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center">View</a>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
+          <div class="flex items-center justify-between">
+            <span class="text-xs px-2 py-1 rounded-full bg-sky-500/10 text-sky-300">Planned</span>
+            <span class="text-xs text-slate-500">External</span>
+          </div>
+          <h2 class="text-lg font-semibold mt-4">Tech for Good Fair</h2>
+          <p class="text-sm text-slate-400 mt-2">Draft created by CEO. Awaiting board approval.</p>
+          <div class="mt-4 text-xs text-slate-500 space-y-1">
+            <p>Dates: 3 May - 5 May</p>
+            <p>Entity: Nixor Outreach</p>
+            <p>Applicants: 0</p>
+          </div>
+          <a href="/endeavour_view.html?id=3" class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center">View</a>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

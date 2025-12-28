@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Social Feed</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="flex">
+    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+      <nav class="mt-8 space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/social.html">Social</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      </nav>
+    </aside>
+    <main class="flex-1 p-6 md:p-10">
+      <header>
+        <h1 class="text-2xl font-semibold">Social Feed</h1>
+        <p class="text-slate-400">Professional updates limited to involved members.</p>
+      </header>
+      <section class="mt-8 space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm text-indigo-300">Operations · Health Camp</p>
+          <p class="text-base mt-2">Ops plan draft is ready for board review. Please comment by EOD.</p>
+          <p class="text-xs text-slate-500 mt-3">Posted 2 hours ago</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm text-emerald-300">HR · Volunteer Feed</p>
+          <p class="text-base mt-2">Shortlisting underway. HR will send consent emails tomorrow.</p>
+          <p class="text-xs text-slate-500 mt-3">Posted yesterday</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

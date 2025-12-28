@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Super Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="flex">
+    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+      <nav class="mt-8 space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/admin.html">Settings</a>
+      </nav>
+    </aside>
+    <main class="flex-1 p-6 md:p-10">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold">Admin Super Panel</h1>
+          <p class="text-slate-400">Manage users, entities, and compliance across the portal.</p>
+        </div>
+        <button class="bg-indigo-500 px-4 py-2 rounded-xl text-sm" onclick="alert('Entity creation coming soon')">New Entity</button>
+      </header>
+
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm text-slate-400">Missing Docs</p>
+          <p class="text-3xl font-semibold mt-4">7</p>
+          <p class="text-xs text-slate-500 mt-2">Ops plans overdue across 3 entities.</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm text-slate-400">Unpaid Transport</p>
+          <p class="text-3xl font-semibold mt-4">12</p>
+          <p class="text-xs text-slate-500 mt-2">Payments awaiting admin marking.</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <p class="text-sm text-slate-400">Consent Pending</p>
+          <p class="text-3xl font-semibold mt-4">24</p>
+          <p class="text-xs text-slate-500 mt-2">Parent consent for shortlisted volunteers.</p>
+        </div>
+      </section>
+
+      <section class="mt-10 grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-lg font-semibold">Student Directory</h2>
+          <p class="text-xs text-slate-500 mt-1">Sample data — API integration coming soon.</p>
+          <table class="w-full text-sm mt-4">
+            <thead class="text-slate-500">
+              <tr>
+                <th class="text-left py-2">Student</th>
+                <th class="text-left py-2">Entity</th>
+                <th class="text-left py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-t border-slate-800">
+                <td class="py-3">Sara Malik · NM-204</td>
+                <td>Nixor Community</td>
+                <td class="text-emerald-400">Active</td>
+              </tr>
+              <tr class="border-t border-slate-800">
+                <td class="py-3">Hassan Raza · NM-118</td>
+                <td>Nixor Outreach</td>
+                <td class="text-amber-300">Pending Consent</td>
+              </tr>
+              <tr class="border-t border-slate-800">
+                <td class="py-3">Aisha Noor · NM-156</td>
+                <td>Nixor Learning</td>
+                <td class="text-slate-400">Inactive</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-lg font-semibold">Role Assignment</h2>
+          <p class="text-xs text-slate-500 mt-1">Sample data — role management UI coming soon.</p>
+          <div class="mt-4 space-y-4 text-sm">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="font-medium">Board Members</p>
+                <p class="text-xs text-slate-500">3 assigned</p>
+              </div>
+              <button class="text-xs bg-slate-800 px-3 py-1 rounded-full">Manage</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="font-medium">Entity Departments</p>
+                <p class="text-xs text-slate-500">Operations, Finance, HR</p>
+              </div>
+              <button class="text-xs bg-slate-800 px-3 py-1 rounded-full">Edit</button>
+            </div>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="font-medium">Volunteer Access</p>
+                <p class="text-xs text-slate-500">Nixor Google only</p>
+              </div>
+              <button class="text-xs bg-slate-800 px-3 py-1 rounded-full">Review</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

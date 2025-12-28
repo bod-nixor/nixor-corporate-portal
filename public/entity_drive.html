@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entity Drive</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="flex">
+    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden lg:block">
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+      <nav class="mt-8 space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      </nav>
+    </aside>
+    <div id="mobile-nav" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden">
+      <div class="absolute left-0 top-0 h-full w-72 bg-slate-900 border-r border-slate-800 p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+          <button id="close-nav" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+        <nav class="mt-8 space-y-2 text-sm">
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+          <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_drive.html">Entity Drive</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+        </nav>
+      </div>
+    </div>
+    <main class="flex-1 p-6 md:p-8">
+      <header class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+        <div class="flex items-start gap-4">
+          <button id="open-nav" class="lg:hidden bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">☰</button>
+          <div>
+          <h1 class="text-2xl font-semibold">Entity Drive</h1>
+          <p class="text-sm text-slate-400">Automated templates, synced permissions, and centralized folders.</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm" onclick="alert('Folder creation coming soon')">New Folder</button>
+          <button class="bg-indigo-500 rounded-xl px-4 py-2 text-sm" onclick="alert('Upload flow coming soon')">Upload File</button>
+        </div>
+      </header>
+
+      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[1.2fr_2fr_1fr] gap-6">
+        <div class="space-y-4">
+          <h2 class="text-sm font-semibold text-slate-300">Quick Access</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p class="text-xs uppercase text-indigo-300">Operations</p>
+              <h3 class="text-lg font-semibold mt-2">Ops Plans</h3>
+              <p class="text-xs text-slate-500 mt-1">12 files · Updated today</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p class="text-xs uppercase text-emerald-300">Finance</p>
+              <h3 class="text-lg font-semibold mt-2">Financial Packs</h3>
+              <p class="text-xs text-slate-500 mt-1">8 files · Updated yesterday</p>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+              <p class="text-xs uppercase text-amber-300">HR</p>
+              <h3 class="text-lg font-semibold mt-2">Volunteer Docs</h3>
+              <p class="text-xs text-slate-500 mt-1">20 files · Updated 2 days ago</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold text-slate-300">All Files</h2>
+            <div class="text-xs text-slate-500">Showing 24 items</div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-slate-500">
+                <tr>
+                  <th class="text-left py-2">Name</th>
+                  <th class="text-left py-2">Sharing</th>
+                  <th class="text-left py-2">Size</th>
+                  <th class="text-left py-2">Modified</th>
+                </tr>
+              </thead>
+              <tbody class="text-slate-200">
+                <tr class="border-t border-slate-800">
+                  <td class="py-3">Operations Plan - Health Camp</td>
+                  <td>Entity</td>
+                  <td>1.2 MB</td>
+                  <td>Today</td>
+                </tr>
+                <tr class="border-t border-slate-800">
+                  <td class="py-3">Volunteer Roster.xlsx</td>
+                  <td>HR</td>
+                  <td>860 KB</td>
+                  <td>Yesterday</td>
+                </tr>
+                <tr class="border-t border-slate-800">
+                  <td class="py-3">Board Minutes.pdf</td>
+                  <td>Board</td>
+                  <td>500 KB</td>
+                  <td>2 days ago</td>
+                </tr>
+                <tr class="border-t border-slate-800">
+                  <td class="py-3">Finance Pre-Financial.xlsx</td>
+                  <td>Finance</td>
+                  <td>940 KB</td>
+                  <td>3 days ago</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <aside class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-300">Inspector</h2>
+            <span class="text-xs text-slate-500">Selected</span>
+          </div>
+          <div class="mt-4">
+            <div class="h-36 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-xs text-slate-500">Preview</div>
+            <h3 class="text-lg font-semibold mt-4">Operations Plan - Health Camp</h3>
+            <p class="text-xs text-slate-500">PDF · 1.2 MB</p>
+            <div class="mt-4">
+              <p class="text-xs text-slate-400 uppercase">Tags</p>
+              <div class="flex flex-wrap gap-2 mt-2">
+                <span class="text-xs bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded-full">Ops Plan</span>
+                <span class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded-full">Week 3</span>
+              </div>
+            </div>
+            <div class="mt-6">
+              <div class="flex gap-2 text-xs">
+                <button class="px-3 py-1 rounded-full bg-slate-950 border border-slate-800">Activity</button>
+                <button class="px-3 py-1 rounded-full bg-slate-900 border border-slate-800">Comments</button>
+                <button class="px-3 py-1 rounded-full bg-slate-900 border border-slate-800">Versions</button>
+              </div>
+              <div class="mt-4 space-y-3 text-xs text-slate-400">
+                <p>Updated permissions to Operations + Board.</p>
+                <p>Uploaded by Fatima Ali · 2 hours ago.</p>
+                <p>Commented by Board Team · Yesterday.</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+  <script>
+    const mobileNav = document.getElementById('mobile-nav');
+    document.getElementById('open-nav')?.addEventListener('click', () => {
+      mobileNav?.classList.remove('hidden');
+    });
+    document.getElementById('close-nav')?.addEventListener('click', () => {
+      mobileNav?.classList.add('hidden');
+    });
+    mobileNav?.addEventListener('click', (event) => {
+      if (event.target === mobileNav) {
+        mobileNav.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
