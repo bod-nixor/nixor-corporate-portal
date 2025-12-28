@@ -23,7 +23,7 @@
         <label for="password-input" class="text-sm text-slate-300">Password</label>
         <input id="password-input" type="password" name="password" autocomplete="current-password" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Enter your password" required />
       </div>
-      <div id="error-message" class="hidden text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-xl px-4 py-3"></div>
+      <div id="error-message" role="alert" aria-live="assertive" class="hidden text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-xl px-4 py-3"></div>
       <button type="submit" class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 transition px-4 py-3 font-medium">Sign In</button>
     </form>
     <div class="flex items-center gap-3 my-6">
@@ -60,6 +60,8 @@
       if (submitBtn?.disabled) {
         return;
       }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Signing in...';
       try {
         await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
         errorEl.classList.add('hidden');
@@ -67,6 +69,8 @@
       } catch (err) {
         errorEl.textContent = err.message || 'Login failed';
         errorEl.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign In';
       }
     });
   </script>
