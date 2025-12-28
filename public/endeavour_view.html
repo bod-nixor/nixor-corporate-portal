@@ -133,7 +133,7 @@
     </main>
   </div>
   <script type="module">
-    import { apiFetch } from '/assets/app.js';
+    import { apiFetch, getCsrfToken } from '/assets/app.js';
 
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
@@ -168,10 +168,7 @@
       el.classList.remove('hidden');
     };
 
-    const csrfToken = () => {
-      const match = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-      return match ? decodeURIComponent(match[1]) : '';
-    };
+    const csrfToken = getCsrfToken;
 
     const loadEndeavour = async () => {
       if (!id) {

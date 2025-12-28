@@ -57,6 +57,8 @@ function base_url(): string {
     $allowed = allowed_hosts();
     if ($allowed && !in_array($host, $allowed, true)) {
         $host = $allowed[0];
+    } elseif (!$allowed && $host !== 'localhost') {
+        error_log('Warning: BASE_URL and ALLOWED_HOSTS not configured; trusting HTTP_HOST header');
     }
     return request_scheme() . '://' . $host;
 }

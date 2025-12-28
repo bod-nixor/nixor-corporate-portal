@@ -155,7 +155,7 @@
           const shareCell = document.createElement('td');
           shareCell.textContent = item.sharing_scope;
           const sizeCell = document.createElement('td');
-          sizeCell.textContent = item.item_type === 'folder' ? '-' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
+          sizeCell.textContent = item.item_type === 'folder' ? '-' : `${((item.size_bytes || 0) / 1024).toFixed(1)} KB`;
           const dateCell = document.createElement('td');
           dateCell.textContent = new Date(item.updated_at || item.created_at).toLocaleDateString();
           row.appendChild(nameCell);

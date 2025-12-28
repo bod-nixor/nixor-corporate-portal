@@ -8,9 +8,15 @@ function handle_admin(string $method, array $segments): void {
 
     if ($action === 'summary' && $method === 'GET') {
         require_role(['admin']);
-        $missingDocs = db()->query("SELECT COUNT(*) as total FROM endeavours WHERE status IN ('ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'post_financial_pending_board_approval')")->fetch();
-        $unpaid = db()->query('SELECT COUNT(*) as total FROM payments WHERE paid_flag = 0')->fetch();
-        $consents = db()->query("SELECT COUNT(*) as total FROM consents WHERE status = 'pending'")->fetch();
+        $missingStmt = db()->prepare("SELECT COUNT(*) as total FROM endeavours WHERE status IN ('ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'post_financial_pending_board_approval')");
+        $missingStmt->execute();
+        $missingDocs = $missingStmt->fetch();
+        $unpaidStmt = db()->prepare('SELECT COUNT(*) as total FROM payments WHERE paid_flag = 0');
+        $unpaidStmt->execute();
+        $unpaid = $unpaidStmt->fetch();
+        $consentStmt = db()->prepare("SELECT COUNT(*) as total FROM consents WHERE status = 'pending'");
+        $consentStmt->execute();
+        $consents = $consentStmt->fetch();
         respond(['ok' => true, 'data' => ['missing_docs' => (int)$missingDocs['total'], 'unpaid' => (int)$unpaid['total'], 'consents_pending' => (int)$consents['total']]]);
     }
 
@@ -26,8 +32,8 @@ function handle_setup(): void {
     $email = validate_email_address($data['email'] ?? '', 'email');
     $fullName = require_non_empty($data['full_name'] ?? '', 'full_name', 190);
     $password = $data['password'] ?? '';
-    if (strlen($password) < 10) {
-        respond(['ok' => false, 'error' => 'Password must be at least 10 characters'], 400);
+    if (strlen($password) < 12) {
+        respond(['ok' => false, 'error' => 'Password must be at least 12 characters'], 400);
     }
 
     $schemaFile = dirname(__DIR__, 2) . '/sql/schema.sql';
@@ -40,6 +46,7 @@ function handle_setup(): void {
         respond(['ok' => false, 'error' => 'Failed to read schema'], 500);
     }
 
+    // Note: Statement splitting assumes simple schema files without stored procedures/triggers.
     $statements = array_filter(array_map('trim', explode(';', $schemaSql)));
     foreach ($statements as $statement) {
         try {

@@ -39,13 +39,13 @@ function handle_files(string $method, array $segments): void {
 function stream_download(string $path, string $filename): void {
     $resolvedFile = realpath($path);
     $uploadsBase = realpath(upload_base_path());
-    if (!$resolvedFile || !$uploadsBase || strpos($resolvedFile, $uploadsBase) !== 0) {
+    if (!$resolvedFile || !$uploadsBase || !str_starts_with($resolvedFile, $uploadsBase . '/')) {
         respond(['ok' => false, 'error' => 'File not found'], 404);
     }
     if (!is_file($resolvedFile)) {
         respond(['ok' => false, 'error' => 'File not found'], 404);
     }
-    $safeName = basename($filename);
+    $safeName = preg_replace('/[^\\w.\\-]/', '_', basename($filename));
     header('Content-Type: application/octet-stream');
     header('Content-Length: ' . filesize($resolvedFile));
     header('Content-Disposition: attachment; filename="' . $safeName . '"');

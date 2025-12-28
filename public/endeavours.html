@@ -127,6 +127,7 @@
       })
       .catch(() => {
         entityFilter.innerHTML = '<option value=\"\">All Entities</option>';
+        console.error('Failed to load user entities');
         loadEndeavours();
       });
 
