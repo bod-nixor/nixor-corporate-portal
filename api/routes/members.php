@@ -35,11 +35,17 @@ function handle_members(string $method, array $segments): void {
         if (!$userCheck->fetch()) {
             respond(['ok' => false, 'error' => 'User not found'], 404);
         }
+        $department = $data['department'] ?? 'other';
+        $stmt = db()->prepare('SELECT id FROM entity_memberships WHERE entity_id = ? AND user_id = ? AND department = ?');
+        $stmt->execute([$entityId, $userId, $department]);
+        if ($stmt->fetch()) {
+            respond(['ok' => false, 'error' => 'Membership already exists'], 409);
+        }
         $stmt = db()->prepare('INSERT INTO entity_memberships (entity_id, user_id, department, role, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $entityId,
             $userId,
-            $data['department'] ?? 'other',
+            $department,
             $data['role'] ?? 'member',
             $data['start_date'] ?? null,
             $data['end_date'] ?? null

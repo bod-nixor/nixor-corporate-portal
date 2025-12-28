@@ -12,6 +12,9 @@ function handle_endeavours(string $method, array $segments): void {
     if ($method === 'POST' && !$id) {
         $user = require_role(['admin', 'ceo']);
         $data = read_json();
+        if (empty($data['entity_id']) || empty($data['name'])) {
+            respond(['ok' => false, 'error' => 'entity_id and name are required'], 400);
+        }
         $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, venue, schedule, start_date, end_date, transport_payment_required, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $data['entity_id'],
@@ -158,7 +161,14 @@ function handle_endeavours(string $method, array $segments): void {
     }
 
     if ($id && $action === 'consent' && $method === 'POST') {
+        if (!rate_limit_check('consent', 5, 60)) {
+            respond(['ok' => false, 'error' => 'Too many requests'], 429);
+        }
         $data = read_json();
+        // Consent tokens must be generated with >=32 bytes of entropy.
+        if (empty($data['token']) || !preg_match('/^[a-zA-Z0-9_-]{32,}$/', $data['token'])) {
+            respond(['ok' => false, 'error' => 'Invalid token'], 400);
+        }
         $stmt = db()->prepare('UPDATE consents SET status = "signed", signed_at = NOW(), signature_name = ? WHERE token = ?');
         $stmt->execute([$data['signature_name'] ?? '', $data['token'] ?? '']);
         emit_ws_event('endeavour.consent_signed', ['id' => $id]);
@@ -178,6 +188,9 @@ function handle_endeavours(string $method, array $segments): void {
         $user = require_auth();
         $data = read_json();
         $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
         $allowed = ['admin'];
         if ($endeavour['type_id']) {
             $allowed = ['admin', 'board', 'hr'];
@@ -204,11 +217,30 @@ function fetch_entity_id(int $endeavourId): int {
     return (int)$row['entity_id'];
 }
 
-function fetch_endeavour(int $endeavourId): array {
+function fetch_endeavour(int $endeavourId): ?array {
     $stmt = db()->prepare('SELECT * FROM endeavours WHERE id = ?');
     $stmt->execute([$endeavourId]);
     $row = $stmt->fetch();
-    return $row ?: [];
+    return $row ?: null;
+}
+
+function rate_limit_check(string $key, int $limit, int $windowSeconds): bool {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $bucket = sys_get_temp_dir() . '/nixor_rate_' . md5($key . $ip);
+    $now = time();
+    $entries = [];
+    if (file_exists($bucket)) {
+        $data = json_decode(file_get_contents($bucket), true);
+        if (is_array($data)) {
+            $entries = array_filter($data, fn($ts) => ($now - $ts) < $windowSeconds);
+        }
+    }
+    if (count($entries) >= $limit) {
+        return false;
+    }
+    $entries[] = $now;
+    file_put_contents($bucket, json_encode(array_values($entries)), LOCK_EX);
+    return true;
 }
 
 function update_status(int $endeavourId, string $status): void {
