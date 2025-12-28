@@ -3,7 +3,7 @@ require_once __DIR__ . '/lib/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$path = preg_replace('#^/api#', '', $path);
+$path = preg_replace('#^/api(?:/index\\.php)?#', '', $path);
 $segments = array_values(array_filter(explode('/', $path)));
 
 if ($method === 'POST' && !in_array($segments[0] ?? '', ['auth'], true)) {
