@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -13,12 +14,16 @@ WS_TOKEN = os.getenv("WS_TOKEN", "")
 
 clients = set()
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
 async def register(websocket):
     clients.add(websocket)
+    logging.info("Client connected (%s total)", len(clients))
     await websocket.send(json.dumps({"event": "connected", "payload": {"clients": len(clients)}}))
 
 async def unregister(websocket):
     clients.discard(websocket)
+    logging.info("Client disconnected (%s total)", len(clients))
 
 async def broadcast(message: str):
     if not clients:
@@ -47,11 +52,13 @@ async def handler(websocket):
     await register(websocket)
     try:
         async for _ in websocket:
-            pass
+            # Broadcast-only server: client messages are ignored.
+            continue
     finally:
         await unregister(websocket)
 
 async def main():
+    logging.info("WebSocket server starting on %s:%s", HOST, PORT)
     async with websockets.serve(handler, HOST, PORT):
         await tail_queue()
 

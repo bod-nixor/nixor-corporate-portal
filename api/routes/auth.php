@@ -9,6 +9,11 @@ function handle_auth(string $method, array $segments): void {
         if (!$user || !verify_password($data['password'] ?? '', $user['password_hash'])) {
             respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
         }
+        if (($user['status'] ?? 'active') !== 'active') {
+            respond(['ok' => false, 'error' => 'Account inactive'], 403);
+        }
+        $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
+        $update->execute([$user['id']]);
         $_SESSION['user_id'] = $user['id'];
         respond(['ok' => true, 'data' => ['user' => $user]]);
     }
@@ -31,6 +36,11 @@ function handle_auth(string $method, array $segments): void {
         if (!$user) {
             respond(['ok' => false, 'error' => 'Google account not found'], 404);
         }
+        if (($user['status'] ?? 'active') !== 'active') {
+            respond(['ok' => false, 'error' => 'Account inactive'], 403);
+        }
+        $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
+        $update->execute([$user['id']]);
         $_SESSION['user_id'] = $user['id'];
         respond(['ok' => true, 'data' => ['user' => $user]]);
     }

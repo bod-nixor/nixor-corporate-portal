@@ -3,8 +3,8 @@ function current_user(): ?array {
     if (!isset($_SESSION['user_id'])) {
         return null;
     }
-    $stmt = db()->prepare('SELECT * FROM users WHERE id = ?');
-    $stmt->execute([$_SESSION['user_id']]);
+    $stmt = db()->prepare('SELECT * FROM users WHERE id = ? AND status = ?');
+    $stmt->execute([$_SESSION['user_id'], 'active']);
     $user = $stmt->fetch();
     return $user ?: null;
 }
@@ -27,6 +27,7 @@ function require_role(array $roles): array {
 
 function ensure_entity_access(int $entityId, array $roles = []): array {
     $user = require_auth();
+    // Admin and Board roles can access all entities by design.
     if (in_array($user['global_role'], ['admin', 'board'], true)) {
         return $user;
     }

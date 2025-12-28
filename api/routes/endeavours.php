@@ -244,6 +244,7 @@ function handle_approval(int $endeavourId): void {
     $roleNeeded = null;
     $nextStatus = $status;
 
+    // Approval state machine: board approvals precede admin approvals for each stage.
     if (in_array($status, ['pending_board_approval', 'ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'volunteer_posting_pending_board_approval', 'post_financial_pending_board_approval'], true)) {
         $roleNeeded = 'board';
     } elseif (in_array($status, ['board_approved_ops_plan_required', 'ops_plan_approved_mou_optional', 'mou_approved_pre_financial_required', 'finance_approved_hr_posting_optional', 'volunteer_posting_approved_hr_publish', 'closed_ops_epilogue_required'], true)) {

@@ -3,9 +3,13 @@ function env_value($key, $default = null) {
     static $env;
     if ($env === null) {
         $env = [];
-        $path = dirname(__DIR__, 2) . '/.env';
+        $path = getenv('ENV_FILE_PATH') ?: dirname(__DIR__, 2) . '/.env';
         if (file_exists($path)) {
-            $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if ($lines === false) {
+                error_log("Warning: Failed to read .env file at {$path}");
+                $lines = [];
+            }
             foreach ($lines as $line) {
                 $line = trim($line);
                 if ($line === '' || str_starts_with($line, '#')) {

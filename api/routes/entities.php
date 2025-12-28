@@ -20,6 +20,9 @@ function handle_entities(string $method, array $segments): void {
 
     if ($method === 'POST' && !$id) {
         $data = read_json();
+        if (empty($data['name'])) {
+            respond(['ok' => false, 'error' => 'Name is required'], 400);
+        }
         $stmt = db()->prepare('INSERT INTO entities (name, description) VALUES (?, ?)');
         $stmt->execute([$data['name'] ?? '', $data['description'] ?? '']);
         $entityId = (int)db()->lastInsertId();

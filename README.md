@@ -26,6 +26,7 @@ Copy and edit the environment file:
 ```bash
 cp .env.example .env
 ```
+Optionally set `ENV_FILE_PATH` if the `.env` file is stored outside the repo root.
 
 ### 3) PHP API + Frontend
 Minimum PHP version: **8.0**.
@@ -81,3 +82,4 @@ Sample endpoints:
 - Uploaded documents are stored in `/uploads/{endeavour_id}/{doc_type}`
 - The websocket server reads from the queue file configured in `.env` (default: `/ws/events.queue`).
 - Consider cleaning expired session rows via a periodic job (based on `sessions.expires_at`).
+- Tailwind is loaded via CDN for rapid prototyping; for production, consider a build step with purged CSS.

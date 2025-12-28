@@ -16,20 +16,20 @@
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl sidebar-active" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/endeavours.html">Entities’ Endeavours</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
       </nav>
     </aside>
     <main class="flex-1 p-6 md:p-10">
       <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
-          <p class="text-xs uppercase text-emerald-400 tracking-[0.2em]">Active</p>
-          <h1 class="text-2xl font-semibold">Community Health Camp</h1>
-          <p class="text-sm text-slate-400">Entity: Nixor Community Entity · 12 Apr - 14 Apr</p>
+          <p id="endeavour-status" class="text-xs uppercase text-emerald-400 tracking-[0.2em]">Active</p>
+          <h1 id="endeavour-name" class="text-2xl font-semibold">Community Health Camp</h1>
+          <p id="endeavour-meta" class="text-sm text-slate-400">Entity: Nixor Community Entity · 12 Apr - 14 Apr</p>
         </div>
         <div class="flex gap-3">
-          <button class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-sm">Request Board Approval</button>
-          <button class="bg-indigo-500 px-4 py-2 rounded-xl text-sm">Upload Document</button>
+          <button class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-sm" onclick="alert('Approval request coming soon')">Request Board Approval</button>
+          <button class="bg-indigo-500 px-4 py-2 rounded-xl text-sm" onclick="alert('Document upload coming soon')">Upload Document</button>
         </div>
       </header>
 
@@ -130,5 +130,28 @@
       </section>
     </main>
   </div>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
+    if (id) {
+      apiFetch(`/endeavours/${id}`)
+        .then(({ data }) => {
+          const endeavour = data?.endeavour;
+          if (!endeavour) return;
+          const statusEl = document.getElementById('endeavour-status');
+          const nameEl = document.getElementById('endeavour-name');
+          const metaEl = document.getElementById('endeavour-meta');
+          if (statusEl) statusEl.textContent = (endeavour.status || '').replace(/_/g, ' ');
+          if (nameEl) nameEl.textContent = endeavour.name || 'Endeavour';
+          if (metaEl) {
+            const dates = [endeavour.start_date, endeavour.end_date].filter(Boolean).join(' - ');
+            metaEl.textContent = `Entity: ${endeavour.entity_name || 'Nixor Entity'}${dates ? ` · ${dates}` : ''}`;
+          }
+        })
+        .catch(() => {});
+    }
+  </script>
 </body>
 </html>
