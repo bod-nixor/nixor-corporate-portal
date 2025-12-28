@@ -18,47 +18,93 @@
     </div>
   </header>
   <main class="max-w-6xl mx-auto px-6 py-10">
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <span class="text-xs uppercase text-emerald-400">Active</span>
-          <span class="text-xs text-slate-500">External</span>
-        </div>
-        <h2 class="text-lg font-semibold mt-4">Community Health Camp</h2>
-        <p class="text-sm text-slate-400 mt-2">Assist with registrations, patient flow, and data capture. Transport stipend available.</p>
-        <div class="mt-4 text-xs text-slate-500 space-y-1">
-          <p>Venue: City Hall Auditorium</p>
-          <p>Schedule: Sat 9:00 AM - 2:00 PM</p>
-        </div>
-        <button class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl" onclick="alert('Registration coming soon')">Register Interest</button>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <span class="text-xs uppercase text-amber-300">Starting</span>
-          <span class="text-xs text-slate-500">Internal</span>
-        </div>
-        <h2 class="text-lg font-semibold mt-4">Leadership Bootcamp</h2>
-        <p class="text-sm text-slate-400 mt-2">Help coordinate breakout sessions and capture feedback for future cohorts.</p>
-        <div class="mt-4 text-xs text-slate-500 space-y-1">
-          <p>Venue: Nixor HQ</p>
-          <p>Schedule: Wed 3:00 PM - 6:00 PM</p>
-        </div>
-        <button class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl" onclick="alert('Registration coming soon')">Register Interest</button>
-      </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
-        <div class="flex items-center justify-between">
-          <span class="text-xs uppercase text-sky-300">Upcoming</span>
-          <span class="text-xs text-slate-500">External</span>
-        </div>
-        <h2 class="text-lg font-semibold mt-4">Tech for Good Fair</h2>
-        <p class="text-sm text-slate-400 mt-2">Support booth set-up, attendee guidance, and social media capture.</p>
-        <div class="mt-4 text-xs text-slate-500 space-y-1">
-          <p>Venue: Digital Arts Center</p>
-          <p>Schedule: Fri 10:00 AM - 4:00 PM</p>
-        </div>
-        <button class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl" onclick="alert('Registration coming soon')">Register Interest</button>
-      </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section class="lg:col-span-2">
+        <h2 class="text-lg font-semibold">Open Volunteer Posts</h2>
+        <div id="posts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div>
+        <p id="posts-empty" class="hidden text-slate-400 text-sm mt-4">No volunteer posts are live right now. Check back soon.</p>
+      </section>
+      <aside class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h2 class="text-lg font-semibold">Register Interest</h2>
+        <p class="text-sm text-slate-400 mt-2">Let the team know you’re interested and we’ll follow up.</p>
+        <form id="interest-form" class="space-y-4 mt-4">
+          <input name="name" required placeholder="Full name" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="email" type="email" required placeholder="Email address" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="phone" placeholder="Phone (optional)" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <textarea name="message" rows="3" placeholder="Tell us what you’re interested in" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+          <div id="interest-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+          <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 font-medium" type="submit">Submit Interest</button>
+        </form>
+      </aside>
     </div>
   </main>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+    const grid = document.getElementById('posts-grid');
+    const emptyState = document.getElementById('posts-empty');
+    const form = document.getElementById('interest-form');
+    const statusEl = document.getElementById('interest-status');
+
+    const setStatus = (message, ok) => {
+      statusEl.textContent = message;
+      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      statusEl.classList.remove('hidden');
+    };
+
+    const renderPosts = (posts) => {
+      grid.innerHTML = '';
+      if (!posts.length) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      posts.forEach((post) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col';
+        const title = document.createElement('h3');
+        title.className = 'text-lg font-semibold';
+        title.textContent = post.endeavour_name;
+        const desc = document.createElement('p');
+        desc.className = 'text-sm text-slate-400 mt-2';
+        desc.textContent = post.description || 'Volunteer support needed.';
+        const meta = document.createElement('div');
+        meta.className = 'mt-4 text-xs text-slate-500 space-y-1';
+        const entityLine = document.createElement('p');
+        entityLine.textContent = `Entity: ${post.entity_name}`;
+        const venueLine = document.createElement('p');
+        venueLine.textContent = `Venue: ${post.venue || 'TBD'}`;
+        const scheduleLine = document.createElement('p');
+        scheduleLine.textContent = `Schedule: ${post.schedule || 'TBD'}`;
+        meta.appendChild(entityLine);
+        meta.appendChild(venueLine);
+        meta.appendChild(scheduleLine);
+        card.appendChild(title);
+        card.appendChild(desc);
+        card.appendChild(meta);
+        const loginLink = document.createElement('a');
+        loginLink.href = '/login.html';
+        loginLink.className = 'mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center';
+        loginLink.textContent = 'Apply via Volunteer Login';
+        card.appendChild(loginLink);
+        grid.appendChild(card);
+      });
+    };
+
+    apiFetch('/public/volunteer_posts', { skipFallback: true })
+      .then((response) => renderPosts(response?.data || []))
+      .catch(() => renderPosts([]));
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(form).entries());
+      try {
+        await apiFetch('/public/interest', { method: 'POST', body: JSON.stringify(payload), skipFallback: true });
+        form.reset();
+        setStatus('Thanks! The team will contact you soon.', true);
+      } catch (err) {
+        setStatus(err.message || 'Submission failed.', false);
+      }
+    });
+  </script>
 </body>
 </html>

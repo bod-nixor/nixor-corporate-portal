@@ -334,6 +334,26 @@ CREATE TABLE dashboard_announcements (
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE interest_submissions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(190) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  phone VARCHAR(60),
+  message TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE reminder_notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  notification_type VARCHAR(120) NOT NULL,
+  entity_type VARCHAR(120),
+  entity_id INT,
+  recipient VARCHAR(190) NOT NULL,
+  sent_on DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_notification (notification_type, entity_type, entity_id, recipient, sent_on)
+);
+
 INSERT INTO entities (name, description) VALUES
 ('Nixor Community Entity', 'Primary entity for Nixor corporate initiatives');
 

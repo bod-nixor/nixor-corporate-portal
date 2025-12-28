@@ -29,7 +29,8 @@ function read_json(): array {
 }
 
 function require_csrf(): void {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
         return;
     }
     $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');

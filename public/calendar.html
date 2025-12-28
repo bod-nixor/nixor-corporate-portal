@@ -25,25 +25,108 @@
         <h1 class="text-2xl font-semibold">Calendar</h1>
         <p class="text-slate-400">Meetings, deadlines, RSVPs, and minutes.</p>
       </header>
-      <p class="text-xs text-slate-500 mt-2">Sample schedule — connect to calendar API for live events.</p>
-      <section class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section class="mt-6 grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Today</h2>
-          <p class="text-lg font-semibold mt-2">Board Approval Review</p>
-          <p class="text-xs text-slate-500 mt-1">4:00 PM · Conference Room</p>
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Upcoming Events</h2>
+            <select id="calendar-entity" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+          </div>
+          <div id="calendar-list" class="mt-4 space-y-3 text-sm"></div>
+          <p id="calendar-empty" class="hidden text-sm text-slate-500 mt-4">No events scheduled.</p>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">This Week</h2>
-          <p class="text-lg font-semibold mt-2">Volunteer Orientation</p>
-          <p class="text-xs text-slate-500 mt-1">Thu 11:00 AM · Main Hall</p>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Deadlines</h2>
-          <p class="text-lg font-semibold mt-2">Pre-Financial Upload</p>
-          <p class="text-xs text-slate-500 mt-1">Due in 2 days</p>
+          <h2 class="text-lg font-semibold">Add Event</h2>
+          <form id="calendar-form" class="mt-4 space-y-3 text-sm">
+            <input name="title" required placeholder="Event title" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            <input name="event_date" type="datetime-local" required class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            <input name="location" placeholder="Location" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            <textarea name="description" rows="3" placeholder="Description" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+            <div id="calendar-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Create Event</button>
+          </form>
         </div>
       </section>
     </main>
   </div>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+    const entitySelect = document.getElementById('calendar-entity');
+    const list = document.getElementById('calendar-list');
+    const emptyState = document.getElementById('calendar-empty');
+    const form = document.getElementById('calendar-form');
+    const statusEl = document.getElementById('calendar-status');
+
+    const normalizeError = (err) => {
+      const message = err?.message || '';
+      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
+    };
+
+    const setStatus = (message, ok) => {
+      statusEl.textContent = message;
+      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      statusEl.classList.remove('hidden');
+    };
+
+    const loadEvents = async () => {
+      const entityId = entitySelect.value;
+      if (!entityId) return;
+      const response = await apiFetch(`/calendar?entity_id=${entityId}`);
+      const events = response?.data || [];
+      list.innerHTML = '';
+      if (!events.length) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      events.forEach((event) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950 border border-slate-800 rounded-xl p-4';
+        const title = document.createElement('p');
+        title.className = 'font-medium';
+        title.textContent = event.title;
+        const meta = document.createElement('p');
+        meta.className = 'text-xs text-slate-500 mt-1';
+        meta.textContent = `${new Date(event.event_date).toLocaleString()} · ${event.location || 'TBD'}`;
+        const desc = document.createElement('p');
+        desc.className = 'text-xs text-slate-400 mt-2';
+        desc.textContent = event.description || 'No description.';
+        card.appendChild(title);
+        card.appendChild(meta);
+        card.appendChild(desc);
+        list.appendChild(card);
+      });
+    };
+
+    apiFetch('/auth/me')
+      .then((response) => {
+        const entities = response?.data?.entities || [];
+        entitySelect.innerHTML = '';
+        entities.forEach((entity) => {
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          entitySelect.appendChild(option);
+        });
+        if (entities.length) {
+          entitySelect.value = entities[0].id;
+          loadEvents();
+        }
+      });
+
+    entitySelect.addEventListener('change', loadEvents);
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.entity_id = entitySelect.value;
+      try {
+        await apiFetch('/calendar', { method: 'POST', body: JSON.stringify(payload) });
+        setStatus('Event created.', true);
+        form.reset();
+        loadEvents();
+      } catch (err) {
+        setStatus(normalizeError(err), false);
+      }
+    });
+  </script>
 </body>
 </html>

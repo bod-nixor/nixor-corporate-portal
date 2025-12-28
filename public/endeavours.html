@@ -27,62 +27,109 @@
           <p class="text-slate-400">Track approvals, documents, and volunteer pipelines.</p>
         </div>
         <div class="flex gap-3">
-          <select class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">
-            <option>All Statuses</option>
-            <option>Pending Board Approval</option>
-            <option>Finance Approved</option>
+          <select id="status-filter" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">
+            <option value="">All Statuses</option>
+            <option value="pending_board_approval">Pending Board Approval</option>
+            <option value="ops_plan_pending_board_approval">Ops Plan Pending Board</option>
+            <option value="mou_pending_board_approval">MOU Pending Board</option>
+            <option value="pre_financial_pending_board_approval">Pre-Financial Pending</option>
+            <option value="volunteer_posting_pending_board_approval">Volunteer Posting Pending</option>
+            <option value="post_financial_pending_board_approval">Post-Financial Pending</option>
+            <option value="live_volunteer_posting">Live Volunteer Posting</option>
+            <option value="completed">Completed</option>
           </select>
-          <select class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">
-            <option>All Entities</option>
-            <option>Nixor Community Entity</option>
-          </select>
+          <select id="entity-filter" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
         </div>
       </header>
-      <section class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
-          <div class="flex items-center justify-between">
-            <span class="text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400">Active</span>
-            <span class="text-xs text-slate-500">External</span>
-          </div>
-          <h2 class="text-lg font-semibold mt-4">Community Health Camp</h2>
-          <p class="text-sm text-slate-400 mt-2">Board approved. Ops plan uploaded and finance pre-financial awaiting admin.</p>
-          <div class="mt-4 text-xs text-slate-500 space-y-1">
-            <p>Dates: 12 Apr - 14 Apr</p>
-            <p>Entity: Nixor Community Entity</p>
-            <p>Volunteer posts: 38</p>
-          </div>
-          <a href="/endeavour_view.html?id=1" class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center">View</a>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
-          <div class="flex items-center justify-between">
-            <span class="text-xs px-2 py-1 rounded-full bg-amber-500/10 text-amber-300">Starting</span>
-            <span class="text-xs text-slate-500">Internal</span>
-          </div>
-          <h2 class="text-lg font-semibold mt-4">Leadership Bootcamp</h2>
-          <p class="text-sm text-slate-400 mt-2">Ops plan pending board approval with travel budget in review.</p>
-          <div class="mt-4 text-xs text-slate-500 space-y-1">
-            <p>Dates: 20 Apr - 22 Apr</p>
-            <p>Entity: Nixor Learning</p>
-            <p>Applicants: 12</p>
-          </div>
-          <a href="/endeavour_view.html?id=2" class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center">View</a>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col">
-          <div class="flex items-center justify-between">
-            <span class="text-xs px-2 py-1 rounded-full bg-sky-500/10 text-sky-300">Planned</span>
-            <span class="text-xs text-slate-500">External</span>
-          </div>
-          <h2 class="text-lg font-semibold mt-4">Tech for Good Fair</h2>
-          <p class="text-sm text-slate-400 mt-2">Draft created by CEO. Awaiting board approval.</p>
-          <div class="mt-4 text-xs text-slate-500 space-y-1">
-            <p>Dates: 3 May - 5 May</p>
-            <p>Entity: Nixor Outreach</p>
-            <p>Applicants: 0</p>
-          </div>
-          <a href="/endeavour_view.html?id=3" class="mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center">View</a>
-        </div>
-      </section>
+      <section id="endeavour-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8"></section>
+      <p id="endeavour-empty" class="hidden text-sm text-slate-400 mt-6">No endeavours match the selected filters.</p>
     </main>
   </div>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+    const statusFilter = document.getElementById('status-filter');
+    const entityFilter = document.getElementById('entity-filter');
+    const grid = document.getElementById('endeavour-grid');
+    const emptyState = document.getElementById('endeavour-empty');
+
+    const renderEndeavours = (rows) => {
+      grid.innerHTML = '';
+      if (!rows.length) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+      rows.forEach((row) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col';
+        const header = document.createElement('div');
+        header.className = 'flex items-center justify-between';
+        const status = document.createElement('span');
+        status.className = 'text-xs px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-300';
+        status.textContent = row.status.replace(/_/g, ' ');
+        const category = document.createElement('span');
+        category.className = 'text-xs text-slate-500';
+        category.textContent = row.type_id ? 'Typed' : 'General';
+        header.appendChild(status);
+        header.appendChild(category);
+        const title = document.createElement('h2');
+        title.className = 'text-lg font-semibold mt-4';
+        title.textContent = row.name;
+        const desc = document.createElement('p');
+        desc.className = 'text-sm text-slate-400 mt-2';
+        desc.textContent = row.description || 'No description provided.';
+        const meta = document.createElement('div');
+        meta.className = 'mt-4 text-xs text-slate-500 space-y-1';
+        const dates = document.createElement('p');
+        dates.textContent = `Dates: ${row.start_date || 'TBD'} - ${row.end_date || 'TBD'}`;
+        const entity = document.createElement('p');
+        entity.textContent = `Entity: ${row.entity_name}`;
+        meta.appendChild(dates);
+        meta.appendChild(entity);
+        const view = document.createElement('a');
+        view.href = `/endeavour_view.html?id=${row.id}`;
+        view.className = 'mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center';
+        view.textContent = 'View';
+        card.appendChild(header);
+        card.appendChild(title);
+        card.appendChild(desc);
+        card.appendChild(meta);
+        card.appendChild(view);
+        grid.appendChild(card);
+      });
+    };
+
+    const loadEndeavours = async () => {
+      const params = new URLSearchParams();
+      if (statusFilter.value) params.set('status', statusFilter.value);
+      if (entityFilter.value) params.set('entity_id', entityFilter.value);
+      try {
+        const response = await apiFetch(`/endeavours?${params.toString()}`);
+        renderEndeavours(response?.data || []);
+      } catch (err) {
+        renderEndeavours([]);
+      }
+    };
+
+    apiFetch('/auth/me')
+      .then((response) => {
+        const entities = response?.data?.entities || [];
+        entityFilter.innerHTML = '<option value=\"\">All Entities</option>';
+        entities.forEach((entity) => {
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          entityFilter.appendChild(option);
+        });
+        loadEndeavours();
+      })
+      .catch(() => {
+        entityFilter.innerHTML = '<option value=\"\">All Entities</option>';
+        loadEndeavours();
+      });
+
+    statusFilter.addEventListener('change', loadEndeavours);
+    entityFilter.addEventListener('change', loadEndeavours);
+  </script>
 </body>
 </html>

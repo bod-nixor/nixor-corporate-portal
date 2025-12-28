@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parent Consent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-6">
+  <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 w-full max-w-lg">
+    <h1 class="text-2xl font-semibold">Parent Consent</h1>
+    <p class="text-slate-400 text-sm mt-2">Review and sign the consent form for the Nixor endeavour.</p>
+    <form id="consent-form" class="mt-6 space-y-4">
+      <div>
+        <label class="text-sm text-slate-300">Signature name</label>
+        <input name="signature_name" required class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Parent/Guardian name" />
+      </div>
+      <div id="consent-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+      <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 font-medium">Submit Consent</button>
+    </form>
+  </div>
+  <script type="module">
+    import { apiFetch, setCsrfToken } from '/assets/app.js';
+    const form = document.getElementById('consent-form');
+    const statusEl = document.getElementById('consent-status');
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const endeavourId = params.get('endeavour_id');
+
+    const setStatus = (message, ok) => {
+      statusEl.textContent = message;
+      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+    };
+
+    apiFetch('/auth/csrf')
+      .then((response) => setCsrfToken(response?.data?.token))
+      .catch(() => {});
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!token || !endeavourId) {
+        setStatus('Invalid consent link. Please request a new email.', false);
+        return;
+      }
+      const payload = Object.fromEntries(new FormData(form).entries());
+      payload.token = token;
+      try {
+        await apiFetch(`/endeavours/${endeavourId}/consent`, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        setStatus('Consent submitted successfully. Thank you!', true);
+        form.reset();
+      } catch (err) {
+        setStatus(err.message || 'Failed to submit consent.', false);
+      }
+    });
+  </script>
+</body>
+</html>

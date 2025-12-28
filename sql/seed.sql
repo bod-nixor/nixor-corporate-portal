@@ -25,4 +25,16 @@ INSERT INTO endeavours (entity_id, created_by, name, description, venue, schedul
 VALUES
 (1, 2, 'Community Health Camp', 'Multi-day health outreach with onsite clinics.', 'City Hall Auditorium', 'Sat 9AM-2PM', '2024-04-12', '2024-04-14', 500.00, 'pending_board_approval');
 
+INSERT INTO dashboard_announcements (entity_id, title, message, created_by)
+VALUES
+(1, 'Welcome to the Nixor Portal', 'Announcements posted here are visible to your entity members.', 2);
+
+INSERT INTO calendar_events (entity_id, title, description, event_date, location, created_by)
+VALUES
+(1, 'Board Sync', 'Monthly alignment with leadership.', DATE_ADD(NOW(), INTERVAL 3 DAY), 'Virtual', 2);
+
+INSERT INTO volunteer_posts (endeavour_id, description, eligibility_notes, venue, schedule, transport_payment, questionnaire_mode, published, published_at, created_by)
+VALUES
+(1, 'Join us for on-site support during the health camp.', 'Medical students preferred.', 'City Hall Auditorium', 'Sat 9AM-2PM', 500.00, 0, 1, NOW(), 2);
+
 COMMIT;

@@ -46,37 +46,22 @@
           </div>
         </div>
         <div class="flex flex-wrap gap-3">
-          <button class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm" onclick="alert('Folder creation coming soon')">New Folder</button>
-          <button class="bg-indigo-500 rounded-xl px-4 py-2 text-sm" onclick="alert('Upload flow coming soon')">Upload File</button>
+          <select id="drive-entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+          <button id="new-folder" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New Folder</button>
+          <button id="upload-file" class="bg-indigo-500 rounded-xl px-4 py-2 text-sm">Upload File</button>
         </div>
       </header>
 
       <section class="mt-8 grid grid-cols-1 xl:grid-cols-[1.2fr_2fr_1fr] gap-6">
         <div class="space-y-4">
           <h2 class="text-sm font-semibold text-slate-300">Quick Access</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <p class="text-xs uppercase text-indigo-300">Operations</p>
-              <h3 class="text-lg font-semibold mt-2">Ops Plans</h3>
-              <p class="text-xs text-slate-500 mt-1">12 files · Updated today</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <p class="text-xs uppercase text-emerald-300">Finance</p>
-              <h3 class="text-lg font-semibold mt-2">Financial Packs</h3>
-              <p class="text-xs text-slate-500 mt-1">8 files · Updated yesterday</p>
-            </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <p class="text-xs uppercase text-amber-300">HR</p>
-              <h3 class="text-lg font-semibold mt-2">Volunteer Docs</h3>
-              <p class="text-xs text-slate-500 mt-1">20 files · Updated 2 days ago</p>
-            </div>
-          </div>
+          <div id="drive-summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4"></div>
         </div>
 
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-semibold text-slate-300">All Files</h2>
-            <div class="text-xs text-slate-500">Showing 24 items</div>
+            <div id="drive-count" class="text-xs text-slate-500">Showing 0 items</div>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -88,32 +73,7 @@
                   <th class="text-left py-2">Modified</th>
                 </tr>
               </thead>
-              <tbody class="text-slate-200">
-                <tr class="border-t border-slate-800">
-                  <td class="py-3">Operations Plan - Health Camp</td>
-                  <td>Entity</td>
-                  <td>1.2 MB</td>
-                  <td>Today</td>
-                </tr>
-                <tr class="border-t border-slate-800">
-                  <td class="py-3">Volunteer Roster.xlsx</td>
-                  <td>HR</td>
-                  <td>860 KB</td>
-                  <td>Yesterday</td>
-                </tr>
-                <tr class="border-t border-slate-800">
-                  <td class="py-3">Board Minutes.pdf</td>
-                  <td>Board</td>
-                  <td>500 KB</td>
-                  <td>2 days ago</td>
-                </tr>
-                <tr class="border-t border-slate-800">
-                  <td class="py-3">Finance Pre-Financial.xlsx</td>
-                  <td>Finance</td>
-                  <td>940 KB</td>
-                  <td>3 days ago</td>
-                </tr>
-              </tbody>
+              <tbody id="drive-list" class="text-slate-200"></tbody>
             </table>
           </div>
         </div>
@@ -125,33 +85,17 @@
           </div>
           <div class="mt-4">
             <div class="h-36 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-xs text-slate-500">Preview</div>
-            <h3 class="text-lg font-semibold mt-4">Operations Plan - Health Camp</h3>
-            <p class="text-xs text-slate-500">PDF · 1.2 MB</p>
-            <div class="mt-4">
-              <p class="text-xs text-slate-400 uppercase">Tags</p>
-              <div class="flex flex-wrap gap-2 mt-2">
-                <span class="text-xs bg-indigo-500/10 text-indigo-300 px-2 py-1 rounded-full">Ops Plan</span>
-                <span class="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded-full">Week 3</span>
-              </div>
-            </div>
-            <div class="mt-6">
-              <div class="flex gap-2 text-xs">
-                <button class="px-3 py-1 rounded-full bg-slate-950 border border-slate-800">Activity</button>
-                <button class="px-3 py-1 rounded-full bg-slate-900 border border-slate-800">Comments</button>
-                <button class="px-3 py-1 rounded-full bg-slate-900 border border-slate-800">Versions</button>
-              </div>
-              <div class="mt-4 space-y-3 text-xs text-slate-400">
-                <p>Updated permissions to Operations + Board.</p>
-                <p>Uploaded by Fatima Ali · 2 hours ago.</p>
-                <p>Commented by Board Team · Yesterday.</p>
-              </div>
-            </div>
+            <h3 id="inspector-name" class="text-lg font-semibold mt-4">Select a file</h3>
+            <p id="inspector-meta" class="text-xs text-slate-500"></p>
+            <a id="inspector-download" class="hidden mt-4 inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl" href="#">Download</a>
           </div>
         </aside>
       </section>
     </main>
   </div>
-  <script>
+  <input id="upload-input" type="file" class="hidden" />
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
     const mobileNav = document.getElementById('mobile-nav');
     document.getElementById('open-nav')?.addEventListener('click', () => {
       mobileNav?.classList.remove('hidden');
@@ -162,6 +106,125 @@
     mobileNav?.addEventListener('click', (event) => {
       if (event.target === mobileNav) {
         mobileNav.classList.add('hidden');
+      }
+    });
+    const entitySelect = document.getElementById('drive-entity');
+    const driveList = document.getElementById('drive-list');
+    const driveCount = document.getElementById('drive-count');
+    const driveSummary = document.getElementById('drive-summary');
+    const inspectorName = document.getElementById('inspector-name');
+    const inspectorMeta = document.getElementById('inspector-meta');
+    const inspectorDownload = document.getElementById('inspector-download');
+    const uploadInput = document.getElementById('upload-input');
+
+    const renderSummary = (items) => {
+      const folders = items.filter((item) => item.item_type === 'folder').length;
+      const files = items.filter((item) => item.item_type === 'file').length;
+      driveSummary.innerHTML = '';
+      [
+        { label: 'Folders', value: folders },
+        { label: 'Files', value: files }
+      ].forEach((entry) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-4';
+        const title = document.createElement('p');
+        title.className = 'text-xs uppercase text-indigo-300';
+        title.textContent = entry.label;
+        const value = document.createElement('h3');
+        value.className = 'text-lg font-semibold mt-2';
+        value.textContent = entry.value;
+        card.appendChild(title);
+        card.appendChild(value);
+        driveSummary.appendChild(card);
+      });
+    };
+
+    const loadDrive = async () => {
+      const entityId = entitySelect.value;
+      if (!entityId) return;
+      const response = await apiFetch(`/drive/list?entity_id=${entityId}`);
+      const items = response?.data || [];
+      driveList.innerHTML = '';
+      items.forEach((item) => {
+        const row = document.createElement('tr');
+        row.className = 'border-t border-slate-800';
+        const nameCell = document.createElement('td');
+        nameCell.className = 'py-3';
+        nameCell.textContent = item.name;
+        const shareCell = document.createElement('td');
+        shareCell.textContent = item.sharing_scope;
+        const sizeCell = document.createElement('td');
+        sizeCell.textContent = item.item_type === 'folder' ? '-' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
+        const dateCell = document.createElement('td');
+        dateCell.textContent = new Date(item.updated_at || item.created_at).toLocaleDateString();
+        row.appendChild(nameCell);
+        row.appendChild(shareCell);
+        row.appendChild(sizeCell);
+        row.appendChild(dateCell);
+        row.addEventListener('click', () => {
+          inspectorName.textContent = item.name;
+          inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
+          if (item.item_type === 'file') {
+            inspectorDownload.classList.remove('hidden');
+            inspectorDownload.href = `/api/files/download?type=drive&id=${item.id}`;
+          } else {
+            inspectorDownload.classList.add('hidden');
+          }
+        });
+        driveList.appendChild(row);
+      });
+      driveCount.textContent = `Showing ${items.length} items`;
+      renderSummary(items);
+    };
+
+    apiFetch('/auth/me')
+      .then((response) => {
+        const entities = response?.data?.entities || [];
+        entitySelect.innerHTML = '';
+        entities.forEach((entity) => {
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          entitySelect.appendChild(option);
+        });
+        if (entities.length) {
+          entitySelect.value = entities[0].id;
+          loadDrive();
+        }
+      });
+
+    entitySelect.addEventListener('change', loadDrive);
+    document.getElementById('new-folder').addEventListener('click', async () => {
+      const name = prompt('Folder name');
+      if (!name) return;
+      try {
+        await apiFetch('/drive/create_folder', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, name }) });
+        loadDrive();
+      } catch (err) {
+        alert(err.message || 'Failed to create folder');
+      }
+    });
+    document.getElementById('upload-file').addEventListener('click', () => uploadInput.click());
+    uploadInput.addEventListener('change', async () => {
+      if (!uploadInput.files.length) return;
+      const formData = new FormData();
+      formData.append('entity_id', entitySelect.value);
+      formData.append('file', uploadInput.files[0]);
+      const tokenMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+      const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : '';
+      try {
+        const response = await fetch('/api/drive/upload', {
+          method: 'POST',
+          headers: token ? { 'X-CSRF-Token': token } : {},
+          body: formData,
+          credentials: 'include'
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Upload failed');
+        uploadInput.value = '';
+        loadDrive();
+      } catch (err) {
+        alert(err.message || 'Upload failed');
       }
     });
   </script>
