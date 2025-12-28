@@ -2,7 +2,7 @@
 function handle_auth(string $method, array $segments): void {
     $action = $segments[1] ?? '';
     if ($action === 'login' && $method === 'POST') {
-        if (!auth_rate_limit('login', 5, 900)) {
+        if (!rate_limit('login', 5, 900)) {
             respond(['ok' => false, 'error' => 'Too many attempts'], 429);
         }
         require_csrf();
@@ -21,14 +21,16 @@ function handle_auth(string $method, array $segments): void {
 
     if ($action === 'logout' && $method === 'POST') {
         require_csrf();
-        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
-            $_SESSION = [];
-            if (ini_get('session.use_cookies')) {
-                $params = session_get_cookie_params();
-                setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            if (isset($_SESSION['user_id'])) {
+                $_SESSION = [];
+                if (ini_get('session.use_cookies')) {
+                    $params = session_get_cookie_params();
+                    setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+                }
             }
+            session_destroy();
         }
-        session_destroy();
         respond(['ok' => true, 'data' => ['message' => 'Logged out']]);
     }
 
@@ -42,7 +44,7 @@ function handle_auth(string $method, array $segments): void {
     }
 
     if ($action === 'google_callback' && $method === 'POST') {
-        if (!auth_rate_limit('google_callback', 5, 900)) {
+        if (!rate_limit('google_callback', 5, 900)) {
             respond(['ok' => false, 'error' => 'Too many attempts'], 429);
         }
         require_csrf();
@@ -95,59 +97,10 @@ function verify_google_id_token(string $idToken): array {
     return $payload;
 }
 
-function get_client_ip(): string {
-    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-    if ($forwarded) {
-        $parts = array_map('trim', explode(',', $forwarded));
-        $candidate = $parts[0] ?? '';
-        if (filter_var($candidate, FILTER_VALIDATE_IP)) {
-            return $candidate;
-        }
-    }
-    $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
-    if ($realIp && filter_var($realIp, FILTER_VALIDATE_IP)) {
-        return $realIp;
-    }
-    $remote = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    return filter_var($remote, FILTER_VALIDATE_IP) ? $remote : 'unknown';
-}
-
 function complete_login(array $user): void {
     $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
     $update->execute([$user['id']]);
     session_regenerate_id(true);
     $_SESSION['user_id'] = $user['id'];
     respond(['ok' => true, 'data' => ['user' => sanitize_user($user)]]);
-}
-
-function auth_rate_limit(string $key, int $limit, int $windowSeconds): bool {
-    $ip = get_client_ip();
-    $bucket = sys_get_temp_dir() . '/nixor_auth_rate_' . md5($key . $ip);
-    $now = time();
-    $handle = fopen($bucket, 'c+');
-    if ($handle === false) {
-        return true;
-    }
-    flock($handle, LOCK_EX);
-    $contents = stream_get_contents($handle);
-    $entries = [];
-    if ($contents) {
-        $data = json_decode($contents, true);
-        if (is_array($data)) {
-            $entries = array_filter($data, fn($ts) => ($now - $ts) < $windowSeconds);
-        }
-    }
-    if (count($entries) >= $limit) {
-        flock($handle, LOCK_UN);
-        fclose($handle);
-        return false;
-    }
-    $entries[] = $now;
-    ftruncate($handle, 0);
-    rewind($handle);
-    fwrite($handle, json_encode(array_values($entries)));
-    fflush($handle);
-    flock($handle, LOCK_UN);
-    fclose($handle);
-    return true;
 }

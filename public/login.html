@@ -16,12 +16,12 @@
     </div>
     <form id="login-form" class="space-y-4">
       <div>
-        <label class="text-sm text-slate-300">Email</label>
-        <input type="email" name="email" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="you@nixor.io" required />
+        <label for="email-input" class="text-sm text-slate-300">Email</label>
+        <input id="email-input" type="email" name="email" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="you@nixor.io" required />
       </div>
       <div>
-        <label class="text-sm text-slate-300">Password</label>
-        <input type="password" name="password" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Enter your password" required />
+        <label for="password-input" class="text-sm text-slate-300">Password</label>
+        <input id="password-input" type="password" name="password" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Enter your password" required />
       </div>
       <div id="error-message" class="hidden text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-xl px-4 py-3"></div>
       <button type="submit" class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 transition px-4 py-3 font-medium">Sign In</button>
