@@ -1,5 +1,5 @@
 <?php
-function handle_dashboard(string $method, array $segments): void {
+function handle_dashboard(string $method, array $_segments): void {
     if ($method !== 'GET') {
         respond(['ok' => false, 'error' => 'Not Found'], 404);
     }

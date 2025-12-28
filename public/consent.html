@@ -35,7 +35,9 @@
 
     apiFetch('/auth/csrf')
       .then((response) => setCsrfToken(response?.data?.token))
-      .catch(() => {});
+      .catch(() => {
+        setStatus('Failed to initialize. Please refresh the page.', false);
+      });
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();

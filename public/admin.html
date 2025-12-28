@@ -172,54 +172,64 @@
     };
 
     const loadEntities = async () => {
-      const response = await apiFetch('/entities');
-      const entities = response?.data || [];
-      entitiesList.innerHTML = '';
-      membershipForm.entity_id.innerHTML = '';
-      entities.forEach((entity) => {
-        const row = document.createElement('tr');
-        row.className = 'border-t border-slate-800';
-        const name = document.createElement('td');
-        name.className = 'py-3';
-        name.textContent = entity.name;
-        const desc = document.createElement('td');
-        desc.textContent = entity.description || '-';
-        row.appendChild(name);
-        row.appendChild(desc);
-        entitiesList.appendChild(row);
+      try {
+        const response = await apiFetch('/entities');
+        const entities = response?.data || [];
+        entitiesList.innerHTML = '';
+        membershipForm.entity_id.innerHTML = '';
+        entities.forEach((entity) => {
+          const row = document.createElement('tr');
+          row.className = 'border-t border-slate-800';
+          const name = document.createElement('td');
+          name.className = 'py-3';
+          name.textContent = entity.name;
+          const desc = document.createElement('td');
+          desc.textContent = entity.description || '-';
+          row.appendChild(name);
+          row.appendChild(desc);
+          entitiesList.appendChild(row);
 
-        const option = document.createElement('option');
-        option.value = entity.id;
-        option.textContent = entity.name;
-        membershipForm.entity_id.appendChild(option);
-      });
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          membershipForm.entity_id.appendChild(option);
+        });
+      } catch (err) {
+        console.error('Failed to load entities:', err);
+        entitiesList.innerHTML = '<tr><td colspan="2" class="py-3 text-red-400">Failed to load entities</td></tr>';
+      }
     };
 
     const loadUsers = async () => {
-      const response = await apiFetch('/users');
-      const users = response?.data || [];
-      usersList.innerHTML = '';
-      membershipForm.user_id.innerHTML = '';
-      users.forEach((user) => {
-        const row = document.createElement('tr');
-        row.className = 'border-t border-slate-800';
-        const name = document.createElement('td');
-        name.className = 'py-3';
-        name.textContent = user.full_name;
-        const email = document.createElement('td');
-        email.textContent = user.email;
-        const role = document.createElement('td');
-        role.textContent = user.global_role;
-        row.appendChild(name);
-        row.appendChild(email);
-        row.appendChild(role);
-        usersList.appendChild(row);
+      try {
+        const response = await apiFetch('/users');
+        const users = response?.data || [];
+        usersList.innerHTML = '';
+        membershipForm.user_id.innerHTML = '';
+        users.forEach((user) => {
+          const row = document.createElement('tr');
+          row.className = 'border-t border-slate-800';
+          const name = document.createElement('td');
+          name.className = 'py-3';
+          name.textContent = user.full_name;
+          const email = document.createElement('td');
+          email.textContent = user.email;
+          const role = document.createElement('td');
+          role.textContent = user.global_role;
+          row.appendChild(name);
+          row.appendChild(email);
+          row.appendChild(role);
+          usersList.appendChild(row);
 
-        const option = document.createElement('option');
-        option.value = user.id;
-        option.textContent = `${user.full_name} (${user.email})`;
-        membershipForm.user_id.appendChild(option);
-      });
+          const option = document.createElement('option');
+          option.value = user.id;
+          option.textContent = `${user.full_name} (${user.email})`;
+          membershipForm.user_id.appendChild(option);
+        });
+      } catch (err) {
+        console.error('Failed to load users:', err);
+        usersList.innerHTML = '<tr><td colspan="3" class="py-3 text-red-400">Failed to load users</td></tr>';
+      }
     };
 
     openEntityForm.addEventListener('click', () => entityModal.classList.remove('hidden'));

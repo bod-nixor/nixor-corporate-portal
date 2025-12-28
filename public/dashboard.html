@@ -155,7 +155,7 @@
             message.textContent = announcement.message;
             const meta = document.createElement('p');
             meta.className = 'text-xs text-slate-500 mt-3';
-            meta.textContent = `By ${announcement.full_name}`;
+            meta.textContent = `By ${announcement.creator_name || announcement.full_name || 'Unknown'}`;
             card.appendChild(title);
             card.appendChild(message);
             card.appendChild(meta);
@@ -194,6 +194,8 @@
         const option = document.createElement('option');
         option.textContent = 'No entities';
         entitySelect.appendChild(option);
+        modalOpen.disabled = true;
+        modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
       });
 
     entitySelect.addEventListener('change', () => loadDashboard(entitySelect.value));

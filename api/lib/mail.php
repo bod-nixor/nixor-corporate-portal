@@ -43,7 +43,12 @@ function send_email(string $to, string $subject, string $body, bool $isHtml = tr
         $mail->SMTPAuth = true;
         $mail->Username = env_value('SMTP_USER');
         $mail->Password = env_value('SMTP_PASS');
-        $mail->SMTPSecure = env_value('SMTP_SECURE', 'tls');
+        $secure = env_value('SMTP_SECURE', 'tls');
+        if (!in_array($secure, ['tls', 'ssl', ''], true)) {
+            error_log("Invalid SMTP_SECURE value: {$secure}, defaulting to tls");
+            $secure = 'tls';
+        }
+        $mail->SMTPSecure = $secure;
         $from = env_value('SMTP_FROM', env_value('SMTP_USER'));
         $mail->setFrom($from, env_value('SMTP_FROM_NAME', 'Nixor Portal'));
         $mail->addAddress($to);

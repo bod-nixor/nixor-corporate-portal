@@ -8,9 +8,9 @@ function handle_admin(string $method, array $segments): void {
 
     if ($action === 'summary' && $method === 'GET') {
         require_role(['admin']);
-        $missingDocs = db()->query('SELECT COUNT(*) as total FROM endeavours WHERE status IN (\"ops_plan_pending_board_approval\", \"mou_pending_board_approval\", \"pre_financial_pending_board_approval\", \"post_financial_pending_board_approval\")')->fetch();
+        $missingDocs = db()->query("SELECT COUNT(*) as total FROM endeavours WHERE status IN ('ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'post_financial_pending_board_approval')")->fetch();
         $unpaid = db()->query('SELECT COUNT(*) as total FROM payments WHERE paid_flag = 0')->fetch();
-        $consents = db()->query('SELECT COUNT(*) as total FROM consents WHERE status = \"pending\"')->fetch();
+        $consents = db()->query("SELECT COUNT(*) as total FROM consents WHERE status = 'pending'")->fetch();
         respond(['ok' => true, 'data' => ['missing_docs' => (int)$missingDocs['total'], 'unpaid' => (int)$unpaid['total'], 'consents_pending' => (int)$consents['total']]]);
     }
 

@@ -95,7 +95,7 @@
   </div>
   <input id="upload-input" type="file" class="hidden" />
   <script type="module">
-    import { apiFetch } from '/assets/app.js';
+    import { apiFetch, getCsrfToken as csrfToken } from '/assets/app.js';
     const mobileNav = document.getElementById('mobile-nav');
     document.getElementById('open-nav')?.addEventListener('click', () => {
       mobileNav?.classList.remove('hidden');
@@ -142,39 +142,45 @@
     const loadDrive = async () => {
       const entityId = entitySelect.value;
       if (!entityId) return;
-      const response = await apiFetch(`/drive/list?entity_id=${entityId}`);
-      const items = response?.data || [];
-      driveList.innerHTML = '';
-      items.forEach((item) => {
-        const row = document.createElement('tr');
-        row.className = 'border-t border-slate-800';
-        const nameCell = document.createElement('td');
-        nameCell.className = 'py-3';
-        nameCell.textContent = item.name;
-        const shareCell = document.createElement('td');
-        shareCell.textContent = item.sharing_scope;
-        const sizeCell = document.createElement('td');
-        sizeCell.textContent = item.item_type === 'folder' ? '-' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
-        const dateCell = document.createElement('td');
-        dateCell.textContent = new Date(item.updated_at || item.created_at).toLocaleDateString();
-        row.appendChild(nameCell);
-        row.appendChild(shareCell);
-        row.appendChild(sizeCell);
-        row.appendChild(dateCell);
-        row.addEventListener('click', () => {
-          inspectorName.textContent = item.name;
-          inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
-          if (item.item_type === 'file') {
-            inspectorDownload.classList.remove('hidden');
-            inspectorDownload.href = `/api/files/download?type=drive&id=${item.id}`;
-          } else {
-            inspectorDownload.classList.add('hidden');
-          }
+      try {
+        const response = await apiFetch(`/drive/list?entity_id=${entityId}`);
+        const items = response?.data || [];
+        driveList.innerHTML = '';
+        items.forEach((item) => {
+          const row = document.createElement('tr');
+          row.className = 'border-t border-slate-800';
+          const nameCell = document.createElement('td');
+          nameCell.className = 'py-3';
+          nameCell.textContent = item.name;
+          const shareCell = document.createElement('td');
+          shareCell.textContent = item.sharing_scope;
+          const sizeCell = document.createElement('td');
+          sizeCell.textContent = item.item_type === 'folder' ? '-' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
+          const dateCell = document.createElement('td');
+          dateCell.textContent = new Date(item.updated_at || item.created_at).toLocaleDateString();
+          row.appendChild(nameCell);
+          row.appendChild(shareCell);
+          row.appendChild(sizeCell);
+          row.appendChild(dateCell);
+          row.addEventListener('click', () => {
+            inspectorName.textContent = item.name;
+            inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
+            if (item.item_type === 'file') {
+              inspectorDownload.classList.remove('hidden');
+              inspectorDownload.href = `/api/files/download?type=drive&id=${item.id}`;
+            } else {
+              inspectorDownload.classList.add('hidden');
+            }
+          });
+          driveList.appendChild(row);
         });
-        driveList.appendChild(row);
-      });
-      driveCount.textContent = `Showing ${items.length} items`;
-      renderSummary(items);
+        driveCount.textContent = `Showing ${items.length} items`;
+        renderSummary(items);
+      } catch (err) {
+        driveList.innerHTML = '';
+        driveCount.textContent = 'Failed to load';
+        console.error('Drive load error:', err);
+      }
     };
 
     apiFetch('/auth/me')
@@ -191,6 +197,9 @@
           entitySelect.value = entities[0].id;
           loadDrive();
         }
+      })
+      .catch(() => {
+        window.location.href = '/login.html';
       });
 
     entitySelect.addEventListener('change', loadDrive);
@@ -210,8 +219,7 @@
       const formData = new FormData();
       formData.append('entity_id', entitySelect.value);
       formData.append('file', uploadInput.files[0]);
-      const tokenMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-      const token = tokenMatch ? decodeURIComponent(tokenMatch[1]) : '';
+      const token = csrfToken();
       try {
         const response = await fetch('/api/drive/upload', {
           method: 'POST',

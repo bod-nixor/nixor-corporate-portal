@@ -54,5 +54,24 @@ function base_url(): string {
         return rtrim($base, '/');
     }
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $allowed = allowed_hosts();
+    if ($allowed && !in_array($host, $allowed, true)) {
+        $host = $allowed[0];
+    }
     return request_scheme() . '://' . $host;
+}
+
+function allowed_hosts(): array {
+    $raw = env_value('ALLOWED_HOSTS', '');
+    if ($raw !== '') {
+        return array_values(array_filter(array_map('trim', explode(',', $raw))));
+    }
+    $base = env_value('BASE_URL', '');
+    if ($base) {
+        $host = parse_url($base, PHP_URL_HOST);
+        if ($host) {
+            return [$host];
+        }
+    }
+    return [];
 }

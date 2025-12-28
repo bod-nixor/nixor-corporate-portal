@@ -113,7 +113,7 @@
             commentInput.value = '';
             loadPosts();
           } catch (err) {
-            alert(err.message || 'Comment failed');
+            setStatus(normalizeError(err) || 'Comment failed', false);
           }
         });
         card.appendChild(header);

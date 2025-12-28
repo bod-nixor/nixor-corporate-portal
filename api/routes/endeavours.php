@@ -16,6 +16,27 @@ function handle_endeavours(string $method, array $segments): void {
             $params[] = (int)$_GET['entity_id'];
         }
         if (!empty($_GET['status'])) {
+            $allowedStatuses = [
+                'draft',
+                'pending_board_approval',
+                'board_approved_ops_plan_required',
+                'ops_plan_pending_board_approval',
+                'ops_plan_approved_mou_optional',
+                'mou_pending_board_approval',
+                'mou_approved_pre_financial_required',
+                'pre_financial_pending_board_approval',
+                'finance_approved_hr_posting_optional',
+                'volunteer_posting_pending_board_approval',
+                'volunteer_posting_approved_hr_publish',
+                'live_volunteer_posting',
+                'post_financial_pending_board_approval',
+                'closed_ops_epilogue_required',
+                'completed',
+                'rejected'
+            ];
+            if (!in_array($_GET['status'], $allowedStatuses, true)) {
+                respond(['ok' => false, 'error' => 'Invalid status filter'], 400);
+            }
             $filters[] = 'e.status = ?';
             $params[] = $_GET['status'];
         }
@@ -68,15 +89,27 @@ function handle_endeavours(string $method, array $segments): void {
         $postsStmt->execute([$id]);
         $appsStmt = db()->prepare('SELECT va.*, u.full_name, s.student_id FROM volunteer_applications va JOIN students s ON va.student_id = s.id JOIN users u ON s.user_id = u.id WHERE va.volunteer_post_id IN (SELECT id FROM volunteer_posts WHERE endeavour_id = ?) ORDER BY va.created_at DESC');
         $appsStmt->execute([$id]);
-        $paymentsStmt = db()->prepare('SELECT * FROM payments WHERE volunteer_application_id IN (SELECT id FROM volunteer_applications WHERE volunteer_post_id IN (SELECT id FROM volunteer_posts WHERE endeavour_id = ?))');
-        $paymentsStmt->execute([$id]);
-        $attendanceStmt = db()->prepare('SELECT * FROM attendance WHERE volunteer_application_id IN (SELECT id FROM volunteer_applications WHERE volunteer_post_id IN (SELECT id FROM volunteer_posts WHERE endeavour_id = ?))');
-        $attendanceStmt->execute([$id]);
-        $consentStmt = db()->prepare('SELECT * FROM consents WHERE volunteer_application_id IN (SELECT id FROM volunteer_applications WHERE volunteer_post_id IN (SELECT id FROM volunteer_posts WHERE endeavour_id = ?))');
-        $consentStmt->execute([$id]);
+        $appIdStmt = db()->prepare('SELECT va.id FROM volunteer_applications va JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE vp.endeavour_id = ?');
+        $appIdStmt->execute([$id]);
+        $applicationIds = array_map(fn($row) => (int)$row['id'], $appIdStmt->fetchAll());
+        $payments = [];
+        $attendance = [];
+        $consents = [];
+        if ($applicationIds) {
+            $placeholders = implode(',', array_fill(0, count($applicationIds), '?'));
+            $paymentsStmt = db()->prepare("SELECT * FROM payments WHERE volunteer_application_id IN ({$placeholders})");
+            $paymentsStmt->execute($applicationIds);
+            $payments = $paymentsStmt->fetchAll();
+            $attendanceStmt = db()->prepare("SELECT * FROM attendance WHERE volunteer_application_id IN ({$placeholders})");
+            $attendanceStmt->execute($applicationIds);
+            $attendance = $attendanceStmt->fetchAll();
+            $consentStmt = db()->prepare("SELECT * FROM consents WHERE volunteer_application_id IN ({$placeholders})");
+            $consentStmt->execute($applicationIds);
+            $consents = $consentStmt->fetchAll();
+        }
         $activity = db()->prepare('SELECT a.*, u.full_name FROM activity_log a LEFT JOIN users u ON a.actor_id = u.id WHERE entity_type = "endeavour" AND entity_id = ? ORDER BY a.created_at DESC');
         $activity->execute([$id]);
-        respond(['ok' => true, 'data' => ['endeavour' => $endeavour, 'documents' => $docsStmt->fetchAll(), 'posts' => $postsStmt->fetchAll(), 'applications' => $appsStmt->fetchAll(), 'payments' => $paymentsStmt->fetchAll(), 'attendance' => $attendanceStmt->fetchAll(), 'consents' => $consentStmt->fetchAll(), 'activity' => $activity->fetchAll()], 'meta' => ['user' => $user]]);
+        respond(['ok' => true, 'data' => ['endeavour' => $endeavour, 'documents' => $docsStmt->fetchAll(), 'posts' => $postsStmt->fetchAll(), 'applications' => $appsStmt->fetchAll(), 'payments' => $payments, 'attendance' => $attendance, 'consents' => $consents, 'activity' => $activity->fetchAll()], 'meta' => ['user' => $user]]);
     }
 
     if ($method === 'PUT' && $id && !$action) {
@@ -203,13 +236,20 @@ function handle_endeavours(string $method, array $segments): void {
         if (!$student) {
             respond(['ok' => false, 'error' => 'Student profile required'], 400);
         }
+        $attendanceDate = $data['attendance_date'] ?? null;
+        if ($attendanceDate !== null) {
+            $dt = DateTime::createFromFormat('Y-m-d', $attendanceDate);
+            if (!$dt || $dt->format('Y-m-d') !== $attendanceDate) {
+                respond(['ok' => false, 'error' => 'Invalid attendance_date format (expected Y-m-d)'], 400);
+            }
+        }
         $stmt = db()->prepare('INSERT INTO volunteer_applications (volunteer_post_id, student_id, answers_json) VALUES (?, ?, ?)');
         $stmt->execute([$postId, $student['id'], json_encode($data['answers'] ?? [])]);
         $applicationId = (int)db()->lastInsertId();
         $payment = db()->prepare('INSERT INTO payments (volunteer_application_id, transport_payment_due) VALUES (?, ?)');
         $payment->execute([$applicationId, $data['transport_payment_due'] ?? 0]);
         $attendance = db()->prepare('INSERT INTO attendance (volunteer_application_id, attendance_date) VALUES (?, ?)');
-        $attendance->execute([$applicationId, $data['attendance_date'] ?? null]);
+        $attendance->execute([$applicationId, $attendanceDate]);
         emit_ws_event('endeavour.application_submitted', ['id' => $id]);
         respond(['ok' => true, 'data' => ['id' => $applicationId]]);
     }
@@ -286,7 +326,7 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Consent not found'], 404);
         }
         $stmt = db()->prepare('UPDATE consents SET status = "signed", signed_at = NOW(), signature_name = ? WHERE id = ?');
-        $stmt->execute([$data['signature_name'] ?? '', $row['id']]);
+        $stmt->execute([sanitize_text($data['signature_name'] ?? '', 190), $row['id']]);
         log_activity(null, 'endeavour', $id, 'consent_signed', 'Consent signed');
         emit_ws_event('endeavour.consent_signed', ['id' => $id]);
         respond(['ok' => true]);

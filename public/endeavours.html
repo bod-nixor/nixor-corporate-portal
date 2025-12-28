@@ -107,7 +107,9 @@
         const response = await apiFetch(`/endeavours?${params.toString()}`);
         renderEndeavours(response?.data || []);
       } catch (err) {
-        renderEndeavours([]);
+        grid.innerHTML = '';
+        emptyState.textContent = 'Failed to load endeavours. Please try again.';
+        emptyState.classList.remove('hidden');
       }
     };
 

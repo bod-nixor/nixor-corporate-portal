@@ -19,12 +19,16 @@ export function setCsrfToken(token) {
   csrfToken = token || '';
 }
 
+export function getCsrfToken() {
+  const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
+  const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+  return cookieToken || csrfToken;
+}
+
 export async function apiFetch(path, options = {}) {
   const { skipFallback, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
-  const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-  const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
-  const resolvedCsrf = cookieToken || csrfToken;
+  const resolvedCsrf = getCsrfToken();
   const headers = {
     ...(fetchOptions.headers || {})
   };

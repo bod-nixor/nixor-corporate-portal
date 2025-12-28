@@ -97,5 +97,6 @@ function save_drive_file(string $entityId, array $file): array {
 
 function resolve_upload_path(string $relativePath): string {
     $relativePath = ltrim($relativePath, '/');
+    $relativePath = str_replace(['../', '..\\'], '', $relativePath);
     return upload_base_path() . '/' . $relativePath;
 }

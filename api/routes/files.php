@@ -22,9 +22,7 @@ function handle_files(string $method, array $segments): void {
         }
         ensure_entity_access((int)$item['entity_id'], []);
         stream_download(resolve_upload_path($item['file_path']), $item['name']);
-    }
-
-    if ($type === 'endeavour_document') {
+    } elseif ($type === 'endeavour_document') {
         $stmt = db()->prepare('SELECT ed.*, e.entity_id FROM endeavour_documents ed JOIN endeavours e ON ed.endeavour_id = e.id WHERE ed.id = ?');
         $stmt->execute([$id]);
         $doc = $stmt->fetch();
@@ -33,9 +31,9 @@ function handle_files(string $method, array $segments): void {
         }
         ensure_entity_access((int)$doc['entity_id'], []);
         stream_download(resolve_upload_path($doc['file_path']), $doc['original_name'] ?: 'document');
+    } else {
+        respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
-
-    respond(['ok' => false, 'error' => 'Not Found'], 404);
 }
 
 function stream_download(string $path, string $filename): void {

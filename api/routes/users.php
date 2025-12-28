@@ -18,8 +18,8 @@ function handle_users(string $method, array $segments): void {
         $email = validate_email_address($data['email'] ?? '', 'email');
         $fullName = require_non_empty($data['full_name'] ?? '', 'full_name', 190);
         $password = $data['password'] ?? '';
-        if (strlen($password) < 8) {
-            respond(['ok' => false, 'error' => 'Password must be at least 8 characters'], 400);
+        if (strlen($password) < 10) {
+            respond(['ok' => false, 'error' => 'Password must be at least 10 characters'], 400);
         }
         $role = $data['global_role'] ?? 'volunteer';
         $allowedRoles = ['admin', 'board', 'ceo', 'staff', 'volunteer'];

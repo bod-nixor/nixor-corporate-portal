@@ -391,6 +391,11 @@
       event.preventDefault();
       const formData = new FormData(documentForm);
       const docType = formData.get('doc_type');
+      const allowedTypes = ['ops_plan', 'mou', 'pre_financial', 'post_financial', 'epilogue'];
+      if (!allowedTypes.includes(docType)) {
+        setStatus(documentStatus, 'Invalid document type.', false);
+        return;
+      }
       const token = csrfToken();
       try {
         const response = await fetch(`/api/endeavours/${id}/submit_${docType}`, {

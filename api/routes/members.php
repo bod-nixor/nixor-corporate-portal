@@ -1,6 +1,6 @@
 <?php
 function handle_members(string $method, array $segments): void {
-    require_role(['admin']);
+    $user = require_role(['admin']);
     $id = $segments[1] ?? null;
 
     if ($method === 'GET' && !$id) {

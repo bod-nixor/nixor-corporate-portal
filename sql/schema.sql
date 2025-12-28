@@ -340,7 +340,8 @@ CREATE TABLE interest_submissions (
   email VARCHAR(190) NOT NULL,
   phone VARCHAR(60),
   message TEXT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_email (email)
 );
 
 CREATE TABLE reminder_notifications (

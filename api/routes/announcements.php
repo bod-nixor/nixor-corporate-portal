@@ -9,7 +9,7 @@ function handle_announcements(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         ensure_entity_access($entityId, []);
-        $stmt = db()->prepare('SELECT a.*, u.full_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 20');
+        $stmt = db()->prepare('SELECT a.*, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 20');
         $stmt->execute([$entityId]);
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
@@ -39,6 +39,7 @@ function handle_announcements(string $method, array $segments): void {
         if (!$row) {
             respond(['ok' => false, 'error' => 'Announcement not found'], 404);
         }
+        ensure_entity_access((int)$row['entity_id'], []);
         if ($user['global_role'] !== 'admin' && (int)$row['created_by'] !== (int)$user['id']) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
