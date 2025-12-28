@@ -43,6 +43,16 @@ function handle_auth(string $method, array $segments): void {
         respond(['ok' => true, 'data' => ['token' => $_SESSION['csrf_token'] ?? null]]);
     }
 
+    if ($action === 'config' && $method === 'GET') {
+        respond([
+            'ok' => true,
+            'data' => [
+                'google_client_id' => env_value('GOOGLE_CLIENT_ID'),
+                'google_allowed_domains' => allowed_google_domains(),
+            ]
+        ]);
+    }
+
     if ($action === 'google_callback' && $method === 'POST') {
         if (!rate_limit('google_callback', 5, 900)) {
             respond(['ok' => false, 'error' => 'Too many attempts'], 429);
