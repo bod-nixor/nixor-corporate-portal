@@ -14,7 +14,7 @@ try:
     PORT = int(_raw_port)
 except (TypeError, ValueError):
     logging.error("Invalid WS_PORT value: %s", _raw_port)
-    raise SystemExit(1)
+    raise SystemExit(1) from None
 WS_TOKEN = os.getenv("WS_TOKEN", "")
 
 clients = set()
@@ -33,7 +33,10 @@ async def unregister(websocket):
 async def broadcast(message: str):
     if not clients:
         return
-    await asyncio.gather(*[client.send(message) for client in clients], return_exceptions=True)
+    results = await asyncio.gather(*[client.send(message) for client in clients], return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            logging.warning("Failed to send to client: %s", result)
 
 async def tail_queue():
     file = None
@@ -56,8 +59,8 @@ async def tail_queue():
                 await asyncio.sleep(0.5)
                 continue
             await broadcast(line.strip())
-        except Exception as exc:
-            logging.error("Error tailing queue: %s", exc)
+        except Exception:
+            logging.exception("Error tailing queue")
             await asyncio.sleep(1.0)
 
 async def handler(websocket):

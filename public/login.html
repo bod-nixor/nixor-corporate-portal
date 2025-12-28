@@ -41,6 +41,7 @@
     import { apiFetch } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
+    apiFetch('/auth/csrf').catch(() => {});
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const formData = new FormData(form);

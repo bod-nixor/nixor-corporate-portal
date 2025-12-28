@@ -33,6 +33,12 @@ cp .env.example .env
 ```
 Optionally set `ENV_FILE_PATH` if the `.env` file is stored outside the repo root.
 
+### 2.1) PHP Dependencies
+Install PHP dependencies (Google API client for ID token verification):
+```bash
+composer install
+```
+
 ### 3) PHP API + Frontend
 Minimum PHP version: **8.0**.
 

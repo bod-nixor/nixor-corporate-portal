@@ -2,6 +2,10 @@
 function handle_auth(string $method, array $segments): void {
     $action = $segments[1] ?? '';
     if ($action === 'login' && $method === 'POST') {
+        if (!auth_rate_limit('login', 5, 900)) {
+            respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+        }
+        require_csrf();
         $data = read_json();
         $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
         $stmt->execute([$data['email'] ?? '']);
@@ -12,13 +16,18 @@ function handle_auth(string $method, array $segments): void {
         if (($user['status'] ?? 'active') !== 'active') {
             respond(['ok' => false, 'error' => 'Account inactive'], 403);
         }
-        $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
-        $update->execute([$user['id']]);
-        $_SESSION['user_id'] = $user['id'];
-        respond(['ok' => true, 'data' => ['user' => sanitize_user($user)]]);
+        complete_login($user);
     }
 
     if ($action === 'logout' && $method === 'POST') {
+        require_csrf();
+        if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['user_id'])) {
+            $_SESSION = [];
+            if (ini_get('session.use_cookies')) {
+                $params = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+            }
+        }
         session_destroy();
         respond(['ok' => true, 'data' => ['message' => 'Logged out']]);
     }
@@ -28,26 +37,36 @@ function handle_auth(string $method, array $segments): void {
         respond(['ok' => true, 'data' => ['user' => $user ? sanitize_user($user) : null]]);
     }
 
+    if ($action === 'csrf' && $method === 'GET') {
+        respond(['ok' => true, 'data' => ['token' => $_SESSION['csrf_token'] ?? null]]);
+    }
+
     if ($action === 'google_callback' && $method === 'POST') {
+        if (!auth_rate_limit('google_callback', 5, 900)) {
+            respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+        }
+        require_csrf();
         $data = read_json();
         $idToken = $data['id_token'] ?? '';
         if (!$idToken) {
             respond(['ok' => false, 'error' => 'id_token required'], 400);
         }
         $tokenInfo = verify_google_id_token($idToken);
-        $stmt = db()->prepare('SELECT * FROM users WHERE google_id = ? OR email = ?');
-        $stmt->execute([$tokenInfo['sub'], $tokenInfo['email']]);
+        $stmt = db()->prepare('SELECT * FROM users WHERE google_id = ?');
+        $stmt->execute([$tokenInfo['sub']]);
         $user = $stmt->fetch();
+        if (!$user) {
+            $stmt = db()->prepare('SELECT * FROM users WHERE email = ? AND (google_id IS NULL OR google_id = "")');
+            $stmt->execute([$tokenInfo['email']]);
+            $user = $stmt->fetch();
+        }
         if (!$user) {
             respond(['ok' => false, 'error' => 'Google account not found'], 404);
         }
         if (($user['status'] ?? 'active') !== 'active') {
             respond(['ok' => false, 'error' => 'Account inactive'], 403);
         }
-        $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
-        $update->execute([$user['id']]);
-        $_SESSION['user_id'] = $user['id'];
-        respond(['ok' => true, 'data' => ['user' => sanitize_user($user)]]);
+        complete_login($user);
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
@@ -59,32 +78,76 @@ function sanitize_user(array $user): array {
 }
 
 function verify_google_id_token(string $idToken): array {
-    $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
-    $context = stream_context_create(['http' => ['timeout' => 5]]);
-    $response = @file_get_contents($url, false, $context);
-    if ($response === false) {
-        respond(['ok' => false, 'error' => 'Failed to verify token'], 401);
-    }
-    $payload = json_decode($response, true);
-    if (!is_array($payload)) {
-        respond(['ok' => false, 'error' => 'Invalid token response'], 401);
-    }
     $clientId = env_value('GOOGLE_CLIENT_ID');
     if (!$clientId) {
         respond(['ok' => false, 'error' => 'Google OAuth not configured'], 500);
     }
-    if (($payload['aud'] ?? '') !== $clientId) {
-        respond(['ok' => false, 'error' => 'Invalid token audience'], 401);
+    $autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
+    if (!file_exists($autoload)) {
+        respond(['ok' => false, 'error' => 'Google auth library missing'], 500);
     }
-    $issuer = $payload['iss'] ?? '';
-    if (!in_array($issuer, ['https://accounts.google.com', 'accounts.google.com'], true)) {
-        respond(['ok' => false, 'error' => 'Invalid token issuer'], 401);
-    }
-    if (!empty($payload['exp']) && time() > (int)$payload['exp']) {
-        respond(['ok' => false, 'error' => 'Token expired'], 401);
-    }
-    if (empty($payload['email']) || empty($payload['sub'])) {
-        respond(['ok' => false, 'error' => 'Token missing claims'], 401);
+    require_once $autoload;
+    $client = new Google_Client(['client_id' => $clientId]);
+    $payload = $client->verifyIdToken($idToken);
+    if (!$payload) {
+        respond(['ok' => false, 'error' => 'Invalid token'], 401);
     }
     return $payload;
+}
+
+function get_client_ip(): string {
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($forwarded) {
+        $parts = array_map('trim', explode(',', $forwarded));
+        $candidate = $parts[0] ?? '';
+        if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+            return $candidate;
+        }
+    }
+    $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
+    if ($realIp && filter_var($realIp, FILTER_VALIDATE_IP)) {
+        return $realIp;
+    }
+    $remote = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    return filter_var($remote, FILTER_VALIDATE_IP) ? $remote : 'unknown';
+}
+
+function complete_login(array $user): void {
+    $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
+    $update->execute([$user['id']]);
+    session_regenerate_id(true);
+    $_SESSION['user_id'] = $user['id'];
+    respond(['ok' => true, 'data' => ['user' => sanitize_user($user)]]);
+}
+
+function auth_rate_limit(string $key, int $limit, int $windowSeconds): bool {
+    $ip = get_client_ip();
+    $bucket = sys_get_temp_dir() . '/nixor_auth_rate_' . md5($key . $ip);
+    $now = time();
+    $handle = fopen($bucket, 'c+');
+    if ($handle === false) {
+        return true;
+    }
+    flock($handle, LOCK_EX);
+    $contents = stream_get_contents($handle);
+    $entries = [];
+    if ($contents) {
+        $data = json_decode($contents, true);
+        if (is_array($data)) {
+            $entries = array_filter($data, fn($ts) => ($now - $ts) < $windowSeconds);
+        }
+    }
+    if (count($entries) >= $limit) {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+        return false;
+    }
+    $entries[] = $now;
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite($handle, json_encode(array_values($entries)));
+    fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+    return true;
 }

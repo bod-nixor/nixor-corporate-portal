@@ -8,6 +8,10 @@ if (env_value('APP_ENV', 'local') !== 'local') {
     ini_set('session.cookie_secure', 1);
 }
 session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+setcookie('csrf_token', $_SESSION['csrf_token'], 0, '/', '', false, false);
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/responses.php';
 require_once __DIR__ . '/auth.php';

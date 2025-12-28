@@ -27,3 +27,13 @@ function read_json(): array {
     }
     return is_array($data) ? $data : [];
 }
+
+function require_csrf(): void {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        return;
+    }
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
+    if (!$token || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        respond(['ok' => false, 'error' => 'Invalid CSRF token'], 403);
+    }
+}

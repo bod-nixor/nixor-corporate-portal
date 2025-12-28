@@ -58,11 +58,11 @@ function handle_endeavours(string $method, array $segments): void {
         $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ? WHERE id = ?');
         $stmt->execute([
             $data['name'],
-            $data['description'],
-            $data['venue'],
-            $data['schedule'],
-            $data['start_date'],
-            $data['end_date'],
+            $data['description'] ?? null,
+            $data['venue'] ?? null,
+            $data['schedule'] ?? null,
+            $data['start_date'] ?? null,
+            $data['end_date'] ?? null,
             $data['transport_payment_required'] ?? 0,
             $id
         ]);
@@ -122,8 +122,17 @@ function handle_endeavours(string $method, array $segments): void {
     if ($id && $action === 'publish_post' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['hr']);
         $data = read_json();
+        if (empty($data['post_id']) || !is_numeric($data['post_id']) || (int)$data['post_id'] <= 0) {
+            respond(['ok' => false, 'error' => 'Valid post_id required'], 400);
+        }
+        $postId = (int)$data['post_id'];
+        $postCheck = db()->prepare('SELECT id FROM volunteer_posts WHERE id = ? AND endeavour_id = ?');
+        $postCheck->execute([$postId, $id]);
+        if (!$postCheck->fetch()) {
+            respond(['ok' => false, 'error' => 'Volunteer post not found'], 404);
+        }
         $stmt = db()->prepare('UPDATE volunteer_posts SET published = 1, published_at = NOW() WHERE id = ?');
-        $stmt->execute([$data['post_id'] ?? 0]);
+        $stmt->execute([$postId]);
         update_status($id, 'live_volunteer_posting');
         log_activity($user['id'], 'endeavour', $id, 'post_published', 'Volunteer posting published');
         emit_ws_event('endeavour.post_published', ['id' => $id]);
@@ -167,10 +176,14 @@ function handle_endeavours(string $method, array $segments): void {
     if ($id && $action === 'shortlist' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['hr']);
         $data = read_json();
+        if (empty($data['application_id']) || !is_numeric($data['application_id']) || (int)$data['application_id'] <= 0) {
+            respond(['ok' => false, 'error' => 'Invalid application_id'], 400);
+        }
+        $applicationId = (int)$data['application_id'];
         $stmt = db()->prepare('INSERT INTO shortlists (volunteer_application_id, shortlisted_by) VALUES (?, ?)');
-        $stmt->execute([$data['application_id'], $user['id']]);
+        $stmt->execute([$applicationId, $user['id']]);
         $update = db()->prepare('UPDATE volunteer_applications SET status = "shortlisted" WHERE id = ?');
-        $update->execute([$data['application_id']]);
+        $update->execute([$applicationId]);
         emit_ws_event('endeavour.shortlisted', ['id' => $id]);
         respond(['ok' => true]);
     }
@@ -193,8 +206,13 @@ function handle_endeavours(string $method, array $segments): void {
     if ($id && $action === 'payment' && ($segments[3] ?? '') === 'mark_paid' && $method === 'POST') {
         $user = require_role(['admin']);
         $data = read_json();
+        if (empty($data['application_id']) || !is_numeric($data['application_id']) || (int)$data['application_id'] <= 0) {
+            respond(['ok' => false, 'error' => 'Invalid application_id'], 400);
+        }
+        $applicationId = (int)$data['application_id'];
+        $receiptRef = $data['receipt_ref'] ?? '';
         $stmt = db()->prepare('UPDATE payments SET paid_flag = 1, paid_by = ?, paid_at = NOW(), receipt_ref = ? WHERE volunteer_application_id = ?');
-        $stmt->execute([$user['id'], $data['receipt_ref'] ?? '', $data['application_id']]);
+        $stmt->execute([$user['id'], $receiptRef, $applicationId]);
         emit_ws_event('endeavour.payment_marked', ['id' => $id]);
         respond(['ok' => true]);
     }
@@ -202,6 +220,14 @@ function handle_endeavours(string $method, array $segments): void {
     if ($id && $action === 'attendance' && ($segments[3] ?? '') === 'mark' && $method === 'POST') {
         $user = require_auth();
         $data = read_json();
+        if (empty($data['application_id']) || !is_numeric($data['application_id']) || (int)$data['application_id'] <= 0) {
+            respond(['ok' => false, 'error' => 'Invalid application_id'], 400);
+        }
+        $status = $data['status'] ?? '';
+        if (!in_array($status, ['present', 'absent', 'pending'], true)) {
+            respond(['ok' => false, 'error' => 'Invalid status'], 400);
+        }
+        $applicationId = (int)$data['application_id'];
         $endeavour = fetch_endeavour($id);
         if (!$endeavour) {
             respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
@@ -213,8 +239,13 @@ function handle_endeavours(string $method, array $segments): void {
         if (!in_array($user['global_role'], $allowed, true)) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
+        $check = db()->prepare('SELECT va.id FROM volunteer_applications va JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE va.id = ? AND vp.endeavour_id = ?');
+        $check->execute([$applicationId, $id]);
+        if (!$check->fetch()) {
+            respond(['ok' => false, 'error' => 'Application not found for endeavour'], 404);
+        }
         $stmt = db()->prepare('UPDATE attendance SET status = ?, marked_by = ?, marked_at = NOW() WHERE volunteer_application_id = ?');
-        $stmt->execute([$data['status'], $user['id'], $data['application_id']]);
+        $stmt->execute([$status, $user['id'], $applicationId]);
         emit_ws_event('endeavour.attendance_marked', ['id' => $id]);
         respond(['ok' => true]);
     }
@@ -321,7 +352,10 @@ function handle_approval(int $endeavourId): void {
     }
 
     $status = $endeavour['status'];
-    $decision = $data['decision'] ?? 'approved';
+    if (empty($data['decision']) || !in_array($data['decision'], ['approved', 'rejected'], true)) {
+        respond(['ok' => false, 'error' => 'Valid decision (approved/rejected) is required'], 400);
+    }
+    $decision = $data['decision'];
     $roleNeeded = null;
     $nextStatus = $status;
 

@@ -43,7 +43,14 @@ function save_uploaded_file(string $endeavourId, string $docType, array $file): 
     if (!move_uploaded_file($file['tmp_name'], $path)) {
         respond(['ok' => false, 'error' => 'Upload failed'], 500);
     }
-    $relative = str_replace(dirname(__DIR__, 2), '', $path);
+    $normalizedPath = realpath($path) ?: $path;
+    $uploadsBase = dirname(__DIR__, 2) . '/uploads';
+    $normalizedBase = realpath($uploadsBase) ?: $uploadsBase;
+    if (str_starts_with($normalizedPath, $normalizedBase)) {
+        $relative = substr($normalizedPath, strlen($normalizedBase));
+    } else {
+        $relative = '/uploads/' . $endeavourId . '/' . $docType . '/' . $filename;
+    }
     return ['path' => $relative, 'original' => $file['name']];
 }
 
