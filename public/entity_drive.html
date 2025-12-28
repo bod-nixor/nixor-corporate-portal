@@ -109,7 +109,7 @@
   <div id="upload-status" class="hidden text-sm rounded-xl px-4 py-3 mx-6 mb-6"></div>
   <input id="upload-input" type="file" class="hidden" />
   <script type="module">
-    import { apiFetch, getCsrfToken as csrfToken } from '/assets/app.js';
+    import { apiFetch } from '/assets/app.js';
     const mobileNav = document.getElementById('mobile-nav');
     document.getElementById('open-nav')?.addEventListener('click', () => {
       mobileNav?.classList.remove('hidden');
@@ -261,9 +261,9 @@
     uploadInput.addEventListener('change', async () => {
       if (!uploadInput.files.length) return;
       const file = uploadInput.files[0];
-      const maxSize = 50 * 1024 * 1024;
+      const maxSize = 10 * 1024 * 1024;
       if (file.size > maxSize) {
-        uploadStatus.textContent = 'File size exceeds 50MB limit.';
+        uploadStatus.textContent = 'File size exceeds 10MB limit.';
         uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
         uploadStatus.classList.remove('hidden');
         uploadInput.value = '';

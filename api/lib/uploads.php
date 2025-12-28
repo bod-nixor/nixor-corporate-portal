@@ -49,7 +49,7 @@ function save_uploaded_file(string $endeavourId, string $docType, array $file): 
     $dir = ensure_upload_dir($endeavourId, $docType);
     $basename = basename($file['name']);
     if (($file['size'] ?? 0) > 10 * 1024 * 1024) {
-        respond(['ok' => false, 'error' => 'File too large'], 400);
+        respond(['ok' => false, 'error' => 'File too large (10MB limit)'], 400);
     }
     validate_upload_extension($basename);
     validate_upload_mime($file['tmp_name']);
@@ -81,7 +81,7 @@ function save_drive_file(string $entityId, array $file): array {
     }
     $basename = basename($file['name']);
     if (($file['size'] ?? 0) > 10 * 1024 * 1024) {
-        respond(['ok' => false, 'error' => 'File too large'], 400);
+        respond(['ok' => false, 'error' => 'File too large (10MB limit)'], 400);
     }
     validate_upload_extension($basename);
     validate_upload_mime($file['tmp_name']);

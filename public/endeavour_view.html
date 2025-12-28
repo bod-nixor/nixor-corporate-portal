@@ -32,20 +32,21 @@
           <button id="open-upload" class="bg-indigo-500 px-4 py-2 rounded-xl text-sm">Upload Document</button>
         </div>
       </header>
-      <div id="action-status" class="hidden text-sm rounded-xl px-4 py-3 mt-4"></div>
+  <div id="action-status" class="hidden text-sm rounded-xl px-4 py-3 mt-4" role="status" aria-live="polite"></div>
+  <div id="page-loading" class="text-sm text-slate-400 mt-4">Loading endeavour...</div>
 
       <section class="mt-8 grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2 space-y-6">
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <h2 class="text-lg font-semibold">Stage Timeline</h2>
-            <div id="timeline-list" class="mt-4 space-y-4 text-sm text-slate-400"></div>
+            <div id="timeline-list" class="mt-4 space-y-4 text-sm text-slate-400" role="status" aria-live="polite"></div>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <div class="flex items-center justify-between">
               <h2 class="text-lg font-semibold">Documents</h2>
               <button id="upload-shortcut" class="text-sm text-indigo-300">Upload new</button>
             </div>
-            <div id="documents-list" class="mt-4 space-y-3 text-sm"></div>
+            <div id="documents-list" class="mt-4 space-y-3 text-sm" role="status" aria-live="polite"></div>
             <p id="documents-empty" class="hidden text-sm text-slate-500 mt-4">No documents uploaded yet.</p>
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
@@ -67,7 +68,7 @@
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <h2 class="text-lg font-semibold">Volunteer Posts</h2>
-            <div id="posts-list" class="mt-4 space-y-3 text-sm"></div>
+            <div id="posts-list" class="mt-4 space-y-3 text-sm" role="status" aria-live="polite"></div>
             <div class="mt-6 border-t border-slate-800 pt-4">
               <h3 class="text-sm font-semibold text-slate-300">Request Volunteer Posting</h3>
               <form id="post-form" class="space-y-3 mt-3">
@@ -91,7 +92,7 @@
                     <th class="text-left py-2">Actions</th>
                   </tr>
                 </thead>
-                <tbody id="applications-list"></tbody>
+                <tbody id="applications-list" role="status" aria-live="polite"></tbody>
               </table>
             </div>
             <p id="applications-empty" class="hidden text-sm text-slate-500 mt-4">No applications yet.</p>
@@ -127,14 +128,14 @@
           </div>
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
             <h2 class="text-lg font-semibold">Recent Activity</h2>
-            <div id="activity-list" class="mt-4 space-y-4 text-sm text-slate-400"></div>
+            <div id="activity-list" class="mt-4 space-y-4 text-sm text-slate-400" role="status" aria-live="polite"></div>
           </div>
         </aside>
       </section>
     </main>
   </div>
   <script type="module">
-    import { apiFetch, getCsrfToken } from '/assets/app.js';
+    import { apiFetch } from '/assets/app.js';
 
     const params = new URLSearchParams(window.location.search);
     const nameEl = document.getElementById('endeavour-name');
@@ -177,17 +178,21 @@
       el.classList.remove('hidden');
     };
 
-    const getCsrf = getCsrfToken;
+    const loadingEl = document.getElementById('page-loading');
 
     const loadEndeavour = async () => {
       if (!id) {
         nameEl.textContent = 'Missing endeavour ID';
+        if (loadingEl) loadingEl.classList.add('hidden');
         return;
       }
       try {
         const { data } = await apiFetch(`/endeavours/${id}`);
         const endeavour = data?.endeavour;
-        if (!endeavour) return;
+          if (!endeavour) {
+            if (loadingEl) loadingEl.classList.add('hidden');
+            return;
+          }
         statusEl.textContent = (endeavour.status || '').replace(/_/g, ' ');
         nameEl.textContent = endeavour.name || 'Endeavour';
         const dates = [endeavour.start_date, endeavour.end_date].filter(Boolean).join(' - ');
@@ -409,9 +414,11 @@
           wrapper.appendChild(meta);
           activityList.appendChild(wrapper);
         });
+        if (loadingEl) loadingEl.classList.add('hidden');
       } catch (err) {
         console.error('Failed to load endeavour:', err);
         nameEl.textContent = 'Failed to load endeavour';
+        if (loadingEl) loadingEl.classList.add('hidden');
       }
     };
 
