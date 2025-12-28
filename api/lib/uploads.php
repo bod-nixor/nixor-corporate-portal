@@ -1,6 +1,8 @@
 <?php
 function ensure_upload_dir(string $endeavourId, string $docType): string {
-    $base = dirname(__DIR__, 2) . '/uploads/' . $endeavourId . '/' . $docType;
+    $safeEndeavourId = preg_replace('/[^a-zA-Z0-9_-]/', '', $endeavourId);
+    $safeDocType = preg_replace('/[^a-zA-Z0-9_-]/', '', $docType);
+    $base = dirname(__DIR__, 2) . '/uploads/' . $safeEndeavourId . '/' . $safeDocType;
     if (!is_dir($base)) {
         mkdir($base, 0775, true);
     }

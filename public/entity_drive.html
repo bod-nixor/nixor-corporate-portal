@@ -20,11 +20,30 @@
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
       </nav>
     </aside>
+    <div id="mobile-nav" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden">
+      <div class="absolute left-0 top-0 h-full w-72 bg-slate-900 border-r border-slate-800 p-6">
+        <div class="flex items-center justify-between">
+          <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+          <button id="close-nav" class="text-slate-400 hover:text-white">✕</button>
+        </div>
+        <nav class="mt-8 space-y-2 text-sm">
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+          <a class="block px-3 py-2 rounded-xl sidebar-active" href="/entity_drive.html">Entity Drive</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+        </nav>
+      </div>
+    </div>
     <main class="flex-1 p-6 md:p-8">
       <header class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div>
+        <div class="flex items-start gap-4">
+          <button id="open-nav" class="lg:hidden bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">☰</button>
+          <div>
           <h1 class="text-2xl font-semibold">Entity Drive</h1>
           <p class="text-sm text-slate-400">Automated templates, synced permissions, and centralized folders.</p>
+          </div>
         </div>
         <div class="flex flex-wrap gap-3">
           <button class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New Folder</button>
@@ -132,5 +151,19 @@
       </section>
     </main>
   </div>
+  <script>
+    const mobileNav = document.getElementById('mobile-nav');
+    document.getElementById('open-nav')?.addEventListener('click', () => {
+      mobileNav?.classList.remove('hidden');
+    });
+    document.getElementById('close-nav')?.addEventListener('click', () => {
+      mobileNav?.classList.add('hidden');
+    });
+    mobileNav?.addEventListener('click', (event) => {
+      if (event.target === mobileNav) {
+        mobileNav.classList.add('hidden');
+      }
+    });
+  </script>
 </body>
 </html>

@@ -47,6 +47,9 @@ Run the server:
 python ws/server.py
 ```
 
+By default the websocket server binds to `127.0.0.1`. Set `WS_HOST`/`WS_PORT` to change this and optionally set `WS_TOKEN` to require a `?token=` query parameter for clients.
+If you set `WS_TOKEN`, expose it on the frontend (for example `window.WS_TOKEN = '...';`) before calling `connectWebsocket`.
+
 ## API Overview
 All endpoints return JSON:
 ```json
@@ -75,3 +78,4 @@ Sample endpoints:
 ## Notes
 - Uploaded documents are stored in `/uploads/{endeavour_id}/{doc_type}`
 - The websocket server reads from the queue file configured in `.env` (default: `/ws/events.queue`).
+- Consider cleaning expired session rows via a periodic job (based on `sessions.expires_at`).

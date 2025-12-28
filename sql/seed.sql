@@ -2,9 +2,9 @@ USE nixor_portal;
 
 INSERT INTO users (email, password_hash, full_name, global_role)
 VALUES
-('board@nixor.io', SHA2('password', 256), 'Board Member', 'board'),
-('ceo@nixor.io', SHA2('password', 256), 'Entity CEO', 'ceo'),
-('hr@nixor.io', SHA2('password', 256), 'HR Lead', 'staff');
+('board@nixor.io', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Board Member', 'board'),
+('ceo@nixor.io', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Entity CEO', 'ceo'),
+('hr@nixor.io', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'HR Lead', 'staff');
 
 INSERT INTO students (user_id, student_id, parent_email, phone)
 VALUES
@@ -17,4 +17,4 @@ VALUES
 
 INSERT INTO endeavours (entity_id, created_by, name, description, venue, schedule, start_date, end_date, transport_payment_required, status)
 VALUES
-(1, 2, 'Community Health Camp', 'Multi-day health outreach with onsite clinics.', 'City Hall Auditorium', 'Sat 9AM-2PM', '2024-04-12', '2024-04-14', 500.00, 'Pending Board Approval');
+(1, 2, 'Community Health Camp', 'Multi-day health outreach with onsite clinics.', 'City Hall Auditorium', 'Sat 9AM-2PM', '2024-04-12', '2024-04-14', 500.00, 'pending_board_approval');

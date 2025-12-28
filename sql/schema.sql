@@ -66,23 +66,23 @@ CREATE TABLE endeavours (
   end_date DATE,
   transport_payment_required DECIMAL(10,2) DEFAULT 0.00,
   status ENUM(
-    'Draft',
-    'Pending Board Approval',
-    'Board Approved / Ops Plan Required',
-    'Ops Plan Pending Board Approval',
-    'Ops Plan Approved / MoU Optional',
-    'MoU Pending Board Approval',
-    'MoU Approved / Finance Pre-Financial Required',
-    'Finance Pre-Financial Pending Board Approval',
-    'Finance Approved / HR Posting Optional',
-    'Volunteer Posting Pending Board Approval',
-    'Volunteer Posting Approved / HR Publish',
-    'Live Volunteer Posting',
-    'Post-Financial Pending Board Approval',
-    'Closed / Ops Epilogue Required',
-    'Completed',
-    'Rejected'
-  ) DEFAULT 'Draft',
+    'draft',
+    'pending_board_approval',
+    'board_approved_ops_plan_required',
+    'ops_plan_pending_board_approval',
+    'ops_plan_approved_mou_optional',
+    'mou_pending_board_approval',
+    'mou_approved_pre_financial_required',
+    'pre_financial_pending_board_approval',
+    'finance_approved_hr_posting_optional',
+    'volunteer_posting_pending_board_approval',
+    'volunteer_posting_approved_hr_publish',
+    'live_volunteer_posting',
+    'post_financial_pending_board_approval',
+    'closed_ops_epilogue_required',
+    'completed',
+    'rejected'
+  ) DEFAULT 'draft',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
@@ -156,7 +156,7 @@ CREATE TABLE consents (
   id INT AUTO_INCREMENT PRIMARY KEY,
   volunteer_application_id INT NOT NULL,
   parent_email VARCHAR(190),
-  token VARCHAR(190) NOT NULL,
+  token VARCHAR(190) NOT NULL UNIQUE,
   status ENUM('pending','signed','rejected') DEFAULT 'pending',
   signed_at TIMESTAMP NULL,
   signature_name VARCHAR(190),
@@ -242,9 +242,10 @@ CREATE TABLE drive_versions (
 CREATE TABLE sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  token VARCHAR(190) NOT NULL,
+  token VARCHAR(190) NOT NULL UNIQUE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   expires_at TIMESTAMP NULL,
+  KEY idx_expires (expires_at),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -302,4 +303,4 @@ INSERT INTO endeavour_types (name, category) VALUES
 ('Internal Training', 'Internal');
 
 INSERT INTO users (email, password_hash, full_name, global_role)
-VALUES ('admin@nixor.io', SHA2('password', 256), 'Portal Admin', 'admin');
+VALUES ('admin@nixor.io', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Portal Admin', 'admin');

@@ -24,10 +24,10 @@ function handle_endeavours(string $method, array $segments): void {
             $data['start_date'] ?? null,
             $data['end_date'] ?? null,
             $data['transport_payment_required'] ?? 0,
-            'Pending Board Approval'
+            'pending_board_approval'
         ]);
         $endeavourId = (int)db()->lastInsertId();
-        log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'CEO created endeavour', ['status' => 'Pending Board Approval']);
+        log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'CEO created endeavour', ['status' => 'pending_board_approval']);
         emit_ws_event('endeavour.created', ['id' => $endeavourId]);
         respond(['ok' => true, 'data' => ['id' => $endeavourId]]);
     }
@@ -62,27 +62,27 @@ function handle_endeavours(string $method, array $segments): void {
 
     if ($id && $action === 'submit_ops_plan' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['operations']);
-        handle_doc_upload($id, 'ops_plan', 'Ops Plan Pending Board Approval', $user['id']);
+        handle_doc_upload($id, 'ops_plan', 'ops_plan_pending_board_approval', $user['id']);
     }
 
     if ($id && $action === 'submit_mou' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['operations']);
-        handle_doc_upload($id, 'mou', 'MoU Pending Board Approval', $user['id']);
+        handle_doc_upload($id, 'mou', 'mou_pending_board_approval', $user['id']);
     }
 
     if ($id && $action === 'submit_pre_financial' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['finance']);
-        handle_doc_upload($id, 'pre_financial', 'Finance Pre-Financial Pending Board Approval', $user['id']);
+        handle_doc_upload($id, 'pre_financial', 'pre_financial_pending_board_approval', $user['id']);
     }
 
     if ($id && $action === 'submit_post_financial' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['finance']);
-        handle_doc_upload($id, 'post_financial', 'Post-Financial Pending Board Approval', $user['id']);
+        handle_doc_upload($id, 'post_financial', 'post_financial_pending_board_approval', $user['id']);
     }
 
     if ($id && $action === 'submit_epilogue' && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['operations']);
-        handle_doc_upload($id, 'epilogue', 'Completed', $user['id'], false);
+        handle_doc_upload($id, 'epilogue', 'completed', $user['id'], false);
     }
 
     if ($id && $action === 'approve' && $method === 'POST') {
@@ -103,7 +103,7 @@ function handle_endeavours(string $method, array $segments): void {
             $data['questionnaire_mode'] ?? 0,
             $user['id']
         ]);
-        update_status($id, 'Volunteer Posting Pending Board Approval');
+        update_status($id, 'volunteer_posting_pending_board_approval');
         log_activity($user['id'], 'endeavour', $id, 'post_requested', 'Volunteer posting requested');
         emit_ws_event('endeavour.post_requested', ['id' => $id]);
         respond(['ok' => true, 'data' => ['post_id' => (int)db()->lastInsertId()]]);
@@ -114,7 +114,7 @@ function handle_endeavours(string $method, array $segments): void {
         $data = read_json();
         $stmt = db()->prepare('UPDATE volunteer_posts SET published = 1, published_at = NOW() WHERE id = ?');
         $stmt->execute([$data['post_id'] ?? 0]);
-        update_status($id, 'Live Volunteer Posting');
+        update_status($id, 'live_volunteer_posting');
         log_activity($user['id'], 'endeavour', $id, 'post_published', 'Volunteer posting published');
         emit_ws_event('endeavour.post_published', ['id' => $id]);
         respond(['ok' => true]);
@@ -194,6 +194,9 @@ function fetch_entity_id(int $endeavourId): int {
     $stmt = db()->prepare('SELECT entity_id FROM endeavours WHERE id = ?');
     $stmt->execute([$endeavourId]);
     $row = $stmt->fetch();
+    if (!$row) {
+        respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+    }
     return (int)$row['entity_id'];
 }
 
@@ -241,9 +244,9 @@ function handle_approval(int $endeavourId): void {
     $roleNeeded = null;
     $nextStatus = $status;
 
-    if (in_array($status, ['Pending Board Approval', 'Ops Plan Pending Board Approval', 'MoU Pending Board Approval', 'Finance Pre-Financial Pending Board Approval', 'Volunteer Posting Pending Board Approval', 'Post-Financial Pending Board Approval'], true)) {
+    if (in_array($status, ['pending_board_approval', 'ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'volunteer_posting_pending_board_approval', 'post_financial_pending_board_approval'], true)) {
         $roleNeeded = 'board';
-    } elseif (in_array($status, ['Board Approved / Ops Plan Required', 'Ops Plan Approved / MoU Optional', 'MoU Approved / Finance Pre-Financial Required', 'Finance Approved / HR Posting Optional', 'Volunteer Posting Approved / HR Publish', 'Closed / Ops Epilogue Required'], true)) {
+    } elseif (in_array($status, ['board_approved_ops_plan_required', 'ops_plan_approved_mou_optional', 'mou_approved_pre_financial_required', 'finance_approved_hr_posting_optional', 'volunteer_posting_approved_hr_publish', 'closed_ops_epilogue_required'], true)) {
         $roleNeeded = 'admin';
     }
 
@@ -255,15 +258,15 @@ function handle_approval(int $endeavourId): void {
     }
 
     if ($decision === 'rejected') {
-        $nextStatus = 'Rejected';
+        $nextStatus = 'rejected';
     } else {
         $nextStatus = match ($status) {
-            'Pending Board Approval' => 'Board Approved / Ops Plan Required',
-            'Ops Plan Pending Board Approval' => 'Ops Plan Approved / MoU Optional',
-            'MoU Pending Board Approval' => 'MoU Approved / Finance Pre-Financial Required',
-            'Finance Pre-Financial Pending Board Approval' => 'Finance Approved / HR Posting Optional',
-            'Volunteer Posting Pending Board Approval' => 'Volunteer Posting Approved / HR Publish',
-            'Post-Financial Pending Board Approval' => 'Closed / Ops Epilogue Required',
+            'pending_board_approval' => 'board_approved_ops_plan_required',
+            'ops_plan_pending_board_approval' => 'ops_plan_approved_mou_optional',
+            'mou_pending_board_approval' => 'mou_approved_pre_financial_required',
+            'pre_financial_pending_board_approval' => 'finance_approved_hr_posting_optional',
+            'volunteer_posting_pending_board_approval' => 'volunteer_posting_approved_hr_publish',
+            'post_financial_pending_board_approval' => 'closed_ops_epilogue_required',
             default => $status,
         };
     }

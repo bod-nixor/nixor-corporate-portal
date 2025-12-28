@@ -36,5 +36,6 @@ try {
             respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
 } catch (Exception $e) {
-    respond(['ok' => false, 'error' => $e->getMessage()], 500);
+    error_log($e->getMessage() . ' ' . $e->getTraceAsString());
+    respond(['ok' => false, 'error' => 'Internal server error'], 500);
 }

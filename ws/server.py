@@ -2,12 +2,14 @@ import asyncio
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs
 
 import websockets
 
 QUEUE_FILE = os.getenv("WS_QUEUE_FILE", str(Path(__file__).parent / "events.queue"))
-HOST = os.getenv("WS_HOST", "0.0.0.0")
+HOST = os.getenv("WS_HOST", "127.0.0.1")
 PORT = int(os.getenv("WS_PORT", "8765"))
+WS_TOKEN = os.getenv("WS_TOKEN", "")
 
 clients = set()
 
@@ -36,6 +38,12 @@ async def tail_queue():
             await broadcast(line.strip())
 
 async def handler(websocket):
+    if WS_TOKEN:
+        params = parse_qs(urlparse(websocket.path).query)
+        token = params.get("token", [""])[0]
+        if token != WS_TOKEN:
+            await websocket.close(code=1008, reason="Unauthorized")
+            return
     await register(websocket)
     try:
         async for _ in websocket:

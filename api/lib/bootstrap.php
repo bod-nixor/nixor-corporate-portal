@@ -1,4 +1,10 @@
 <?php
+ini_set('session.cookie_httponly', 1);
+ini_set('session.cookie_samesite', 'Strict');
+ini_set('session.use_strict_mode', 1);
+if (env_value('APP_ENV', 'local') !== 'local') {
+    ini_set('session.cookie_secure', 1);
+}
 session_start();
 
 require_once __DIR__ . '/env.php';
