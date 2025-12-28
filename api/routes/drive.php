@@ -23,9 +23,6 @@ function handle_drive(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         $name = require_non_empty($data['name'] ?? 'New Folder', 'name', 190);
-        if ($name === '' || strlen($name) > 255) {
-            respond(['ok' => false, 'error' => 'Invalid folder name'], 400);
-        }
         ensure_entity_access((int)$data['entity_id'], []);
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
         $stmt->execute([

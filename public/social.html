@@ -67,64 +67,72 @@
     const loadPosts = async () => {
       const entityId = entitySelect.value;
       if (!entityId) return;
-      const response = await apiFetch(`/social?entity_id=${entityId}`);
-      const posts = response?.data?.posts || [];
-      const comments = response?.data?.comments || [];
-      postsEl.innerHTML = '';
-      if (!posts.length) {
-        emptyEl.classList.remove('hidden');
-        return;
-      }
-      emptyEl.classList.add('hidden');
-      posts.forEach((post) => {
-        const card = document.createElement('div');
-        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
-        const header = document.createElement('p');
-        header.className = 'text-sm text-indigo-300';
-        header.textContent = post.full_name;
-        const content = document.createElement('p');
-        content.className = 'text-base mt-2';
-        content.textContent = post.content;
-        const meta = document.createElement('p');
-        meta.className = 'text-xs text-slate-500 mt-3';
-        meta.textContent = new Date(post.created_at).toLocaleString();
-        const commentList = document.createElement('div');
-        commentList.className = 'mt-4 space-y-2 text-sm text-slate-400';
-        comments.filter((c) => c.post_id === post.id).forEach((comment) => {
-          const line = document.createElement('p');
-          line.textContent = `${comment.full_name}: ${comment.comment}`;
-          commentList.appendChild(line);
-        });
-        const commentForm = document.createElement('form');
-        commentForm.className = 'mt-4 flex gap-2';
-        const commentInput = document.createElement('input');
-        commentInput.className = 'flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm';
-        commentInput.placeholder = 'Write a comment';
-        const commentButton = document.createElement('button');
-        commentButton.className = 'bg-slate-800 px-3 py-2 rounded-xl text-xs';
-        commentButton.textContent = 'Send';
-        commentForm.appendChild(commentInput);
-        commentForm.appendChild(commentButton);
-        commentForm.addEventListener('submit', async (event) => {
-          event.preventDefault();
-          if (!commentInput.value.trim()) return;
-          try {
-            await apiFetch(`/social/${post.id}/comments`, { method: 'POST', body: JSON.stringify({ comment: commentInput.value }) });
-            commentInput.value = '';
-            loadPosts();
-          } catch (err) {
-            setStatus(normalizeError(err) || 'Comment failed', false);
-          }
-        });
-        card.appendChild(header);
-        card.appendChild(content);
-        card.appendChild(meta);
-        if (commentList.children.length) {
-          card.appendChild(commentList);
+      try {
+        const response = await apiFetch(`/social?entity_id=${entityId}`);
+        const posts = response?.data?.posts || [];
+        const comments = response?.data?.comments || [];
+        postsEl.innerHTML = '';
+        if (!posts.length) {
+          emptyEl.classList.remove('hidden');
+          return;
         }
-        card.appendChild(commentForm);
-        postsEl.appendChild(card);
-      });
+        emptyEl.classList.add('hidden');
+        posts.forEach((post) => {
+          const card = document.createElement('div');
+          card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
+          const header = document.createElement('p');
+          header.className = 'text-sm text-indigo-300';
+          header.textContent = post.full_name;
+          const content = document.createElement('p');
+          content.className = 'text-base mt-2';
+          content.textContent = post.content;
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-slate-500 mt-3';
+          meta.textContent = new Date(post.created_at).toLocaleString();
+          const commentList = document.createElement('div');
+          commentList.className = 'mt-4 space-y-2 text-sm text-slate-400';
+          comments.filter((c) => c.post_id === post.id).forEach((comment) => {
+            const line = document.createElement('p');
+            line.textContent = `${comment.full_name}: ${comment.comment}`;
+            commentList.appendChild(line);
+          });
+          const commentForm = document.createElement('form');
+          commentForm.className = 'mt-4 flex gap-2';
+          const commentInput = document.createElement('input');
+          commentInput.className = 'flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm';
+          commentInput.placeholder = 'Write a comment';
+          const commentButton = document.createElement('button');
+          commentButton.className = 'bg-slate-800 px-3 py-2 rounded-xl text-xs';
+          commentButton.textContent = 'Send';
+          commentForm.appendChild(commentInput);
+          commentForm.appendChild(commentButton);
+          commentForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!commentInput.value.trim()) return;
+            try {
+              await apiFetch(`/social/${post.id}/comments`, { method: 'POST', body: JSON.stringify({ comment: commentInput.value }) });
+              commentInput.value = '';
+              loadPosts();
+            } catch (err) {
+              setStatus(normalizeError(err) || 'Comment failed', false);
+            }
+          });
+          card.appendChild(header);
+          card.appendChild(content);
+          card.appendChild(meta);
+          if (commentList.children.length) {
+            card.appendChild(commentList);
+          }
+          card.appendChild(commentForm);
+          postsEl.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Failed to load social posts:', err);
+        postsEl.innerHTML = '';
+        emptyEl.textContent = 'Failed to load posts. Please try again.';
+        emptyEl.classList.remove('hidden');
+        setStatus('Unable to load posts.', false);
+      }
     };
 
     apiFetch('/auth/me')
@@ -141,6 +149,12 @@
           entitySelect.value = entities[0].id;
           loadPosts();
         }
+      })
+      .catch((err) => {
+        console.error('Failed to load entities:', err);
+        entitySelect.innerHTML = '';
+        emptyEl.textContent = 'Unable to load posts without access.';
+        emptyEl.classList.remove('hidden');
       });
 
     entitySelect.addEventListener('change', loadPosts);

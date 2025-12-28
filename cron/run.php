@@ -11,7 +11,7 @@ if (!$isCli) {
 }
 
 $token = env_value('CRON_TOKEN', '');
-if (!$isCli && $token && (($_GET['token'] ?? '') !== $token)) {
+if (!$isCli && $token && !hash_equals($token, (string)($_GET['token'] ?? ''))) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'Forbidden']);
     exit;
@@ -113,14 +113,14 @@ function run_daily_digest(): array {
 
 function should_send_notification(string $type, string $entityType, int $entityId, string $recipient): bool {
     $stmt = db()->prepare('SELECT id FROM reminder_notifications WHERE notification_type = ? AND entity_type = ? AND entity_id = ? AND recipient = ? AND sent_on = CURDATE()');
-    $stmt->execute([$type, $entityType, $entityId, $recipient]);
+    $stmt->execute([$type, $entityType ?: '', $entityId, $recipient]);
     return !$stmt->fetch();
 }
 
 function mark_notification_sent(string $type, string $entityType, int $entityId, string $recipient): void {
     $stmt = db()->prepare('INSERT INTO reminder_notifications (notification_type, entity_type, entity_id, recipient, sent_on) VALUES (?, ?, ?, ?, CURDATE())');
     try {
-        $stmt->execute([$type, $entityType, $entityId, $recipient]);
+        $stmt->execute([$type, $entityType ?: '', $entityId, $recipient]);
     } catch (PDOException $e) {
         error_log('Failed to log reminder notification: ' . $e->getMessage());
     }

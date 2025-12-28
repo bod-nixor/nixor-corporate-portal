@@ -77,50 +77,12 @@ function handle_updates(string $method, array $_segments): void {
 }
 
 function filter_events_by_entity(array $events, array $entityIds): array {
-    $idsByType = [];
+    $allowedEntityIds = array_map('intval', $entityIds);
+    $allowedEventIds = [];
     foreach ($events as $event) {
-        $idsByType[$event['entity_type']][] = (int)$event['entity_id'];
-    }
-    $allowed = [];
-    foreach ($idsByType as $type => $ids) {
-        $ids = array_values(array_unique($ids));
-        if (!$ids) {
-            continue;
-        }
-        $entityPlaceholders = implode(',', array_fill(0, count($entityIds), '?'));
-        $idsPlaceholders = implode(',', array_fill(0, count($ids), '?'));
-        $params = array_merge($entityIds, $ids);
-        $query = '';
-        switch ($type) {
-            case 'endeavour':
-                $query = "SELECT id FROM endeavours WHERE entity_id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            case 'entity':
-                $query = "SELECT id FROM entities WHERE id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            case 'announcement':
-                $query = "SELECT id FROM dashboard_announcements WHERE entity_id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            case 'drive_item':
-                $query = "SELECT id FROM file_drive_items WHERE entity_id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            case 'social_post':
-                $query = "SELECT id FROM social_posts WHERE entity_id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            case 'calendar_event':
-                $query = "SELECT id FROM calendar_events WHERE entity_id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            case 'member':
-                $query = "SELECT id FROM entity_memberships WHERE entity_id IN ({$entityPlaceholders}) AND id IN ({$idsPlaceholders})";
-                break;
-            default:
-                $query = '';
-        }
-        if ($query) {
-            $stmt = db()->prepare($query);
-            $stmt->execute($params);
-            $allowed = array_merge($allowed, array_map(fn($row) => (int)$row['id'], $stmt->fetchAll()));
+        if (in_array((int)$event['entity_id'], $allowedEntityIds, true)) {
+            $allowedEventIds[] = (int)$event['id'];
         }
     }
-    return array_values(array_unique($allowed));
+    return array_values(array_unique($allowedEventIds));
 }

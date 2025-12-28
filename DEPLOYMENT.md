@@ -44,11 +44,11 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 
 ## 7) Configure cron jobs
 Add a cPanel cron entry that calls:
-```
+```bash
 /usr/bin/php -q /home/<cpanel_user>/public_html/portal/cron/run.php
 ```
 If CLI is unavailable, call the HTTP endpoint:
-```
+```bash
 https://your-domain.com/portal/cron/run.php?token=<CRON_TOKEN>
 ```
 

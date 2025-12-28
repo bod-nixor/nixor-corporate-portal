@@ -68,6 +68,9 @@ function handle_users(string $method, array $segments): void {
         $values[] = $userId;
         $stmt = db()->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?');
         $stmt->execute($values);
+        if ($stmt->rowCount() === 0) {
+            respond(['ok' => false, 'error' => 'User not found'], 404);
+        }
         log_activity($user['id'], 'user', $userId, 'updated', 'User updated');
         respond(['ok' => true]);
     }

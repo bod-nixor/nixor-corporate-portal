@@ -51,19 +51,29 @@ function handle_setup(): void {
         }
     }
 
-    $existing = db()->query('SELECT id FROM users WHERE global_role = "admin" LIMIT 1')->fetch();
-    if (!$existing) {
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = db()->prepare('INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, "admin")');
-        $stmt->execute([$email, $hash, $fullName]);
-        $adminId = (int)db()->lastInsertId();
-        log_activity($adminId, 'user', $adminId, 'created', 'Initial admin created');
-    }
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $existing = $pdo->query('SELECT id FROM users WHERE global_role = "admin" LIMIT 1')->fetch();
+        if (!$existing) {
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, "admin")');
+            $stmt->execute([$email, $hash, $fullName]);
+            $adminId = (int)$pdo->lastInsertId();
+            log_activity($adminId, 'user', $adminId, 'created', 'Initial admin created');
+        }
 
-    if (!is_dir(dirname($lockPath))) {
-        mkdir(dirname($lockPath), 0775, true);
+        if (!is_dir(dirname($lockPath))) {
+            mkdir(dirname($lockPath), 0775, true);
+        }
+        if (file_put_contents($lockPath, 'setup completed ' . date('c')) === false) {
+            throw new RuntimeException('Failed to create lock file');
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        respond(['ok' => false, 'error' => 'Setup failed: ' . $e->getMessage()], 500);
     }
-    file_put_contents($lockPath, 'setup completed ' . date('c'));
 
     respond(['ok' => true, 'data' => ['message' => 'Setup completed']]);
 }

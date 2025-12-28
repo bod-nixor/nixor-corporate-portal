@@ -347,8 +347,8 @@ CREATE TABLE interest_submissions (
 CREATE TABLE reminder_notifications (
   id INT AUTO_INCREMENT PRIMARY KEY,
   notification_type VARCHAR(120) NOT NULL,
-  entity_type VARCHAR(120),
-  entity_id INT,
+  entity_type VARCHAR(120) NOT NULL DEFAULT '',
+  entity_id INT NOT NULL DEFAULT 0,
   recipient VARCHAR(190) NOT NULL,
   sent_on DATE NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

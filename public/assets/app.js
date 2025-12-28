@@ -141,7 +141,12 @@ export async function subscribeUpdates(onEvent) {
   const pollInterval = Math.max(4, parseInt(portalConfig.poll_interval, 10) || 8);
   let lastEventId = 0;
   let pollingTimer;
+  let isPolling = false;
   const poll = async () => {
+    if (isPolling) {
+      return;
+    }
+    isPolling = true;
     try {
       const response = await apiFetch(`/updates?since=${lastEventId}`);
       const events = response?.data?.events || [];
@@ -150,6 +155,7 @@ export async function subscribeUpdates(onEvent) {
     } catch (err) {
       console.warn('Polling updates failed', err);
     } finally {
+      isPolling = false;
       pollingTimer = setTimeout(poll, pollInterval * 1000);
     }
   };
@@ -160,7 +166,10 @@ export async function subscribeUpdates(onEvent) {
 
   if (!socket) {
     poll();
-    return () => clearTimeout(pollingTimer);
+    return () => {
+      clearTimeout(pollingTimer);
+      isPolling = false;
+    };
   }
 
   const fallbackTimer = setTimeout(() => {
@@ -169,12 +178,23 @@ export async function subscribeUpdates(onEvent) {
     }
   }, 3000);
 
-  socket.addEventListener('open', () => clearTimeout(fallbackTimer));
-  socket.addEventListener('close', () => poll());
-  socket.addEventListener('error', () => poll());
+  socket.addEventListener('open', () => {
+    clearTimeout(fallbackTimer);
+    isPolling = false;
+    clearTimeout(pollingTimer);
+  });
+  socket.addEventListener('close', () => {
+    clearTimeout(pollingTimer);
+    poll();
+  });
+  socket.addEventListener('error', () => {
+    clearTimeout(pollingTimer);
+    poll();
+  });
   return () => {
     clearTimeout(fallbackTimer);
     clearTimeout(pollingTimer);
+    isPolling = false;
     socket.close();
   };
 }

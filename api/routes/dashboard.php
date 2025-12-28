@@ -48,7 +48,11 @@ function handle_dashboard(string $method, array $_segments): void {
         $membership = db()->prepare('SELECT department FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
         $membership->execute([$entityId, $user['id']]);
         $dept = $membership->fetch();
-        $canPost = in_array($dept['department'] ?? '', ['communications', 'management'], true);
+        if (!$dept) {
+            $canPost = false;
+        } else {
+            $canPost = in_array($dept['department'], ['communications', 'management'], true);
+        }
     }
 
     respond([

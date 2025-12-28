@@ -18,11 +18,10 @@ function send_email(string $to, string $subject, string $body, bool $isHtml = tr
     }
     if (!smtp_configured()) {
         $logLine = sprintf(
-            "[%s] SMTP not configured. To: %s | Subject: %s | Body: %s\n",
+            "[%s] SMTP not configured. To: %s | Subject: %s | Body: [omitted]\n",
             date('c'),
             $to,
-            $subject,
-            preg_replace('/\s+/', ' ', strip_tags($body))
+            $subject
         );
         file_put_contents(mail_log_path(), $logLine, FILE_APPEND);
         return false;

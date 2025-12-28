@@ -70,31 +70,39 @@
     const loadEvents = async () => {
       const entityId = entitySelect.value;
       if (!entityId) return;
-      const response = await apiFetch(`/calendar?entity_id=${entityId}`);
-      const events = response?.data || [];
-      list.innerHTML = '';
-      if (!events.length) {
+      try {
+        const response = await apiFetch(`/calendar?entity_id=${entityId}`);
+        const events = response?.data || [];
+        list.innerHTML = '';
+        if (!events.length) {
+          emptyState.textContent = 'No events scheduled.';
+          emptyState.classList.remove('hidden');
+          return;
+        }
+        emptyState.classList.add('hidden');
+        events.forEach((event) => {
+          const card = document.createElement('div');
+          card.className = 'bg-slate-950 border border-slate-800 rounded-xl p-4';
+          const title = document.createElement('p');
+          title.className = 'font-medium';
+          title.textContent = event.title;
+          const meta = document.createElement('p');
+          meta.className = 'text-xs text-slate-500 mt-1';
+          meta.textContent = `${new Date(event.event_date).toLocaleString()} · ${event.location || 'TBD'}`;
+          const desc = document.createElement('p');
+          desc.className = 'text-xs text-slate-400 mt-2';
+          desc.textContent = event.description || 'No description.';
+          card.appendChild(title);
+          card.appendChild(meta);
+          card.appendChild(desc);
+          list.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Failed to load events:', err);
+        list.innerHTML = '';
+        emptyState.textContent = 'Failed to load events. Please try again.';
         emptyState.classList.remove('hidden');
-        return;
       }
-      emptyState.classList.add('hidden');
-      events.forEach((event) => {
-        const card = document.createElement('div');
-        card.className = 'bg-slate-950 border border-slate-800 rounded-xl p-4';
-        const title = document.createElement('p');
-        title.className = 'font-medium';
-        title.textContent = event.title;
-        const meta = document.createElement('p');
-        meta.className = 'text-xs text-slate-500 mt-1';
-        meta.textContent = `${new Date(event.event_date).toLocaleString()} · ${event.location || 'TBD'}`;
-        const desc = document.createElement('p');
-        desc.className = 'text-xs text-slate-400 mt-2';
-        desc.textContent = event.description || 'No description.';
-        card.appendChild(title);
-        card.appendChild(meta);
-        card.appendChild(desc);
-        list.appendChild(card);
-      });
     };
 
     apiFetch('/auth/me')
@@ -111,6 +119,12 @@
           entitySelect.value = entities[0].id;
           loadEvents();
         }
+      })
+      .catch((err) => {
+        console.error('Failed to load entities:', err);
+        entitySelect.innerHTML = '';
+        emptyState.textContent = 'Unable to load calendar without access.';
+        emptyState.classList.remove('hidden');
       });
 
     entitySelect.addEventListener('change', loadEvents);

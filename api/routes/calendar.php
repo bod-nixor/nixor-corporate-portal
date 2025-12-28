@@ -26,10 +26,22 @@ function handle_calendar(string $method, array $segments): void {
         if ($eventDate === '') {
             respond(['ok' => false, 'error' => 'event_date required'], 400);
         }
+        $normalizedDate = null;
+        $dateTime = DateTime::createFromFormat('Y-m-d\\TH:i', $eventDate);
+        if ($dateTime && $dateTime->format('Y-m-d\\TH:i') === $eventDate) {
+            $normalizedDate = $dateTime->format('Y-m-d H:i:s');
+        } else {
+            $iso = DateTime::createFromFormat(DateTime::ATOM, $eventDate);
+            if ($iso && $iso->format(DateTime::ATOM) === $eventDate) {
+                $normalizedDate = $iso->format('Y-m-d H:i:s');
+            } else {
+                respond(['ok' => false, 'error' => 'Invalid event_date format'], 400);
+            }
+        }
         $description = sanitize_text($data['description'] ?? '', 2000);
         $location = sanitize_text($data['location'] ?? '', 190);
         $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$entityId, $title, $description, $eventDate, $location, $user['id']]);
+        $stmt->execute([$entityId, $title, $description, $normalizedDate, $location, $user['id']]);
         $eventId = (int)db()->lastInsertId();
         log_activity($user['id'], 'calendar_event', $eventId, 'created', 'Calendar event created');
         emit_ws_event('calendar.created', ['id' => $eventId]);
