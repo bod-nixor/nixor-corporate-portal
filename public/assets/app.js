@@ -10,20 +10,26 @@ const API_BASE = window.API_BASE || DEFAULT_API_BASE;
 let preferredBase = API_BASE;
 const WS_URL = window.WS_URL || 'ws://localhost:8765';
 const WS_TOKEN = window.WS_TOKEN || '';
+let csrfToken = '';
+
+export function setCsrfToken(token) {
+  csrfToken = token || '';
+}
 
 export async function apiFetch(path, options = {}) {
   const { skipFallback, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
   const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-  const csrfToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+  const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
+  const resolvedCsrf = cookieToken || csrfToken;
   const headers = {
     ...(fetchOptions.headers || {})
   };
   if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && csrfToken) {
-    headers['X-CSRF-Token'] = csrfToken;
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && resolvedCsrf) {
+    headers['X-CSRF-Token'] = resolvedCsrf;
   }
   const request = async (base) => {
     const res = await fetch(`${base}${path}`, {
