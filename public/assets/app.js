@@ -32,7 +32,8 @@ export async function apiFetch(path, options = {}) {
   const headers = {
     ...(fetchOptions.headers || {})
   };
-  if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type']) {
+  const isFormData = fetchOptions.body instanceof FormData;
+  if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type'] && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && resolvedCsrf) {

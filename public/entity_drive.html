@@ -106,6 +106,7 @@
       </form>
     </div>
   </div>
+  <div id="upload-status" class="hidden text-sm rounded-xl px-4 py-3 mx-6 mb-6"></div>
   <input id="upload-input" type="file" class="hidden" />
   <script type="module">
     import { apiFetch, getCsrfToken as csrfToken } from '/assets/app.js';
@@ -129,6 +130,7 @@
     const inspectorMeta = document.getElementById('inspector-meta');
     const inspectorDownload = document.getElementById('inspector-download');
     const uploadInput = document.getElementById('upload-input');
+    const uploadStatus = document.getElementById('upload-status');
 
     const renderSummary = (items) => {
       const folders = items.filter((item) => item.item_type === 'folder').length;
@@ -177,7 +179,7 @@
           row.appendChild(dateCell);
           row.addEventListener('click', () => {
             inspectorName.textContent = item.name;
-            inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${(item.size_bytes / 1024).toFixed(1)} KB`;
+            inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${((Number(item.size_bytes) || 0) / 1024).toFixed(1)} KB`;
             if (item.item_type === 'file') {
               inspectorDownload.classList.remove('hidden');
               inspectorDownload.href = `/api/files/download?type=drive&id=${item.id}`;
@@ -246,26 +248,38 @@
         folderStatus.classList.remove('hidden');
       }
     });
-    document.getElementById('upload-file').addEventListener('click', () => uploadInput.click());
+    document.getElementById('upload-file').addEventListener('click', () => {
+      uploadStatus.classList.add('hidden');
+      uploadInput.click();
+    });
     uploadInput.addEventListener('change', async () => {
       if (!uploadInput.files.length) return;
+      const file = uploadInput.files[0];
+      const maxSize = 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        uploadStatus.textContent = 'File size exceeds 50MB limit.';
+        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
+        uploadStatus.classList.remove('hidden');
+        uploadInput.value = '';
+        return;
+      }
       const formData = new FormData();
       formData.append('entity_id', entitySelect.value);
-      formData.append('file', uploadInput.files[0]);
-      const token = csrfToken();
+      formData.append('file', file);
       try {
-        const response = await fetch('/api/drive/upload', {
-          method: 'POST',
-          headers: token ? { 'X-CSRF-Token': token } : {},
-          body: formData,
-          credentials: 'include'
-        });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Upload failed');
+        uploadStatus.textContent = 'Uploading...';
+        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-slate-800 text-slate-200 border border-slate-700';
+        uploadStatus.classList.remove('hidden');
+        await apiFetch('/drive/upload', { method: 'POST', body: formData });
         uploadInput.value = '';
         loadDrive();
+        uploadStatus.textContent = 'Upload complete.';
+        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30';
       } catch (err) {
-        alert(err.message || 'Upload failed');
+        console.error('Upload error:', err);
+        uploadStatus.textContent = err.message || 'Upload failed.';
+        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
+        uploadStatus.classList.remove('hidden');
       }
     });
   </script>

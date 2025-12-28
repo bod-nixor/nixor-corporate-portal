@@ -74,7 +74,7 @@
                 <textarea name="description" rows="3" required class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Volunteer description"></textarea>
                 <input name="venue" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Venue" />
                 <input name="schedule" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Schedule" />
-                <input name="transport_payment" type="number" step="0.01" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Transport payment" />
+                <input name="transport_payment" type="number" min="0" step="0.01" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Transport payment" />
                 <div id="post-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
                 <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Request Post</button>
               </form>
@@ -120,7 +120,7 @@
                 <option value="post_financial">Post-Financial</option>
                 <option value="epilogue">Epilogue</option>
               </select>
-              <input name="document" type="file" required class="w-full text-sm text-slate-300" />
+              <input name="document" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" class="w-full text-sm text-slate-300" />
               <div id="document-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
               <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-2">Upload</button>
             </form>
@@ -138,6 +138,10 @@
 
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
+    if (id && !/^\d+$/.test(id)) {
+      nameEl.textContent = 'Invalid endeavour ID';
+      return;
+    }
     const nameEl = document.getElementById('endeavour-name');
     const statusEl = document.getElementById('endeavour-status');
     const metaEl = document.getElementById('endeavour-meta');
@@ -170,7 +174,7 @@
       el.classList.remove('hidden');
     };
 
-    const csrfToken = getCsrfToken;
+    const getCsrf = getCsrfToken;
 
     const loadEndeavour = async () => {
       if (!id) {
@@ -224,7 +228,8 @@
             const left = document.createElement('span');
             left.textContent = doc.original_name || doc.doc_type;
             const right = document.createElement('a');
-            right.href = `/api/files/download?type=endeavour_document&id=${doc.id}`;
+            const params = new URLSearchParams({ type: 'endeavour_document', id: String(doc.id) });
+            right.href = `/api/files/download?${params.toString()}`;
             right.className = 'text-indigo-300 text-xs';
             right.textContent = 'Download';
             row.appendChild(left);
@@ -255,20 +260,26 @@
           info.appendChild(title);
           info.appendChild(meta);
           row.appendChild(info);
-          if (!post.published) {
-            const publishBtn = document.createElement('button');
-            publishBtn.className = 'text-xs bg-indigo-500 px-3 py-1 rounded-lg';
-            publishBtn.textContent = 'Publish';
-            publishBtn.addEventListener('click', async () => {
-              try {
-                await apiFetch(`/endeavours/${id}/publish_post`, { method: 'POST', body: JSON.stringify({ post_id: post.id }) });
-                loadEndeavour();
-              } catch (err) {
-                setStatus(actionStatus, normalizeError(err) || 'Publish failed', false);
-              }
-            });
-            row.appendChild(publishBtn);
-          }
+            if (!post.published) {
+              const publishBtn = document.createElement('button');
+              publishBtn.className = 'text-xs bg-indigo-500 px-3 py-1 rounded-lg';
+              publishBtn.textContent = 'Publish';
+              publishBtn.addEventListener('click', async () => {
+                publishBtn.disabled = true;
+                const originalText = publishBtn.textContent;
+                publishBtn.textContent = 'Publishing...';
+                try {
+                  await apiFetch(`/endeavours/${id}/publish_post`, { method: 'POST', body: JSON.stringify({ post_id: post.id }) });
+                  loadEndeavour();
+                } catch (err) {
+                  setStatus(actionStatus, normalizeError(err) || 'Publish failed', false);
+                } finally {
+                  publishBtn.disabled = false;
+                  publishBtn.textContent = originalText;
+                }
+              });
+              row.appendChild(publishBtn);
+            }
           postsList.appendChild(row);
         });
 
@@ -294,44 +305,73 @@
             shortlistBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
             shortlistBtn.textContent = 'Shortlist';
             shortlistBtn.addEventListener('click', async () => {
+              shortlistBtn.disabled = true;
+              const originalText = shortlistBtn.textContent;
+              shortlistBtn.textContent = 'Shortlisting...';
               try {
                 await apiFetch(`/endeavours/${id}/shortlist`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
                 loadEndeavour();
               } catch (err) {
                 setStatus(actionStatus, normalizeError(err) || 'Shortlist failed', false);
+              } finally {
+                shortlistBtn.disabled = false;
+                shortlistBtn.textContent = originalText;
               }
             });
             const consentBtn = document.createElement('button');
             consentBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
             consentBtn.textContent = 'Request consent';
             consentBtn.addEventListener('click', async () => {
+              consentBtn.disabled = true;
+              const originalText = consentBtn.textContent;
+              consentBtn.textContent = 'Requesting...';
               try {
                 await apiFetch(`/endeavours/${id}/consent/request`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
                 loadEndeavour();
               } catch (err) {
                 setStatus(actionStatus, normalizeError(err) || 'Consent request failed', false);
+              } finally {
+                consentBtn.disabled = false;
+                consentBtn.textContent = originalText;
               }
             });
             const paymentBtn = document.createElement('button');
             paymentBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
             paymentBtn.textContent = 'Mark paid';
             paymentBtn.addEventListener('click', async () => {
+              const receiptRef = window.prompt('Enter receipt reference');
+              if (!receiptRef || !receiptRef.trim()) {
+                setStatus(actionStatus, 'Receipt reference is required.', false);
+                return;
+              }
+              paymentBtn.disabled = true;
+              const originalText = paymentBtn.textContent;
+              paymentBtn.textContent = 'Marking...';
               try {
-                await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: '' }) });
+                await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef.trim() }) });
                 loadEndeavour();
               } catch (err) {
                 setStatus(actionStatus, normalizeError(err) || 'Payment update failed', false);
+              } finally {
+                paymentBtn.disabled = false;
+                paymentBtn.textContent = originalText;
               }
             });
             const attendanceBtn = document.createElement('button');
             attendanceBtn.className = 'text-xs bg-slate-800 px-2 py-1 rounded-lg';
             attendanceBtn.textContent = 'Mark present';
             attendanceBtn.addEventListener('click', async () => {
+              attendanceBtn.disabled = true;
+              const originalText = attendanceBtn.textContent;
+              attendanceBtn.textContent = 'Updating...';
               try {
                 await apiFetch(`/endeavours/${id}/attendance/mark`, { method: 'POST', body: JSON.stringify({ application_id: app.id, status: 'present' }) });
                 loadEndeavour();
               } catch (err) {
                 setStatus(actionStatus, normalizeError(err) || 'Attendance update failed', false);
+              } finally {
+                attendanceBtn.disabled = false;
+                attendanceBtn.textContent = originalText;
               }
             });
             actions.appendChild(shortlistBtn);
@@ -367,6 +407,7 @@
           activityList.appendChild(wrapper);
         });
       } catch (err) {
+        console.error('Failed to load endeavour:', err);
         nameEl.textContent = 'Failed to load endeavour';
       }
     };
@@ -395,7 +436,7 @@
         setStatus(documentStatus, 'Invalid document type.', false);
         return;
       }
-      const token = csrfToken();
+      const token = getCsrf();
       try {
         const response = await fetch(`/api/endeavours/${id}/submit_${docType}`, {
           method: 'POST',
