@@ -61,6 +61,10 @@ function handle_auth(string $method, array $segments): void {
             $stmt = db()->prepare('SELECT * FROM users WHERE email = ? AND (google_id IS NULL OR google_id = "")');
             $stmt->execute([$tokenInfo['email']]);
             $user = $stmt->fetch();
+            if ($user) {
+                $link = db()->prepare('UPDATE users SET google_id = ? WHERE id = ?');
+                $link->execute([$tokenInfo['sub'], $user['id']]);
+            }
         }
         if (!$user) {
             respond(['ok' => false, 'error' => 'Google account not found'], 404);

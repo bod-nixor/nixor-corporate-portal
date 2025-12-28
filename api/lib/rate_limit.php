@@ -22,6 +22,7 @@ function rate_limit(string $key, int $limit, int $windowSeconds): bool {
     $now = time();
     $handle = fopen($bucket, 'c+');
     if ($handle === false) {
+        error_log("Rate limit bucket open failed for key={$key} ip={$ip}");
         return true;
     }
     flock($handle, LOCK_EX);

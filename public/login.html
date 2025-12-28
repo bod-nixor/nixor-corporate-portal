@@ -41,11 +41,25 @@
     import { apiFetch } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
-    apiFetch('/auth/csrf').catch(() => {});
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const disableForm = (message) => {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+      }
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+    };
+    apiFetch('/auth/csrf').catch(() => {
+      disableForm('Unable to start login. Please refresh the page.');
+    });
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const formData = new FormData(form);
       const payload = Object.fromEntries(formData.entries());
+      if (submitBtn?.disabled) {
+        return;
+      }
       try {
         await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
         errorEl.classList.add('hidden');

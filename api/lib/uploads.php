@@ -28,7 +28,9 @@ function ensure_upload_dir(string $endeavourId, string $docType): string {
     $safeDocType = preg_replace('/[^a-zA-Z0-9_-]/', '', $docType);
     $base = dirname(__DIR__, 2) . '/uploads/' . $safeEndeavourId . '/' . $safeDocType;
     if (!is_dir($base)) {
-        mkdir($base, 0775, true);
+        if (!mkdir($base, 0775, true) && !is_dir($base)) {
+            respond(['ok' => false, 'error' => 'Failed to create upload directory'], 500);
+        }
     }
     return $base;
 }
@@ -62,7 +64,9 @@ function save_drive_file(string $entityId, array $file): array {
     $uploadsBase = dirname(__DIR__, 2) . '/uploads';
     $dir = $uploadsBase . '/drive/' . $safeEntityId;
     if (!is_dir($dir)) {
-        mkdir($dir, 0775, true);
+        if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+            respond(['ok' => false, 'error' => 'Failed to create upload directory'], 500);
+        }
     }
     $basename = basename($file['name']);
     if (($file['size'] ?? 0) > 10 * 1024 * 1024) {

@@ -335,6 +335,12 @@ function handle_approval(int $endeavourId): void {
             'pre_financial_pending_board_approval' => 'finance_approved_hr_posting_optional',
             'volunteer_posting_pending_board_approval' => 'volunteer_posting_approved_hr_publish',
             'post_financial_pending_board_approval' => 'closed_ops_epilogue_required',
+            'board_approved_ops_plan_required' => 'ops_plan_pending_board_approval',
+            'ops_plan_approved_mou_optional' => 'mou_pending_board_approval',
+            'mou_approved_pre_financial_required' => 'pre_financial_pending_board_approval',
+            'finance_approved_hr_posting_optional' => 'volunteer_posting_pending_board_approval',
+            'volunteer_posting_approved_hr_publish' => 'live_volunteer_posting',
+            'closed_ops_epilogue_required' => 'completed',
             default => $status,
         };
     }
