@@ -1,4 +1,6 @@
-const API_BASE = '/api';
+const DEFAULT_API_BASE = '/api';
+const FALLBACK_API_BASE = '/api/index.php';
+const API_BASE = window.API_BASE || DEFAULT_API_BASE;
 const WS_URL = window.WS_URL || 'ws://localhost:8765';
 const WS_TOKEN = window.WS_TOKEN || '';
 
@@ -15,13 +17,21 @@ export async function apiFetch(path, options = {}) {
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && csrfToken) {
     headers['X-CSRF-Token'] = csrfToken;
   }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-    method
-  });
-  const data = await res.json().catch(() => ({}));
+  const request = async (base) => {
+    const res = await fetch(`${base}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+      method
+    });
+    const data = await res.json().catch(() => ({}));
+    return { res, data };
+  };
+
+  let { res, data } = await request(API_BASE);
+  if (!res.ok && res.status === 404 && API_BASE === DEFAULT_API_BASE) {
+    ({ res, data } = await request(FALLBACK_API_BASE));
+  }
   if (!res.ok) {
     throw new Error(data.error || `HTTP ${res.status}`);
   }
