@@ -434,21 +434,20 @@
       event.preventDefault();
       const formData = new FormData(documentForm);
       const docType = formData.get('doc_type');
+      if (!docType) {
+        setStatus(documentStatus, 'Document type is required.', false);
+        return;
+      }
       const allowedTypes = ['ops_plan', 'mou', 'pre_financial', 'post_financial', 'epilogue'];
       if (!allowedTypes.includes(docType)) {
         setStatus(documentStatus, 'Invalid document type.', false);
         return;
       }
-      const token = getCsrf();
       try {
-        const response = await fetch(`/api/endeavours/${id}/submit_${docType}`, {
+        await apiFetch(`/endeavours/${id}/submit_${docType}`, {
           method: 'POST',
-          headers: token ? { 'X-CSRF-Token': token } : {},
-          body: formData,
-          credentials: 'include'
+          body: formData
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Upload failed');
         setStatus(documentStatus, 'Document uploaded.', true);
         documentForm.reset();
         loadEndeavour();

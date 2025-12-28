@@ -202,6 +202,12 @@
       .then((response) => {
         const entities = response?.data?.entities || [];
         entitySelect.innerHTML = '';
+        if (!entities.length) {
+          entitySelect.innerHTML = '<option disabled selected>No entities available</option>';
+          driveList.innerHTML = '';
+          driveCount.textContent = 'No entities found';
+          return;
+        }
         entities.forEach((entity) => {
           const option = document.createElement('option');
           option.value = entity.id;
@@ -270,7 +276,16 @@
         uploadStatus.textContent = 'Uploading...';
         uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-slate-800 text-slate-200 border border-slate-700';
         uploadStatus.classList.remove('hidden');
-        await apiFetch('/drive/upload', { method: 'POST', body: formData });
+        let dots = 0;
+        const progressTimer = setInterval(() => {
+          dots = (dots + 1) % 4;
+          uploadStatus.textContent = `Uploading${'.'.repeat(dots)}`;
+        }, 500);
+        try {
+          await apiFetch('/drive/upload', { method: 'POST', body: formData });
+        } finally {
+          clearInterval(progressTimer);
+        }
         uploadInput.value = '';
         loadDrive();
         uploadStatus.textContent = 'Upload complete.';
