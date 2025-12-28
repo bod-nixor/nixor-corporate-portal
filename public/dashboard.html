@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entity Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="flex">
+    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+      <nav class="mt-8 space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded-xl sidebar-active" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      </nav>
+    </aside>
+    <main class="flex-1 p-6 md:p-10">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold">Entity Dashboard</h1>
+          <p class="text-slate-400">High-level pulse on docs, meetings, deadlines, and announcements.</p>
+        </div>
+        <button class="bg-indigo-500 px-4 py-2 rounded-xl font-medium">Create Announcement</button>
+      </header>
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-sm text-slate-400">Documentation Progress</h2>
+          <p class="text-3xl font-semibold mt-4">82%</p>
+          <p class="text-sm text-slate-500 mt-2">Ops plans and financials up to date across 5 endeavours.</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-sm text-slate-400">Upcoming Meetings</h2>
+          <ul class="mt-4 space-y-3 text-sm">
+            <li class="flex justify-between"><span>Board Sync</span><span class="text-slate-500">Tomorrow 4:00 PM</span></li>
+            <li class="flex justify-between"><span>Ops Planning</span><span class="text-slate-500">Fri 10:00 AM</span></li>
+            <li class="flex justify-between"><span>HR Shortlist Review</span><span class="text-slate-500">Mon 2:30 PM</span></li>
+          </ul>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-sm text-slate-400">Critical Deadlines</h2>
+          <ul class="mt-4 space-y-3 text-sm">
+            <li class="flex justify-between"><span>Pre-Financial Approval</span><span class="text-amber-400">2 days</span></li>
+            <li class="flex justify-between"><span>Volunteer Posting Review</span><span class="text-rose-400">1 day</span></li>
+            <li class="flex justify-between"><span>Ops Epilogue</span><span class="text-slate-500">1 week</span></li>
+          </ul>
+        </div>
+      </section>
+      <section class="mt-10">
+        <h2 class="text-lg font-semibold">Announcements</h2>
+        <div class="mt-4 space-y-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <p class="text-sm text-indigo-300">Operations</p>
+            <h3 class="text-lg font-semibold mt-2">Ops plans due by Friday</h3>
+            <p class="text-sm text-slate-400 mt-2">Please upload operational plans for all new endeavours so Board can review.</p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <p class="text-sm text-emerald-300">Finance</p>
+            <h3 class="text-lg font-semibold mt-2">Transport payments ready</h3>
+            <p class="text-sm text-slate-400 mt-2">Admin can begin marking payments for approved external events.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

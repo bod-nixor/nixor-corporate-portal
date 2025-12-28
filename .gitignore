@@ -6,3 +6,6 @@
 # Dependencies
 node_modules/
 tsconfig.tsbuildinfo
+
+# Uploads
+uploads/
