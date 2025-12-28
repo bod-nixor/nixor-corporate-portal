@@ -28,6 +28,8 @@ cp .env.example .env
 ```
 
 ### 3) PHP API + Frontend
+Minimum PHP version: **8.0**.
+
 Run the PHP dev server from the repo root:
 ```bash
 php -S localhost:8000
@@ -39,7 +41,7 @@ The websocket server broadcasts events that PHP appends to a queue file.
 
 Install the dependency:
 ```bash
-pip install websockets
+pip install -r ws/requirements.txt
 ```
 
 Run the server:

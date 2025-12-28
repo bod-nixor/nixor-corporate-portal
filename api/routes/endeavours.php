@@ -274,7 +274,8 @@ function handle_approval(int $endeavourId): void {
     $stmt = db()->prepare('INSERT INTO approvals (endeavour_id, stage, role_required, decision, notes, approved_by) VALUES (?, ?, ?, ?, ?, ?)');
     $stmt->execute([$endeavourId, $status, $roleNeeded ?? 'board', $decision, $data['notes'] ?? '', $user['id']]);
     update_status($endeavourId, $nextStatus);
-    log_activity($user['id'], 'endeavour', $endeavourId, 'approved', 'Stage approved', ['status' => $nextStatus, 'decision' => $decision]);
+    $actionLabel = $decision === 'rejected' ? 'rejected' : 'approved';
+    log_activity($user['id'], 'endeavour', $endeavourId, $actionLabel, "Stage {$actionLabel}", ['status' => $nextStatus, 'decision' => $decision]);
     emit_ws_event('endeavour.approval_updated', ['id' => $endeavourId, 'status' => $nextStatus]);
     respond(['ok' => true, 'data' => ['status' => $nextStatus]]);
 }

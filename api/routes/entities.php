@@ -11,7 +11,11 @@ function handle_entities(string $method, array $segments): void {
     if ($method === 'GET' && $id) {
         $stmt = db()->prepare('SELECT * FROM entities WHERE id = ?');
         $stmt->execute([$id]);
-        respond(['ok' => true, 'data' => $stmt->fetch()]);
+        $entity = $stmt->fetch();
+        if (!$entity) {
+            respond(['ok' => false, 'error' => 'Entity not found'], 404);
+        }
+        respond(['ok' => true, 'data' => $entity]);
     }
 
     if ($method === 'POST' && !$id) {
