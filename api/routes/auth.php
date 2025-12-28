@@ -54,6 +54,13 @@ function handle_auth(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'id_token required'], 400);
         }
         $tokenInfo = verify_google_id_token($idToken);
+        $allowedDomains = allowed_google_domains();
+        if ($allowedDomains) {
+            $email = strtolower($tokenInfo['email'] ?? '');
+            if (!$email || !email_domain_allowed($email, $allowedDomains)) {
+                respond(['ok' => false, 'error' => 'Google account not in allowed domain'], 403);
+            }
+        }
         $stmt = db()->prepare('SELECT * FROM users WHERE google_id = ?');
         $stmt->execute([$tokenInfo['sub']]);
         $user = $stmt->fetch();
@@ -99,6 +106,39 @@ function verify_google_id_token(string $idToken): array {
         respond(['ok' => false, 'error' => 'Invalid token'], 401);
     }
     return $payload;
+}
+
+function allowed_google_domains(): array {
+    $raw = env_value('GOOGLE_ALLOWED_DOMAIN', '');
+    if (!$raw) {
+        return [];
+    }
+    $parts = array_map('trim', explode(',', $raw));
+    $domains = [];
+    foreach ($parts as $domain) {
+        if ($domain === '') {
+            continue;
+        }
+        $domains[] = ltrim(strtolower($domain), '@');
+    }
+    return array_values(array_unique($domains));
+}
+
+function email_domain_allowed(string $email, array $domains): bool {
+    $atPos = strrpos($email, '@');
+    if ($atPos === false) {
+        return false;
+    }
+    $emailDomain = substr($email, $atPos + 1);
+    if ($emailDomain === '') {
+        return false;
+    }
+    foreach ($domains as $domain) {
+        if ($emailDomain === $domain) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function complete_login(array $user): void {

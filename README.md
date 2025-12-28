@@ -33,7 +33,21 @@ cp .env.example .env
 ```
 Optionally set `ENV_FILE_PATH` if the `.env` file is stored outside the repo root.
 
-### 2.1) PHP Dependencies
+### 2.1) Google Login (Optional)
+To enable Google sign-in:
+1. Create a Google OAuth client (Web application) in the Google Cloud Console.
+2. Set the authorized JavaScript origin to your app URL (e.g. `http://localhost:8000`).
+3. The backend callback endpoint is `http://localhost:8000/api/auth/google_callback` (the frontend posts the Google ID token here).
+4. Add the client ID to your `.env`:
+   ```bash
+   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   ```
+5. Optionally restrict logins to your organization domain:
+   ```bash
+   GOOGLE_ALLOWED_DOMAIN=nixor.io
+   ```
+
+### 2.2) PHP Dependencies
 Install PHP dependencies (Google API client for ID token verification):
 ```bash
 composer install
