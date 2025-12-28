@@ -52,6 +52,9 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
         }
         $data = read_json();
+        if (empty($data['name'])) {
+            respond(['ok' => false, 'error' => 'name is required'], 400);
+        }
         $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ? WHERE id = ?');
         $stmt->execute([
             $data['name'],
@@ -137,6 +140,18 @@ function handle_endeavours(string $method, array $segments): void {
     if ($id && $action === 'applications' && $method === 'POST') {
         $user = require_auth();
         $data = read_json();
+        if (empty($data['post_id']) || !is_numeric($data['post_id'])) {
+            respond(['ok' => false, 'error' => 'post_id required'], 400);
+        }
+        $postId = (int)$data['post_id'];
+        if ($postId <= 0) {
+            respond(['ok' => false, 'error' => 'Invalid post_id'], 400);
+        }
+        $postCheck = db()->prepare('SELECT id FROM volunteer_posts WHERE id = ? AND endeavour_id = ?');
+        $postCheck->execute([$postId, $id]);
+        if (!$postCheck->fetch()) {
+            respond(['ok' => false, 'error' => 'Volunteer post not found'], 404);
+        }
         $stmt = db()->prepare('SELECT id FROM students WHERE user_id = ?');
         $stmt->execute([$user['id']]);
         $student = $stmt->fetch();
@@ -144,7 +159,7 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Student profile required'], 400);
         }
         $stmt = db()->prepare('INSERT INTO volunteer_applications (volunteer_post_id, student_id, answers_json) VALUES (?, ?, ?)');
-        $stmt->execute([$data['post_id'], $student['id'], json_encode($data['answers'] ?? [])]);
+        $stmt->execute([$postId, $student['id'], json_encode($data['answers'] ?? [])]);
         emit_ws_event('endeavour.application_submitted', ['id' => $id]);
         respond(['ok' => true, 'data' => ['id' => (int)db()->lastInsertId()]]);
     }
@@ -225,22 +240,52 @@ function fetch_endeavour(int $endeavourId): ?array {
 }
 
 function rate_limit_check(string $key, int $limit, int $windowSeconds): bool {
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $ip = get_client_ip();
     $bucket = sys_get_temp_dir() . '/nixor_rate_' . md5($key . $ip);
     $now = time();
+    $handle = fopen($bucket, 'c+');
+    if ($handle === false) {
+        return true;
+    }
+    flock($handle, LOCK_EX);
+    $contents = stream_get_contents($handle);
     $entries = [];
-    if (file_exists($bucket)) {
-        $data = json_decode(file_get_contents($bucket), true);
+    if ($contents) {
+        $data = json_decode($contents, true);
         if (is_array($data)) {
             $entries = array_filter($data, fn($ts) => ($now - $ts) < $windowSeconds);
         }
     }
     if (count($entries) >= $limit) {
+        flock($handle, LOCK_UN);
+        fclose($handle);
         return false;
     }
     $entries[] = $now;
-    file_put_contents($bucket, json_encode(array_values($entries)), LOCK_EX);
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite($handle, json_encode(array_values($entries)));
+    fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
     return true;
+}
+
+function get_client_ip(): string {
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($forwarded) {
+        $parts = array_map('trim', explode(',', $forwarded));
+        $candidate = $parts[0] ?? '';
+        if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+            return $candidate;
+        }
+    }
+    $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
+    if ($realIp && filter_var($realIp, FILTER_VALIDATE_IP)) {
+        return $realIp;
+    }
+    $remote = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    return filter_var($remote, FILTER_VALIDATE_IP) ? $remote : 'unknown';
 }
 
 function update_status(int $endeavourId, string $status): void {

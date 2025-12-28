@@ -60,7 +60,8 @@ function sanitize_user(array $user): array {
 
 function verify_google_id_token(string $idToken): array {
     $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
-    $response = @file_get_contents($url);
+    $context = stream_context_create(['http' => ['timeout' => 5]]);
+    $response = @file_get_contents($url, false, $context);
     if ($response === false) {
         respond(['ok' => false, 'error' => 'Failed to verify token'], 401);
     }

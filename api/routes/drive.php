@@ -6,9 +6,15 @@ function handle_drive(string $method, array $segments): void {
     if ($method === 'GET' && $action === 'list') {
         $entityId = (int)($_GET['entity_id'] ?? 0);
         ensure_entity_access($entityId, []);
-        $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE entity_id = ? ORDER BY item_type DESC, name');
-        $stmt->execute([$entityId]);
-        respond(['ok' => true, 'data' => $stmt->fetchAll()]);
+        $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+        $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 50;
+        $offset = ($page - 1) * $limit;
+        $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE entity_id = ? ORDER BY item_type DESC, name LIMIT ? OFFSET ?');
+        $stmt->execute([$entityId, $limit, $offset]);
+        $countStmt = db()->prepare('SELECT COUNT(*) as total FROM file_drive_items WHERE entity_id = ?');
+        $countStmt->execute([$entityId]);
+        $total = (int)$countStmt->fetch()['total'];
+        respond(['ok' => true, 'data' => $stmt->fetchAll(), 'meta' => ['page' => $page, 'limit' => $limit, 'total' => $total]]);
     }
 
     if ($method === 'POST' && $action === 'create_folder') {

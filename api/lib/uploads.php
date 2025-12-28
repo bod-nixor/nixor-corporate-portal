@@ -7,6 +7,22 @@ function validate_upload_extension(string $fileName): void {
     }
 }
 
+function validate_upload_mime(string $filePath): void {
+    $allowedMime = [
+        'image/jpeg',
+        'image/png',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+    $mime = mime_content_type($filePath);
+    if (!$mime || !in_array($mime, $allowedMime, true)) {
+        respond(['ok' => false, 'error' => 'File type not allowed'], 400);
+    }
+}
+
 function ensure_upload_dir(string $endeavourId, string $docType): string {
     $safeEndeavourId = preg_replace('/[^a-zA-Z0-9_-]/', '', $endeavourId);
     $safeDocType = preg_replace('/[^a-zA-Z0-9_-]/', '', $docType);
@@ -21,6 +37,7 @@ function save_uploaded_file(string $endeavourId, string $docType, array $file): 
     $dir = ensure_upload_dir($endeavourId, $docType);
     $basename = basename($file['name']);
     validate_upload_extension($basename);
+    validate_upload_mime($file['tmp_name']);
     $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
     $path = $dir . '/' . $filename;
     if (!move_uploaded_file($file['tmp_name'], $path)) {
@@ -39,6 +56,7 @@ function save_drive_file(string $entityId, array $file): array {
     }
     $basename = basename($file['name']);
     validate_upload_extension($basename);
+    validate_upload_mime($file['tmp_name']);
     $filename = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
     $path = $dir . '/' . $filename;
     if (!move_uploaded_file($file['tmp_name'], $path)) {
