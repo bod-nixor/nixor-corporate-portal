@@ -100,15 +100,27 @@ function split_sql_statements(string $sql): array {
             if ($next === "'" && $inSingle) {
                 $buffer .= $char;
                 $i++;
-            } elseif ($i === 0 || $sql[$i - 1] !== '\\') {
-                $inSingle = !$inSingle;
+            } else {
+                $backslashes = 0;
+                for ($j = $i - 1; $j >= 0 && $sql[$j] === '\\'; $j--) {
+                    $backslashes++;
+                }
+                if ($backslashes % 2 === 0) {
+                    $inSingle = !$inSingle;
+                }
             }
         } elseif (!$inSingle && $char === '"') {
             if ($next === '"' && $inDouble) {
                 $buffer .= $char;
                 $i++;
-            } elseif ($i === 0 || $sql[$i - 1] !== '\\') {
-                $inDouble = !$inDouble;
+            } else {
+                $backslashes = 0;
+                for ($j = $i - 1; $j >= 0 && $sql[$j] === '\\'; $j--) {
+                    $backslashes++;
+                }
+                if ($backslashes % 2 === 0) {
+                    $inDouble = !$inDouble;
+                }
             }
         }
 
@@ -138,6 +150,7 @@ function apply_migrations(PDO $pdo, string $directory): array {
     $applied = applied_migrations($pdo);
     $files = migration_files($directory);
     $results = [];
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     foreach ($files as $file) {
         $path = $directory . '/' . $file;
         $contents = file_get_contents($path);

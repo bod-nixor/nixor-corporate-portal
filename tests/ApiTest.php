@@ -61,7 +61,7 @@ final class ApiTest extends TestCase {
         $client = new TestClient(self::$baseUrl);
         $csrf = $client->request('GET', '/api/auth/csrf');
         $token = $csrf['data']['data']['csrfToken'] ?? '';
-        $sessionName = session_name();
+        $sessionName = $csrf['data']['data']['sessionName'] ?? 'PHPSESSID';
         $beforeSession = $client->getCookie($sessionName);
 
         $login = $client->request('POST', '/api/auth/login', [

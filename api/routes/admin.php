@@ -78,7 +78,6 @@ function handle_setup(): void {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        @unlink($lockPath);
         error_log('Setup failed: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
         respond(['ok' => false, 'error' => 'Setup failed'], 500);
     }
@@ -86,7 +85,13 @@ function handle_setup(): void {
     if (!is_dir(dirname($lockPath))) {
         mkdir(dirname($lockPath), 0775, true);
     }
-    if (file_put_contents($lockPath, 'setup completed ' . date('c')) === false) {
+    $lockHandle = fopen($lockPath, 'x');
+    if ($lockHandle === false) {
+        respond(['ok' => false, 'error' => 'Setup failed'], 500);
+    }
+    $lockWritten = fwrite($lockHandle, 'setup completed ' . date('c'));
+    fclose($lockHandle);
+    if ($lockWritten === false) {
         @unlink($lockPath);
         respond(['ok' => false, 'error' => 'Setup failed'], 500);
     }
