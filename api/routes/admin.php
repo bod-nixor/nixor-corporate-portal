@@ -75,17 +75,19 @@ function handle_setup(): void {
             log_activity($adminId, 'user', $adminId, 'created', 'Initial admin created');
         }
 
-        if (!is_dir(dirname($lockPath))) {
-            mkdir(dirname($lockPath), 0775, true);
-        }
-        if (file_put_contents($lockPath, 'setup completed ' . date('c')) === false) {
-            throw new RuntimeException('Failed to create setup lock file');
-        }
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         @unlink($lockPath);
         error_log('Setup failed: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+        respond(['ok' => false, 'error' => 'Setup failed'], 500);
+    }
+
+    if (!is_dir(dirname($lockPath))) {
+        mkdir(dirname($lockPath), 0775, true);
+    }
+    if (file_put_contents($lockPath, 'setup completed ' . date('c')) === false) {
+        @unlink($lockPath);
         respond(['ok' => false, 'error' => 'Setup failed'], 500);
     }
 

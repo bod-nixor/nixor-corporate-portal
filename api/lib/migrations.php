@@ -96,10 +96,20 @@ function split_sql_statements(string $sql): array {
             continue;
         }
 
-        if (!$inDouble && $char === "'" && ($i === 0 || $sql[$i - 1] !== '\\')) {
-            $inSingle = !$inSingle;
-        } elseif (!$inSingle && $char === '"' && ($i === 0 || $sql[$i - 1] !== '\\')) {
-            $inDouble = !$inDouble;
+        if (!$inDouble && $char === "'") {
+            if ($next === "'" && $inSingle) {
+                $buffer .= $char;
+                $i++;
+            } elseif ($i === 0 || $sql[$i - 1] !== '\\') {
+                $inSingle = !$inSingle;
+            }
+        } elseif (!$inSingle && $char === '"') {
+            if ($next === '"' && $inDouble) {
+                $buffer .= $char;
+                $i++;
+            } elseif ($i === 0 || $sql[$i - 1] !== '\\') {
+                $inDouble = !$inDouble;
+            }
         }
 
         if (!$inSingle && !$inDouble && $delimiter !== '' && substr($sql, $i, strlen($delimiter)) === $delimiter) {

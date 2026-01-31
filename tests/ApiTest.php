@@ -42,7 +42,7 @@ final class ApiTest extends TestCase {
         $this->assertSame(200, $response['status']);
         $token = $response['data']['data']['csrfToken'] ?? '';
         $this->assertNotEmpty($token);
-        $sessionName = session_name();
+        $sessionName = $response['data']['data']['sessionName'] ?? 'PHPSESSID';
         $this->assertNotEmpty($client->getCookie($sessionName));
     }
 
