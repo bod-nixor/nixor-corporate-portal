@@ -1,7 +1,3 @@
-USE nixor_portal;
-
-START TRANSACTION;
-
 INSERT INTO entities (name, description) VALUES
 ('Nixor Community Entity', 'Primary entity for seed data');
 
@@ -36,5 +32,3 @@ VALUES
 INSERT INTO volunteer_posts (endeavour_id, description, eligibility_notes, venue, schedule, transport_payment, questionnaire_mode, published, published_at, created_by)
 VALUES
 (1, 'Join us for on-site support during the health camp.', 'Medical students preferred.', 'City Hall Auditorium', 'Sat 9AM-2PM', 500.00, 0, 1, NOW(), 2);
-
-COMMIT;

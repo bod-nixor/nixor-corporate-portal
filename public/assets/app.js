@@ -13,15 +13,14 @@ let portalConfig = {
   poll_interval: 8
 };
 let csrfToken = '';
+let csrfBootstrapPromise = null;
 
 export function setCsrfToken(token) {
   csrfToken = token || '';
 }
 
 export function getCsrfToken() {
-  const csrfMatch = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/);
-  const cookieToken = csrfMatch ? decodeURIComponent(csrfMatch[1]) : '';
-  return cookieToken || csrfToken;
+  return csrfToken;
 }
 
 function resolveFallbackBase(base) {
@@ -35,6 +34,9 @@ function resolveFallbackBase(base) {
 export async function apiFetch(path, options = {}) {
   const { skipFallback, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !getCsrfToken()) {
+    await bootstrapCsrf();
+  }
   const resolvedCsrf = getCsrfToken();
   const headers = {
     ...(fetchOptions.headers || {})
@@ -86,6 +88,43 @@ export async function apiFetch(path, options = {}) {
     throw new Error(data.error || `HTTP ${res.status}`);
   }
   return data;
+}
+
+export async function bootstrapCsrf() {
+  if (csrfBootstrapPromise) {
+    return csrfBootstrapPromise;
+  }
+  const request = async (base) => {
+    const res = await fetch(`${base}/auth/csrf`, {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' }
+    });
+    const data = await res.json().catch(() => ({}));
+    return { res, data };
+  };
+  csrfBootstrapPromise = (async () => {
+    try {
+      let { res, data } = await request(preferredBase);
+      const fallbackBase = resolveFallbackBase(preferredBase);
+      const shouldFallback = fallbackBase && !res.ok && res.status === 404;
+      if (shouldFallback) {
+        const fallbackResponse = await request(fallbackBase);
+        res = fallbackResponse.res;
+        data = fallbackResponse.data;
+        if (res.ok) {
+          preferredBase = fallbackBase;
+        }
+      }
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
+      return getCsrfToken();
+    } finally {
+      csrfBootstrapPromise = null;
+    }
+  })();
+  return csrfBootstrapPromise;
 }
 
 export function connectWebsocket(onMessage) {

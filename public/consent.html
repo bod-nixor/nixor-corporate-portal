@@ -21,7 +21,7 @@
     </form>
   </div>
   <script type="module">
-    import { apiFetch, setCsrfToken } from '/assets/app.js';
+    import { apiFetch, bootstrapCsrf } from '/assets/app.js';
     const form = document.getElementById('consent-form');
     const statusEl = document.getElementById('consent-status');
     const params = new URLSearchParams(window.location.search);
@@ -32,11 +32,16 @@
       statusEl.textContent = message;
       statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
     };
+    const disableForm = () => {
+      form.querySelectorAll('input, button, textarea, select').forEach((el) => {
+        el.disabled = true;
+      });
+    };
 
-    apiFetch('/auth/csrf')
-      .then((response) => setCsrfToken(response?.data?.token))
+    bootstrapCsrf()
       .catch(() => {
         setStatus('Failed to initialize. Please refresh the page.', false);
+        disableForm();
       });
 
     form.addEventListener('submit', async (event) => {

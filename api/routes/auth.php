@@ -50,7 +50,14 @@ function handle_auth(string $method, array $segments): void {
     }
 
     if ($action === 'csrf' && $method === 'GET') {
-        respond(['ok' => true, 'data' => ['token' => $_SESSION['csrf_token'] ?? null]]);
+        respond([
+            'ok' => true,
+            'data' => [
+                'csrfToken' => $_SESSION['csrf_token'] ?? null,
+                'expiresIn' => (int)ini_get('session.gc_maxlifetime'),
+                'sessionName' => session_name()
+            ]
+        ]);
     }
 
     if ($action === 'config' && $method === 'GET') {
