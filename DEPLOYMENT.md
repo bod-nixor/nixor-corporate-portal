@@ -11,9 +11,15 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 2. Create a database user and grant **ALL** privileges to the new database.
 3. Note the database host (often `localhost`), DB name, username, and password.
 
-## 3) Import the schema
-1. Import `/sql/schema.sql` using phpMyAdmin or the cPanel MySQL tool.
-2. Optionally import `/sql/seed.sql` for sample data.
+## 3) Apply migrations
+1. Upload the repo and run the migration script from SSH:
+   ```bash
+   /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/migrate.php
+   ```
+2. (Dev-only) Seed reference/sample data (requires APP_ENV=development and ALLOW_DEV_SEED=true):
+   ```bash
+   APP_ENV=development ALLOW_DEV_SEED=true /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/seed_dev.php
+   ```
 
 ## 4) Configure `.env`
 1. Copy `config/.env.example` to `config/.env`.
@@ -25,6 +31,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - `LOG_PATH` (absolute path, e.g. `/home/<cpanel_user>/portal_logs`)
    - `TRUSTED_PROXIES` (Cloudflare or other proxies if used)
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+   - `SETUP_TOKEN` (required in production to call `/api/admin/setup`)
 
 ## 5) Run the setup endpoint
 1. Send a `POST` request to `/api/admin/setup` with JSON:
@@ -32,7 +39,8 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    {
      "email": "admin@example.com",
      "full_name": "Portal Admin",
-     "password": "YourSecurePassword123"
+     "password": "YourSecurePassword123",
+     "setup_token": "your-setup-token"
    }
    ```
 2. The setup endpoint creates tables (if missing) and the first admin user.

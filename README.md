@@ -12,19 +12,16 @@ A centralized, lightweight portal for entity documentation, endeavours, approval
 ## Setup
 
 ### 1) Database
-1. Create the database and tables:
+1. Create the database in MariaDB (via CLI or cPanel).
+2. Apply migrations:
    ```bash
-   mysql -u root -p < sql/schema.sql
+   php scripts/migrate.php
    ```
-2. (Optional) Seed sample data:
+3. (Dev-only) Seed reference/sample data:
    ```bash
-   mysql -u root -p < sql/seed.sql
+   APP_ENV=development ALLOW_DEV_SEED=true php scripts/seed_dev.php
    ```
-3. Create an admin account (use a strong password and bcrypt hash):
-   ```bash
-   php -r "echo password_hash('STRONG_PASSWORD', PASSWORD_BCRYPT), PHP_EOL;"
-   ```
-   Then insert the generated hash into the users table.
+4. Create an admin account via the setup endpoint (see DEPLOYMENT.md).
 
 ### 2) Environment
 Copy and edit the environment file:
@@ -51,6 +48,12 @@ To enable Google sign-in:
 Install PHP dependencies (Google API client for ID token verification):
 ```bash
 composer install
+```
+
+### 2.3) Running Tests
+Configure a test database and run:
+```bash
+composer test
 ```
 
 ### 3) PHP API + Frontend

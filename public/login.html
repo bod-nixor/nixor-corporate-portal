@@ -40,7 +40,7 @@
     <p class="text-xs text-slate-500 mt-6">Nixor Google accounts only. Need access? Contact Admin.</p>
   </div>
   <script type="module">
-    import { apiFetch, setCsrfToken } from '/assets/app.js';
+    import { apiFetch, bootstrapCsrf } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
     const submitBtn = form.querySelector('button[type="submit"]');
@@ -54,10 +54,7 @@
       errorEl.textContent = message;
       errorEl.classList.remove('hidden');
     };
-    apiFetch('/auth/csrf')
-      .then((response) => {
-        setCsrfToken(response?.data?.token);
-      })
+    bootstrapCsrf()
       .catch(() => {
         disableForm('Unable to start login. Please refresh the page.');
       });

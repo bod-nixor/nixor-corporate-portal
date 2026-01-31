@@ -28,6 +28,10 @@ function handle_setup(): void {
     if (file_exists($lockPath)) {
         respond(['ok' => false, 'error' => 'Setup already completed'], 403);
     }
+    if (!rate_limit('setup', 5, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    $pdo = db();
     $data = read_json();
     $email = validate_email_address($data['email'] ?? '', 'email');
     $fullName = require_non_empty($data['full_name'] ?? '', 'full_name', 190);
@@ -35,38 +39,35 @@ function handle_setup(): void {
     if (strlen($password) < 12) {
         respond(['ok' => false, 'error' => 'Password must be at least 12 characters'], 400);
     }
-
-    $schemaFile = dirname(__DIR__, 2) . '/sql/schema.sql';
-    if (!file_exists($schemaFile)) {
-        respond(['ok' => false, 'error' => 'Schema file missing'], 500);
-    }
-
-    $schemaSql = file_get_contents($schemaFile);
-    if ($schemaSql === false) {
-        respond(['ok' => false, 'error' => 'Failed to read schema'], 500);
-    }
-
-    // Note: Statement splitting assumes simple schema files without stored procedures/triggers.
-    $statements = array_filter(array_map('trim', explode(';', $schemaSql)));
-    foreach ($statements as $statement) {
-        try {
-            db()->exec($statement);
-        } catch (PDOException $e) {
-            // Allow CREATE DATABASE to fail (may already exist).
-            if (stripos($statement, 'create database') !== false) {
-                error_log('CREATE DATABASE step failed (may be expected): ' . $e->getMessage());
-            } else {
-                error_log('Schema step failed: ' . $e->getMessage());
-                respond(['ok' => false, 'error' => 'Schema execution failed'], 500);
-            }
+    $appEnv = env_value('APP_ENV', 'production');
+    if ($appEnv === 'production') {
+        $setupToken = env_value('SETUP_TOKEN', '');
+        if (!$setupToken) {
+            respond(['ok' => false, 'error' => 'Setup disabled in production'], 403);
+        }
+        $providedToken = $data['setup_token'] ?? ($_SERVER['HTTP_X_SETUP_TOKEN'] ?? '');
+        if (!$providedToken || !hash_equals($setupToken, $providedToken)) {
+            respond(['ok' => false, 'error' => 'Invalid setup token'], 403);
         }
     }
 
-    $pdo = db();
+    require_once __DIR__ . '/../lib/migrations.php';
+    $migrationDir = dirname(__DIR__, 2) . '/sql/migrations';
+    try {
+        apply_migrations($pdo, $migrationDir);
+    } catch (Throwable $e) {
+        error_log('Setup migration failed: ' . $e->getMessage());
+        respond(['ok' => false, 'error' => 'Schema migration failed'], 500);
+    }
+
+    $existingAdmin = $pdo->query("SELECT id FROM users WHERE global_role = 'admin' LIMIT 1")->fetch();
+    if ($existingAdmin) {
+        require_role(['admin']);
+    }
+
     $pdo->beginTransaction();
     try {
-        $existing = $pdo->query("SELECT id FROM users WHERE global_role = 'admin' LIMIT 1")->fetch();
-        if (!$existing) {
+        if (!$existingAdmin) {
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, 'admin')");
             $stmt->execute([$email, $hash, $fullName]);
