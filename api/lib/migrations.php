@@ -42,7 +42,85 @@ function split_sql_statements(string $sql): array {
         $clean[] = $line;
     }
     $sql = implode("\n", $clean);
-    $statements = array_filter(array_map('trim', explode(';', $sql)));
+    $length = strlen($sql);
+    $statements = [];
+    $buffer = '';
+    $delimiter = ';';
+    $inSingle = false;
+    $inDouble = false;
+    $inLineComment = false;
+    $inBlockComment = false;
+    $lineStart = true;
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $sql[$i];
+        $next = $i + 1 < $length ? $sql[$i + 1] : '';
+
+        if ($lineStart && !$inSingle && !$inDouble && !$inBlockComment && !$inLineComment) {
+            $lineEnd = strpos($sql, "\n", $i);
+            $line = $lineEnd === false ? substr($sql, $i) : substr($sql, $i, $lineEnd - $i);
+            if (stripos(trim($line), 'DELIMITER ') === 0) {
+                $parts = preg_split('/\s+/', trim($line), 2);
+                $delimiter = $parts[1] ?? ';';
+                $i += strlen($line);
+                $lineStart = true;
+                continue;
+            }
+        }
+
+        if (!$inSingle && !$inDouble && !$inBlockComment && !$inLineComment) {
+            if ($char === '-' && $next === '-') {
+                $inLineComment = true;
+            } elseif ($char === '#') {
+                $inLineComment = true;
+            } elseif ($char === '/' && $next === '*') {
+                $inBlockComment = true;
+                $i++;
+                continue;
+            }
+        }
+
+        if ($inLineComment) {
+            if ($char === "\n") {
+                $inLineComment = false;
+                $lineStart = true;
+            }
+            continue;
+        }
+
+        if ($inBlockComment) {
+            if ($char === '*' && $next === '/') {
+                $inBlockComment = false;
+                $i++;
+            }
+            continue;
+        }
+
+        if (!$inDouble && $char === "'" && ($i === 0 || $sql[$i - 1] !== '\\')) {
+            $inSingle = !$inSingle;
+        } elseif (!$inSingle && $char === '"' && ($i === 0 || $sql[$i - 1] !== '\\')) {
+            $inDouble = !$inDouble;
+        }
+
+        if (!$inSingle && !$inDouble && $delimiter !== '' && substr($sql, $i, strlen($delimiter)) === $delimiter) {
+            $statement = trim($buffer);
+            if ($statement !== '') {
+                $statements[] = $statement;
+            }
+            $buffer = '';
+            $i += strlen($delimiter) - 1;
+            $lineStart = true;
+            continue;
+        }
+
+        $buffer .= $char;
+        $lineStart = $char === "\n";
+    }
+
+    $statement = trim($buffer);
+    if ($statement !== '') {
+        $statements[] = $statement;
+    }
     return $statements;
 }
 

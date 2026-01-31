@@ -103,24 +103,26 @@ export async function bootstrapCsrf() {
     return { res, data };
   };
   csrfBootstrapPromise = (async () => {
-    let { res, data } = await request(preferredBase);
-    const fallbackBase = resolveFallbackBase(preferredBase);
-    const shouldFallback = fallbackBase && !res.ok && res.status === 404;
-    if (shouldFallback) {
-      const fallbackResponse = await request(fallbackBase);
-      res = fallbackResponse.res;
-      data = fallbackResponse.data;
-      if (res.ok) {
-        preferredBase = fallbackBase;
+    try {
+      let { res, data } = await request(preferredBase);
+      const fallbackBase = resolveFallbackBase(preferredBase);
+      const shouldFallback = fallbackBase && !res.ok && res.status === 404;
+      if (shouldFallback) {
+        const fallbackResponse = await request(fallbackBase);
+        res = fallbackResponse.res;
+        data = fallbackResponse.data;
+        if (res.ok) {
+          preferredBase = fallbackBase;
+        }
       }
-    }
-    if (!res.ok) {
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
+      return getCsrfToken();
+    } finally {
       csrfBootstrapPromise = null;
-      throw new Error(data.error || `HTTP ${res.status}`);
     }
-    setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
-    csrfBootstrapPromise = null;
-    return getCsrfToken();
   })();
   return csrfBootstrapPromise;
 }

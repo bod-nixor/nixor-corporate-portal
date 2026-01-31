@@ -12,11 +12,12 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 3. Note the database host (often `localhost`), DB name, username, and password.
 
 ## 3) Apply migrations
-1. Upload the repo and run the migration script from SSH:
+1. Ensure `config/.env` (or exported `DB_*` env vars) is set before running migrations.
+2. Upload the repo and run the migration script from SSH:
    ```bash
    /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/migrate.php
    ```
-2. (Dev-only) Seed reference/sample data (requires APP_ENV=development and ALLOW_DEV_SEED=true):
+3. (Dev-only) Seed reference/sample data (requires APP_ENV=development and ALLOW_DEV_SEED=true):
    ```bash
    APP_ENV=development ALLOW_DEV_SEED=true /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/seed_dev.php
    ```

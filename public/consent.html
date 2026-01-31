@@ -32,10 +32,16 @@
       statusEl.textContent = message;
       statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
     };
+    const disableForm = () => {
+      form.querySelectorAll('input, button, textarea, select').forEach((el) => {
+        el.disabled = true;
+      });
+    };
 
     bootstrapCsrf()
       .catch(() => {
         setStatus('Failed to initialize. Please refresh the page.', false);
+        disableForm();
       });
 
     form.addEventListener('submit', async (event) => {

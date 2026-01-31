@@ -24,13 +24,16 @@ final class ApiTest extends TestCase {
         $pdo = db();
         $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
         $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
-        foreach ($tables as $table) {
-            if ($table === 'migrations') {
-                continue;
+        try {
+            foreach ($tables as $table) {
+                if ($table === 'migrations') {
+                    continue;
+                }
+                $pdo->exec("TRUNCATE TABLE `{$table}`");
             }
-            $pdo->exec("TRUNCATE TABLE `{$table}`");
+        } finally {
+            $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
         }
-        $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     }
 
     public function testCsrfBootstrapReturnsTokenAndSetsSessionCookie(): void {
@@ -84,8 +87,8 @@ final class ApiTest extends TestCase {
     }
 
     public function testEntityCrudAndAuthorization(): void {
-        $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
-        $staffId = $this->createUser('staff@example.com', 'Password123!', 'staff');
+        $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $this->createUser('staff@example.com', 'Password123!', 'staff');
 
         $adminClient = new TestClient(self::$baseUrl);
         $csrf = $adminClient->request('GET', '/api/auth/csrf');
@@ -181,7 +184,15 @@ final class ApiTest extends TestCase {
             }
         }
         if (!$started) {
+            if (isset($pipes[0]) && is_resource($pipes[0])) {
+                fclose($pipes[0]);
+            }
+            proc_terminate(self::$serverProcess);
+            proc_close(self::$serverProcess);
             throw new RuntimeException('Test server did not start');
+        }
+        if (isset($pipes[0]) && is_resource($pipes[0])) {
+            fclose($pipes[0]);
         }
     }
 }

@@ -14,11 +14,8 @@ $cookiePath = env_value('SESSION_COOKIE_PATH', '/');
 $cookieDomain = env_value('SESSION_COOKIE_DOMAIN', '');
 $sameSite = env_value('SESSION_COOKIE_SAMESITE', 'Lax');
 
-ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
 ini_set('session.use_only_cookies', 1);
-ini_set('session.cookie_secure', $secureCookie ? 1 : 0);
-ini_set('session.cookie_samesite', $sameSite);
 session_set_cookie_params([
     'lifetime' => 0,
     'path' => $cookiePath,

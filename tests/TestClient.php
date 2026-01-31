@@ -13,7 +13,7 @@ class TestClient {
         $this->lastHeaders = [];
         $url = $this->baseUrl . $path;
         $ch = curl_init($url);
-        $payload = $body ? json_encode($body) : null;
+        $payload = $body !== null ? json_encode($body) : null;
         $defaultHeaders = ['Accept: application/json'];
         if ($payload !== null) {
             $defaultHeaders[] = 'Content-Type: application/json';
@@ -27,6 +27,8 @@ class TestClient {
             CURLOPT_HTTPHEADER => $defaultHeaders,
             CURLOPT_COOKIEJAR => $this->cookieJar,
             CURLOPT_COOKIEFILE => $this->cookieJar,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 15,
             CURLOPT_HEADERFUNCTION => function ($ch, $header) {
                 $len = strlen($header);
                 $header = trim($header);
@@ -61,7 +63,12 @@ class TestClient {
             return null;
         }
         foreach (explode("\n", $contents) as $line) {
-            if ($line === '' || str_starts_with($line, '#')) {
+            if ($line === '') {
+                continue;
+            }
+            if (str_starts_with($line, '#HttpOnly_')) {
+                $line = substr($line, strlen('#HttpOnly_'));
+            } elseif (str_starts_with($line, '#')) {
                 continue;
             }
             $parts = explode("\t", $line);

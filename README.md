@@ -13,15 +13,16 @@ A centralized, lightweight portal for entity documentation, endeavours, approval
 
 ### 1) Database
 1. Create the database in MariaDB (via CLI or cPanel).
-2. Apply migrations:
+2. Ensure `.env` is configured (or export `DB_*` variables) so `scripts/migrate.php` can connect.
+3. Apply migrations:
    ```bash
    php scripts/migrate.php
    ```
-3. (Dev-only) Seed reference/sample data:
+4. (Dev-only) Seed reference/sample data (requires `APP_ENV=development` + `ALLOW_DEV_SEED=true`):
    ```bash
    APP_ENV=development ALLOW_DEV_SEED=true php scripts/seed_dev.php
    ```
-4. Create an admin account via the setup endpoint (see DEPLOYMENT.md).
+5. Create an admin account via the setup endpoint (see DEPLOYMENT.md).
 
 ### 2) Environment
 Copy and edit the environment file:

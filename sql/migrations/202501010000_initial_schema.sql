@@ -185,7 +185,6 @@ CREATE TABLE consents (
   signature_name VARCHAR(190),
   notes TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_token (token),
   KEY idx_status (status, volunteer_application_id),
   FOREIGN KEY (volunteer_application_id) REFERENCES volunteer_applications(id) ON DELETE CASCADE
 );
