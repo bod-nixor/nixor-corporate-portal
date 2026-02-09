@@ -7,10 +7,17 @@ function handle_users(string $method, array $segments): void {
         $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
         $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 50;
         $offset = ($page - 1) * $limit;
-        $stmt = db()->prepare('SELECT id, email, full_name, global_role, status, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?');
-        $stmt->execute([$limit, $offset]);
-        $count = db()->query('SELECT COUNT(*) as total FROM users')->fetch();
-        respond(['ok' => true, 'data' => $stmt->fetchAll(), 'meta' => ['page' => $page, 'limit' => $limit, 'total' => (int)$count['total']]]);
+        try {
+            $stmt = db()->prepare('SELECT id, email, full_name, global_role, status, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?');
+            $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+            $stmt->bindValue(2, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            $count = db()->query('SELECT COUNT(*) as total FROM users')->fetch();
+            respond(['ok' => true, 'data' => $stmt->fetchAll(), 'meta' => ['page' => $page, 'limit' => $limit, 'total' => (int)$count['total']]]);
+        } catch (PDOException $e) {
+            error_log('Failed to load users: ' . $e->getMessage());
+            respond(['ok' => false, 'error' => 'Failed to load users'], 500);
+        }
     }
 
     if ($method === 'POST' && !$id) {

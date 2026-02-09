@@ -49,45 +49,81 @@ export async function apiFetch(path, options = {}) {
     headers['X-CSRF-Token'] = resolvedCsrf;
   }
   const request = async (base) => {
-    const res = await fetch(`${base}${path}`, {
-      ...fetchOptions,
-      headers,
-      credentials: 'include',
-      method
-    });
-    const data = await res.json().catch((err) => {
-      console.warn(`Failed to parse JSON response from ${base}${path}:`, err);
-      return {};
-    });
-    return { res, data };
+    const url = `${base}${path}`;
+    try {
+      const res = await fetch(url, {
+        ...fetchOptions,
+        headers,
+        credentials: 'include',
+        method
+      });
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (err) {
+          console.warn(`Failed to parse JSON response from ${url}:`, err);
+        }
+      }
+      if (!res.ok) {
+        console.warn(`API request failed ${method} ${url} -> ${res.status}`, {
+          status: res.status,
+          body: text.slice(0, 200)
+        });
+      }
+      return { res, data, text, url };
+    } catch (err) {
+      console.warn(`API request error ${method} ${url}`, err);
+      throw err;
+    }
   };
 
-  let { res, data } = await request(preferredBase);
+  let { res, data, text, url } = await request(preferredBase);
   const fallbackBase = resolveFallbackBase(preferredBase);
+  const contentType = res.headers.get('content-type') || '';
+  const hasJson = contentType.includes('application/json');
   const shouldFallback = !skipFallback
     && fallbackBase
     && !res.ok
-    && res.status === 404;
+    && (
+      res.status === 404
+      || res.status === 301
+      || res.status === 302
+      || res.status === 405
+      || (!hasJson && res.status >= 400 && res.status < 500)
+    );
   if (shouldFallback) {
     console.warn(`API base fallback triggered for ${path}; retrying ${fallbackBase}`);
-    const initialError = data.error;
+    const initialError = data?.error;
     const initialStatus = res.status;
     const fallbackResponse = await request(fallbackBase);
     res = fallbackResponse.res;
     data = fallbackResponse.data;
+    text = fallbackResponse.text;
+    url = fallbackResponse.url;
     if (res.ok) {
       preferredBase = fallbackBase;
     } else {
       console.warn(
         `API fallback failed for ${path}; initial status ${initialStatus}, fallback status ${res.status}.`
       );
-      throw new Error(initialError || `HTTP ${initialStatus}`);
+      throw buildApiError(initialError || `HTTP ${initialStatus}`, initialStatus, url, text);
     }
   }
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`);
+    const message = data?.error || `HTTP ${res.status}`;
+    throw buildApiError(message, res.status, url, text);
   }
   return data;
+}
+
+function buildApiError(message, status, url, body) {
+  const error = new Error(message || `HTTP ${status}`);
+  error.status = status;
+  error.url = url;
+  error.bodySnippet = (body || '').slice(0, 200);
+  return error;
 }
 
 export async function bootstrapCsrf() {

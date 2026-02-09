@@ -193,7 +193,7 @@
         renderSummary(items);
       } catch (err) {
         driveList.innerHTML = '';
-        driveCount.textContent = 'Failed to load';
+        driveCount.textContent = err?.message ? `Failed to load (${err.message})` : 'Failed to load';
         console.error('Drive load error:', err);
       }
     };

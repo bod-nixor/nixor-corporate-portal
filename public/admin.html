@@ -228,7 +228,8 @@
         });
       } catch (err) {
         console.error('Failed to load users:', err);
-        usersList.innerHTML = '<tr><td colspan="3" class="py-3 text-red-400">Failed to load users</td></tr>';
+        const message = err?.message ? `Failed to load users (${err.message})` : 'Failed to load users';
+        usersList.innerHTML = `<tr><td colspan="3" class="py-3 text-red-400">${message}</td></tr>`;
       }
     };
 

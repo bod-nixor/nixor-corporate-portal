@@ -5,16 +5,27 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'GET' && $action === 'list') {
         $entityId = (int)($_GET['entity_id'] ?? 0);
+        if ($entityId <= 0) {
+            respond(['ok' => false, 'error' => 'entity_id required'], 400);
+        }
         ensure_entity_access($entityId, []);
         $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
         $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 50;
         $offset = ($page - 1) * $limit;
-        $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE entity_id = ? ORDER BY item_type DESC, name LIMIT ? OFFSET ?');
-        $stmt->execute([$entityId, $limit, $offset]);
-        $countStmt = db()->prepare('SELECT COUNT(*) as total FROM file_drive_items WHERE entity_id = ?');
-        $countStmt->execute([$entityId]);
-        $total = (int)$countStmt->fetch()['total'];
-        respond(['ok' => true, 'data' => $stmt->fetchAll(), 'meta' => ['page' => $page, 'limit' => $limit, 'total' => $total]]);
+        try {
+            $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE entity_id = ? ORDER BY item_type DESC, name LIMIT ? OFFSET ?');
+            $stmt->bindValue(1, $entityId, PDO::PARAM_INT);
+            $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+            $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            $countStmt = db()->prepare('SELECT COUNT(*) as total FROM file_drive_items WHERE entity_id = ?');
+            $countStmt->execute([$entityId]);
+            $total = (int)$countStmt->fetch()['total'];
+            respond(['ok' => true, 'data' => $stmt->fetchAll(), 'meta' => ['page' => $page, 'limit' => $limit, 'total' => $total]]);
+        } catch (PDOException $e) {
+            error_log('Failed to load drive items: ' . $e->getMessage());
+            respond(['ok' => false, 'error' => 'Failed to load drive items'], 500);
+        }
     }
 
     if ($method === 'POST' && $action === 'create_folder') {
