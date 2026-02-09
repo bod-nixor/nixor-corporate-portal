@@ -77,7 +77,7 @@
         const entity = document.createElement('p');
         entity.textContent = `Entity: ${row.entity_name}`;
         const deadline = document.createElement('p');
-        deadline.textContent = `Registration deadline: ${row.volunteer_registration_deadline || 'TBD'}`;
+        deadline.textContent = `Registration deadline: ${fmtDate(row.volunteer_registration_deadline)}`;
         meta.appendChild(dates);
         meta.appendChild(entity);
         meta.appendChild(deadline);

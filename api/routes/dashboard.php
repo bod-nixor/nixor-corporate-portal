@@ -79,7 +79,7 @@ function handle_dashboard(string $method, array $_segments): void {
                 if ($ts === false || $ts >= $now) {
                     continue;
                 }
-                if ($nextTs === null || $ts < $nextTs) {
+                if ($nextTs === null || $ts > $nextTs) {
                     $nextTs = $ts;
                     $nextLabel = $label;
                 }

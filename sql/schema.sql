@@ -93,10 +93,10 @@ CREATE TABLE drive_versions (
   drive_item_id INT NOT NULL,
   file_path VARCHAR(255) NOT NULL,
   version_label VARCHAR(120),
-  uploaded_by INT NOT NULL,
+  uploaded_by INT NULL,
   uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (drive_item_id) REFERENCES file_drive_items(id) ON DELETE CASCADE,
-  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE endeavours (

@@ -163,7 +163,16 @@
             const right = document.createElement('span');
             right.className = 'text-amber-400';
             const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
-            right.textContent = deadline.days_until === null ? 'TBD' : `${label}${deadline.days_until} days`;
+            if (deadline.days_until === null) {
+              right.textContent = 'TBD';
+            } else if (deadline.days_until === 0) {
+              right.textContent = `${label}Due today`;
+            } else if (deadline.days_until < 0) {
+              const overdueDays = Math.abs(deadline.days_until);
+              right.textContent = `${label}Overdue by ${overdueDays} ${overdueDays === 1 ? 'day' : 'days'}`;
+            } else {
+              right.textContent = `${label}${deadline.days_until} ${deadline.days_until === 1 ? 'day' : 'days'}`;
+            }
             item.appendChild(left);
             item.appendChild(right);
             deadlinesList.appendChild(item);

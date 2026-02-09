@@ -413,6 +413,10 @@
 
     createForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const submitButton = createForm.querySelector('[type="submit"]');
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
       try {
         await apiFetch('/endeavours', {
           method: 'POST',
@@ -434,6 +438,10 @@
         loadEndeavours(entitySelect.value);
       } catch (err) {
         setStatus(err.message || 'Unable to create endeavour.', false);
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
       }
     });
   </script>

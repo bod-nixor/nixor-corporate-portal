@@ -288,8 +288,14 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'pre_financial_file_id required'], 400);
         }
         ensure_drive_file((int)$endeavour['entity_id'], $fileId);
-        $stmt = db()->prepare('UPDATE endeavours SET pre_financial_file_id = ?, phase = "PRE_FINANCIAL" WHERE id = ?');
-        $stmt->execute([$fileId, $id]);
+        $phase = $endeavour['phase'] ?? 'PRE_EVENT';
+        if (phase_precedes($phase, 'PRE_FINANCIAL')) {
+            $stmt = db()->prepare('UPDATE endeavours SET pre_financial_file_id = ?, phase = "PRE_FINANCIAL" WHERE id = ?');
+            $stmt->execute([$fileId, $id]);
+        } else {
+            $stmt = db()->prepare('UPDATE endeavours SET pre_financial_file_id = ? WHERE id = ?');
+            $stmt->execute([$fileId, $id]);
+        }
         seed_doc_approvals($id, ['pre_financial']);
         log_activity($user['id'], 'endeavour', $id, 'pre_financial_attached', 'Pre-financial document attached');
         respond(['ok' => true]);
@@ -307,8 +313,14 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'post_financial_file_id required'], 400);
         }
         ensure_drive_file((int)$endeavour['entity_id'], $fileId);
-        $stmt = db()->prepare('UPDATE endeavours SET post_financial_file_id = ?, phase = "POST_EVENT" WHERE id = ?');
-        $stmt->execute([$fileId, $id]);
+        $phase = $endeavour['phase'] ?? 'PRE_EVENT';
+        if (phase_precedes($phase, 'POST_EVENT')) {
+            $stmt = db()->prepare('UPDATE endeavours SET post_financial_file_id = ?, phase = "POST_EVENT" WHERE id = ?');
+            $stmt->execute([$fileId, $id]);
+        } else {
+            $stmt = db()->prepare('UPDATE endeavours SET post_financial_file_id = ? WHERE id = ?');
+            $stmt->execute([$fileId, $id]);
+        }
         seed_doc_approvals($id, ['post_financial']);
         log_activity($user['id'], 'endeavour', $id, 'post_financial_attached', 'Post-financial document attached');
         respond(['ok' => true]);
@@ -326,8 +338,14 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'epilogue_file_id required'], 400);
         }
         ensure_drive_file((int)$endeavour['entity_id'], $fileId);
-        $stmt = db()->prepare('UPDATE endeavours SET epilogue_file_id = ?, phase = "POST_EVENT" WHERE id = ?');
-        $stmt->execute([$fileId, $id]);
+        $phase = $endeavour['phase'] ?? 'PRE_EVENT';
+        if (phase_precedes($phase, 'POST_EVENT')) {
+            $stmt = db()->prepare('UPDATE endeavours SET epilogue_file_id = ?, phase = "POST_EVENT" WHERE id = ?');
+            $stmt->execute([$fileId, $id]);
+        } else {
+            $stmt = db()->prepare('UPDATE endeavours SET epilogue_file_id = ? WHERE id = ?');
+            $stmt->execute([$fileId, $id]);
+        }
         seed_doc_approvals($id, ['epilogue']);
         log_activity($user['id'], 'endeavour', $id, 'epilogue_attached', 'Epilogue document attached');
         respond(['ok' => true]);
@@ -355,8 +373,8 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $stmt = db()->prepare('INSERT INTO endeavour_doc_approvals (endeavour_id, doc_type, approver_group, status, approver_user_id, comment) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status = VALUES(status), approver_user_id = VALUES(approver_user_id), comment = VALUES(comment)');
         $stmt->execute([$id, $docType, $approverGroup, $decision, $user['id'], sanitize_text($data['comment'] ?? '', 1000)]);
-        $action = $decision === 'rejected' ? 'doc_rejected' : 'doc_approved';
-        log_activity($user['id'], 'endeavour', $id, $action, 'Document approval updated', ['doc_type' => $docType, 'decision' => $decision, 'group' => $approverGroup]);
+        $logAction = $decision === 'rejected' ? 'doc_rejected' : 'doc_approved';
+        log_activity($user['id'], 'endeavour', $id, $logAction, 'Document approval updated', ['doc_type' => $docType, 'decision' => $decision, 'group' => $approverGroup]);
         evaluate_phase_transition($id);
         respond(['ok' => true]);
     }
@@ -747,6 +765,21 @@ function validate_datetime(?string $value, string $field): ?string {
         respond(['ok' => false, 'error' => "Invalid datetime for {$field}"], 400);
     }
     return $dt->format('Y-m-d H:i:s');
+}
+
+function phase_precedes(string $current, string $target): bool {
+    $order = [
+        'PRE_EVENT' => 1,
+        'PRE_FINANCIAL' => 2,
+        'VOLUNTEER_REGISTRATION' => 3,
+        'VOLUNTEER_SHORTLISTING' => 4,
+        'ON_DAY' => 5,
+        'POST_EVENT' => 6,
+        'COMPLETED' => 7
+    ];
+    $currentRank = $order[$current] ?? 0;
+    $targetRank = $order[$target] ?? 0;
+    return $currentRank > 0 && $targetRank > 0 && $currentRank < $targetRank;
 }
 
 function ensure_drive_file(int $entityId, int $fileId): void {
