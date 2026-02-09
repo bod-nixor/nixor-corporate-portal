@@ -4,6 +4,8 @@ set -euo pipefail
 BASE_URL=${BASE_URL:-"https://ncp.nixorcorporate.com"}
 SESSION_COOKIE=${SESSION_COOKIE:-""}
 ENTITY_ID=${ENTITY_ID:-""}
+TMPFILE=$(mktemp /tmp/ncp_check_body.XXXXXX)
+trap 'rm -f "$TMPFILE"' EXIT
 
 if [[ -z "$SESSION_COOKIE" ]]; then
   echo "SESSION_COOKIE is required. Example: SESSION_COOKIE='PHPSESSID=...'."
@@ -20,12 +22,12 @@ function check_endpoint() {
   local url=$2
   echo "Checking ${label}: ${url}"
   local status
-  status=$(curl -sS -o /tmp/ncp_check_body.json -w "%{http_code}" \
+  status=$(curl -sS -o "$TMPFILE" -w "%{http_code}" \
     -H "Accept: application/json" \
     -H "Cookie: ${SESSION_COOKIE}" \
     "${url}")
   local body
-  body=$(head -c 200 /tmp/ncp_check_body.json || true)
+  body=$(head -c 200 "$TMPFILE" || true)
   echo "Status: ${status}"
   echo "Body (first 200 chars): ${body}"
   if [[ "${status}" != "200" ]]; then

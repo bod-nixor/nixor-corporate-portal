@@ -88,8 +88,6 @@ export async function apiFetch(path, options = {}) {
     && !res.ok
     && (
       res.status === 404
-      || res.status === 301
-      || res.status === 302
       || res.status === 405
       || (!hasJson && res.status >= 400 && res.status < 500)
     );
@@ -152,7 +150,7 @@ export async function bootstrapCsrf() {
         }
       }
       if (!res.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw buildApiError(data?.error || `HTTP ${res.status}`, res.status, `${preferredBase}/auth/csrf`);
       }
       setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
       return getCsrfToken();
