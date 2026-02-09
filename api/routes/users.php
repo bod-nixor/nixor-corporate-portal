@@ -38,7 +38,7 @@ function handle_users(string $method, array $segments): void {
         try {
             $stmt->execute([$email, $hash, $fullName, $role]);
         } catch (PDOException $e) {
-            if ((int)$e->getCode() === 23000) {
+            if ($e->getCode() === '23000') {
                 respond(['ok' => false, 'error' => 'Email already exists'], 409);
             }
             throw $e;

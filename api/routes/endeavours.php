@@ -24,8 +24,10 @@ function handle_endeavours(string $method, array $segments): void {
             $params[] = (int)$_GET['entity_id'];
         }
         if (!empty($_GET['q'])) {
-            $filters[] = '(e.name LIKE ? OR en.name LIKE ?)';
-            $search = '%' . trim($_GET['q']) . '%';
+            $filters[] = '(e.name LIKE ? ESCAPE "\\\\" OR en.name LIKE ? ESCAPE "\\\\")';
+            $term = trim($_GET['q']);
+            $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $term);
+            $search = '%' . $escaped . '%';
             $params[] = $search;
             $params[] = $search;
         }
@@ -113,8 +115,8 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $user = ensure_entity_role((int)$data['entity_id'], ['executive']);
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
-        $eventStart = $data['event_start_at'] ?? null;
-        $eventEnd = $data['event_end_at'] ?? null;
+        $eventStart = validate_datetime($data['event_start_at'] ?? null, 'event_start_at');
+        $eventEnd = validate_datetime($data['event_end_at'] ?? null, 'event_end_at');
         $startDate = $eventStart ? substr($eventStart, 0, 10) : null;
         $endDate = $eventEnd ? substr($eventEnd, 0, 10) : null;
         $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -132,9 +134,9 @@ function handle_endeavours(string $method, array $segments): void {
             'PRE_EVENT',
             !empty($data['volunteering_enabled']) ? 1 : 0,
             !empty($data['transport_fee_required']) ? 1 : 0,
-            $data['volunteer_registration_deadline'] ?? null,
-            $data['pre_financial_deadline'] ?? null,
-            $data['post_financial_deadline'] ?? null,
+            validate_datetime($data['volunteer_registration_deadline'] ?? null, 'volunteer_registration_deadline'),
+            validate_datetime($data['pre_financial_deadline'] ?? null, 'pre_financial_deadline'),
+            validate_datetime($data['post_financial_deadline'] ?? null, 'post_financial_deadline'),
             $eventStart,
             $eventEnd,
             'draft'
@@ -195,8 +197,8 @@ function handle_endeavours(string $method, array $segments): void {
         $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
         $data = read_json();
         $name = require_non_empty($data['name'] ?? $endeavour['name'] ?? '', 'name', 190);
-        $eventStart = $data['event_start_at'] ?? $endeavour['event_start_at'] ?? null;
-        $eventEnd = $data['event_end_at'] ?? $endeavour['event_end_at'] ?? null;
+        $eventStart = validate_datetime($data['event_start_at'] ?? $endeavour['event_start_at'] ?? null, 'event_start_at');
+        $eventEnd = validate_datetime($data['event_end_at'] ?? $endeavour['event_end_at'] ?? null, 'event_end_at');
         $startDate = $eventStart ? substr($eventStart, 0, 10) : ($data['start_date'] ?? $endeavour['start_date']);
         $endDate = $eventEnd ? substr($eventEnd, 0, 10) : ($data['end_date'] ?? $endeavour['end_date']);
         $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ?, volunteering_enabled = ?, transport_fee_required = ?, volunteer_registration_deadline = ?, pre_financial_deadline = ?, post_financial_deadline = ?, event_start_at = ?, event_end_at = ? WHERE id = ?');
@@ -210,9 +212,9 @@ function handle_endeavours(string $method, array $segments): void {
             $data['transport_payment_required'] ?? $endeavour['transport_payment_required'] ?? 0,
             isset($data['volunteering_enabled']) ? (int)!empty($data['volunteering_enabled']) : (int)$endeavour['volunteering_enabled'],
             isset($data['transport_fee_required']) ? (int)!empty($data['transport_fee_required']) : (int)$endeavour['transport_fee_required'],
-            $data['volunteer_registration_deadline'] ?? $endeavour['volunteer_registration_deadline'],
-            $data['pre_financial_deadline'] ?? $endeavour['pre_financial_deadline'],
-            $data['post_financial_deadline'] ?? $endeavour['post_financial_deadline'],
+            validate_datetime($data['volunteer_registration_deadline'] ?? $endeavour['volunteer_registration_deadline'], 'volunteer_registration_deadline'),
+            validate_datetime($data['pre_financial_deadline'] ?? $endeavour['pre_financial_deadline'], 'pre_financial_deadline'),
+            validate_datetime($data['post_financial_deadline'] ?? $endeavour['post_financial_deadline'], 'post_financial_deadline'),
             $eventStart,
             $eventEnd,
             $id
@@ -244,7 +246,7 @@ function handle_endeavours(string $method, array $segments): void {
         try {
             $stmt->execute([$id, (int)$endeavour['entity_id'], $user['id']]);
         } catch (PDOException $e) {
-            if ((int)$e->getCode() === 23000) {
+            if ($e->getCode() === '23000') {
                 respond(['ok' => true, 'data' => ['registered' => true]]);
             }
             throw $e;
@@ -353,7 +355,8 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $stmt = db()->prepare('INSERT INTO endeavour_doc_approvals (endeavour_id, doc_type, approver_group, status, approver_user_id, comment) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status = VALUES(status), approver_user_id = VALUES(approver_user_id), comment = VALUES(comment)');
         $stmt->execute([$id, $docType, $approverGroup, $decision, $user['id'], sanitize_text($data['comment'] ?? '', 1000)]);
-        log_activity($user['id'], 'endeavour', $id, 'doc_approved', 'Document approval updated', ['doc_type' => $docType, 'decision' => $decision, 'group' => $approverGroup]);
+        $action = $decision === 'rejected' ? 'doc_rejected' : 'doc_approved';
+        log_activity($user['id'], 'endeavour', $id, $action, 'Document approval updated', ['doc_type' => $docType, 'decision' => $decision, 'group' => $approverGroup]);
         evaluate_phase_transition($id);
         respond(['ok' => true]);
     }
@@ -405,12 +408,18 @@ function handle_endeavours(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Registration not found'], 404);
         }
         if ($subAction === 'shortlist') {
+            if ($endeavour['phase'] !== 'VOLUNTEER_SHORTLISTING') {
+                respond(['ok' => false, 'error' => 'Shortlisting not active'], 400);
+            }
             ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
             $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "shortlisted" WHERE id = ?');
             $stmt->execute([$registrationId]);
             respond(['ok' => true]);
         }
         if ($subAction === 'reject') {
+            if ($endeavour['phase'] !== 'VOLUNTEER_SHORTLISTING') {
+                respond(['ok' => false, 'error' => 'Shortlisting not active'], 400);
+            }
             ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
             $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "rejected" WHERE id = ?');
             $stmt->execute([$registrationId]);
@@ -724,6 +733,20 @@ function update_status(int $endeavourId, string $status): void {
 function update_phase(int $endeavourId, string $phase): void {
     $stmt = db()->prepare('UPDATE endeavours SET phase = ? WHERE id = ?');
     $stmt->execute([$phase, $endeavourId]);
+}
+
+function validate_datetime(?string $value, string $field): ?string {
+    if ($value === null || $value === '') {
+        return null;
+    }
+    $dt = DateTime::createFromFormat('Y-m-d\\TH:i:s', $value)
+        ?: DateTime::createFromFormat('Y-m-d H:i:s', $value)
+        ?: DateTime::createFromFormat('Y-m-d\\TH:i', $value)
+        ?: DateTime::createFromFormat('Y-m-d', $value);
+    if (!$dt) {
+        respond(['ok' => false, 'error' => "Invalid datetime for {$field}"], 400);
+    }
+    return $dt->format('Y-m-d H:i:s');
 }
 
 function ensure_drive_file(int $entityId, int $fileId): void {

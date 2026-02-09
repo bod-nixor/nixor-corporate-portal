@@ -113,11 +113,19 @@
         if (data.pending_docs?.length) {
           data.pending_docs.forEach((item) => {
             const li = document.createElement('li');
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'text-slate-100';
+            nameSpan.textContent = item.endeavour_name;
+            const labelsSpan = document.createElement('span');
+            labelsSpan.className = 'text-slate-500 text-xs';
             const docLabels = item.pending.map((pending) => {
               const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
               return `${pending.doc_type.replace(/_/g, ' ')} (${group})`;
             });
-            li.innerHTML = `<span class="text-slate-100">${item.endeavour_name}</span><br /><span class="text-slate-500 text-xs">${docLabels.join(', ')}</span>`;
+            labelsSpan.textContent = docLabels.join(', ');
+            li.appendChild(nameSpan);
+            li.appendChild(document.createElement('br'));
+            li.appendChild(labelsSpan);
             pendingDocsList.appendChild(li);
           });
         } else {

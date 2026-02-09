@@ -72,9 +72,8 @@
         const meta = document.createElement('div');
         meta.className = 'mt-4 text-xs text-slate-500 space-y-1';
         const dates = document.createElement('p');
-        const start = row.event_start_at || row.start_date || 'TBD';
-        const end = row.event_end_at || row.end_date || 'TBD';
-        dates.textContent = `Dates: ${start} - ${end}`;
+        const fmtDate = (value) => value ? new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' }) : 'TBD';
+        dates.textContent = `Dates: ${fmtDate(row.event_start_at || row.start_date)} – ${fmtDate(row.event_end_at || row.end_date)}`;
         const entity = document.createElement('p');
         entity.textContent = `Entity: ${row.entity_name}`;
         const deadline = document.createElement('p');
@@ -88,16 +87,26 @@
         registerButton.className = 'bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center disabled:opacity-60';
         registerButton.textContent = row.registered ? 'Registered' : 'Register';
         registerButton.disabled = row.registered;
+        const registerError = document.createElement('p');
+        registerError.className = 'text-xs text-red-300 hidden';
         registerButton.addEventListener('click', async () => {
+          if (registerButton.disabled) return;
+          registerButton.disabled = true;
+          registerError.classList.add('hidden');
+          registerButton.textContent = 'Registering...';
           try {
             await apiFetch(`/endeavours/${row.id}/register`, { method: 'POST', body: JSON.stringify({}) });
             registerButton.textContent = 'Registered';
             registerButton.disabled = true;
           } catch (err) {
-            registerButton.textContent = 'Try Again';
+            registerButton.textContent = 'Register';
+            registerButton.disabled = false;
+            registerError.textContent = err?.message || 'Unable to register. Please try again.';
+            registerError.classList.remove('hidden');
           }
         });
         actions.appendChild(registerButton);
+        actions.appendChild(registerError);
         const view = document.createElement('a');
         view.href = `/endeavour_view.html?id=${row.id}`;
         view.className = 'bg-slate-800 text-sm px-4 py-2 rounded-xl text-center';
@@ -141,6 +150,7 @@
       }
     };
 
+    let searchTimer;
     apiFetch('/auth/me')
       .then((response) => {
         const entities = response?.data?.entities || [];
@@ -163,8 +173,8 @@
 
     entityFilter.addEventListener('change', loadEndeavours);
     searchInput.addEventListener('input', () => {
-      clearTimeout(searchInput._debounce);
-      searchInput._debounce = setTimeout(loadEndeavours, 250);
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(loadEndeavours, 250);
     });
   </script>
 </body>

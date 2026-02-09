@@ -56,17 +56,33 @@ function handle_dashboard(string $method, array $_segments): void {
         ];
         $nextLabel = null;
         $nextTs = null;
+        $now = time();
         foreach ($candidates as $label => $date) {
             if (!$date) {
                 continue;
             }
             $ts = strtotime($date);
-            if ($ts === false) {
+            if ($ts === false || $ts < $now) {
                 continue;
             }
             if ($nextTs === null || $ts < $nextTs) {
                 $nextTs = $ts;
                 $nextLabel = $label;
+            }
+        }
+        if ($nextTs === null) {
+            foreach ($candidates as $label => $date) {
+                if (!$date) {
+                    continue;
+                }
+                $ts = strtotime($date);
+                if ($ts === false || $ts >= $now) {
+                    continue;
+                }
+                if ($nextTs === null || $ts < $nextTs) {
+                    $nextTs = $ts;
+                    $nextLabel = $label;
+                }
             }
         }
         $days = $nextTs ? (int)round(($nextTs - time()) / 86400) : null;

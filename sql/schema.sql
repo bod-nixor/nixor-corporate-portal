@@ -68,14 +68,14 @@ CREATE TABLE file_drive_items (
   size_bytes INT DEFAULT 0,
   tags VARCHAR(255),
   sharing_scope ENUM('private','entity','department','public') DEFAULT 'entity',
-  created_by INT NOT NULL,
+  created_by INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_parent (parent_id, entity_id),
   KEY idx_entity_type (entity_id, item_type),
   FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
   FOREIGN KEY (parent_id) REFERENCES file_drive_items(id) ON DELETE SET NULL,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE drive_comments (

@@ -1,3 +1,44 @@
+CREATE TABLE IF NOT EXISTS file_drive_items (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  entity_id INT NOT NULL,
+  parent_id INT NULL,
+  item_type ENUM('folder','file') NOT NULL,
+  name VARCHAR(190) NOT NULL,
+  file_path VARCHAR(255),
+  size_bytes INT DEFAULT 0,
+  tags VARCHAR(255),
+  sharing_scope ENUM('private','entity','department','public') DEFAULT 'entity',
+  created_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_parent (parent_id, entity_id),
+  KEY idx_entity_type (entity_id, item_type),
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_id) REFERENCES file_drive_items(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS drive_comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  drive_item_id INT NOT NULL,
+  user_id INT NOT NULL,
+  comment TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (drive_item_id) REFERENCES file_drive_items(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS drive_versions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  drive_item_id INT NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  version_label VARCHAR(120),
+  uploaded_by INT NOT NULL,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (drive_item_id) REFERENCES file_drive_items(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
 ALTER TABLE users
   MODIFY global_role ENUM('admin','board','ceo','staff','student_affairs','volunteer') DEFAULT 'volunteer';
 

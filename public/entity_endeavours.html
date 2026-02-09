@@ -87,11 +87,21 @@
       }
     };
 
+    const escapeHtml = (value) => {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
     const fileOptions = (selectedId) => {
       const options = ['<option value=\"\">Select file</option>'];
       driveFiles.forEach((file) => {
         const selected = selectedId && Number(selectedId) === Number(file.id) ? 'selected' : '';
-        options.push(`<option value=\"${file.id}\" ${selected}>${file.name}</option>`);
+        const safeName = escapeHtml(file.name);
+        options.push(`<option value=\"${file.id}\" ${selected}>${safeName}</option>`);
       });
       return options.join('');
     };
@@ -119,15 +129,25 @@
             shortlist.className = 'px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-200';
             shortlist.textContent = 'Shortlist';
             shortlist.addEventListener('click', async () => {
-              await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-              renderRegistrations(container, endeavourId, phase)();
+              try {
+                await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+                renderRegistrations(container, endeavourId, phase)();
+              } catch (err) {
+                alert(err?.message || 'Unable to shortlist volunteer.');
+                console.error(err);
+              }
             });
             const reject = document.createElement('button');
             reject.className = 'px-2 py-1 rounded-lg bg-red-500/20 text-red-200';
             reject.textContent = 'Reject';
             reject.addEventListener('click', async () => {
-              await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-              renderRegistrations(container, endeavourId, phase)();
+              try {
+                await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+                renderRegistrations(container, endeavourId, phase)();
+              } catch (err) {
+                alert(err?.message || 'Unable to reject volunteer.');
+                console.error(err);
+              }
             });
             actions.appendChild(shortlist);
             actions.appendChild(reject);
@@ -137,15 +157,25 @@
             present.className = 'px-2 py-1 rounded-lg bg-indigo-500/20 text-indigo-200';
             present.textContent = 'Mark Present';
             present.addEventListener('click', async () => {
-              await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
-              renderRegistrations(container, endeavourId, phase)();
+              try {
+                await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
+                renderRegistrations(container, endeavourId, phase)();
+              } catch (err) {
+                alert(err?.message || 'Unable to mark attendance.');
+                console.error(err);
+              }
             });
             const paid = document.createElement('button');
             paid.className = 'px-2 py-1 rounded-lg bg-amber-500/20 text-amber-200';
             paid.textContent = 'Transport Paid';
             paid.addEventListener('click', async () => {
-              await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-              renderRegistrations(container, endeavourId, phase)();
+              try {
+                await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+                renderRegistrations(container, endeavourId, phase)();
+              } catch (err) {
+                alert(err?.message || 'Unable to mark transport fee.');
+                console.error(err);
+              }
             });
             actions.appendChild(present);
             actions.appendChild(paid);
@@ -170,7 +200,16 @@
         card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4';
         const header = document.createElement('div');
         header.className = 'flex flex-wrap items-center justify-between gap-3';
-        header.innerHTML = `<div><h3 class=\"text-lg font-semibold\">${row.name}</h3><p class=\"text-xs text-slate-500\">Phase: ${row.phase || 'PRE_EVENT'}</p></div>`;
+        const headerContent = document.createElement('div');
+        const title = document.createElement('h3');
+        title.className = 'text-lg font-semibold';
+        title.textContent = row.name;
+        const phaseText = document.createElement('p');
+        phaseText.className = 'text-xs text-slate-500';
+        phaseText.textContent = `Phase: ${row.phase || 'PRE_EVENT'}`;
+        headerContent.appendChild(title);
+        headerContent.appendChild(phaseText);
+        header.appendChild(headerContent);
         card.appendChild(header);
 
         const plans = document.createElement('div');
@@ -184,8 +223,14 @@
         attachBtn.addEventListener('click', async () => {
           const ops = plans.querySelector('[data-role=\"ops\"]').value;
           const budget = plans.querySelector('[data-role=\"budget\"]').value;
-          await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
-          loadEndeavours(entitySelect.value);
+          try {
+            await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
+            setStatus('Plans attached.', true);
+            loadEndeavours(entitySelect.value);
+          } catch (err) {
+            setStatus(err.message || 'Unable to attach plans.', false);
+            console.error(err);
+          }
         });
         card.appendChild(plans);
 
@@ -205,18 +250,36 @@
         `;
         docs.querySelector('[data-action=\"pre\"]').addEventListener('click', async () => {
           const value = docs.querySelector('[data-role=\"pre\"]').value;
-          await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: value }) });
-          loadEndeavours(entitySelect.value);
+          try {
+            await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: value }) });
+            setStatus('Pre-financial submitted.', true);
+            loadEndeavours(entitySelect.value);
+          } catch (err) {
+            setStatus(err.message || 'Unable to submit pre-financial.', false);
+            console.error(err);
+          }
         });
         docs.querySelector('[data-action=\"post\"]').addEventListener('click', async () => {
           const value = docs.querySelector('[data-role=\"post\"]').value;
-          await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: value }) });
-          loadEndeavours(entitySelect.value);
+          try {
+            await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: value }) });
+            setStatus('Post-financial submitted.', true);
+            loadEndeavours(entitySelect.value);
+          } catch (err) {
+            setStatus(err.message || 'Unable to submit post-financial.', false);
+            console.error(err);
+          }
         });
         epilogue.querySelector('[data-action=\"epilogue\"]').addEventListener('click', async () => {
           const value = epilogue.querySelector('[data-role=\"epilogue\"]').value;
-          await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: value }) });
-          loadEndeavours(entitySelect.value);
+          try {
+            await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: value }) });
+            setStatus('Epilogue submitted.', true);
+            loadEndeavours(entitySelect.value);
+          } catch (err) {
+            setStatus(err.message || 'Unable to submit epilogue.', false);
+            console.error(err);
+          }
         });
         card.appendChild(docs);
         card.appendChild(epilogue);
@@ -227,15 +290,31 @@
         startShortlisting.className = 'bg-indigo-500/20 text-indigo-200 rounded-xl px-3 py-2 text-sm';
         startShortlisting.textContent = 'Start Shortlisting';
         startShortlisting.addEventListener('click', async () => {
-          await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
-          loadEndeavours(entitySelect.value);
+          if (startShortlisting.disabled) return;
+          startShortlisting.disabled = true;
+          try {
+            await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+            loadEndeavours(entitySelect.value);
+          } catch (err) {
+            startShortlisting.disabled = false;
+            setStatus(err.message || 'Unable to start shortlisting.', false);
+            console.error(err);
+          }
         });
         const closeShortlisting = document.createElement('button');
         closeShortlisting.className = 'bg-emerald-500/20 text-emerald-200 rounded-xl px-3 py-2 text-sm';
         closeShortlisting.textContent = 'Close Shortlisting';
         closeShortlisting.addEventListener('click', async () => {
-          await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
-          loadEndeavours(entitySelect.value);
+          if (closeShortlisting.disabled) return;
+          closeShortlisting.disabled = true;
+          try {
+            await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+            loadEndeavours(entitySelect.value);
+          } catch (err) {
+            closeShortlisting.disabled = false;
+            setStatus(err.message || 'Unable to close shortlisting.', false);
+            console.error(err);
+          }
         });
         if (row.phase === 'VOLUNTEER_REGISTRATION') {
           controls.appendChild(startShortlisting);
@@ -268,8 +347,14 @@
           approvals.querySelector('button').addEventListener('click', async () => {
             const docType = approvals.querySelector('[data-role=\"doc\"]').value;
             const decision = approvals.querySelector('[data-role=\"decision\"]').value;
-            await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
-            loadEndeavours(entitySelect.value);
+            try {
+              await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
+              setStatus('Approval updated.', true);
+              loadEndeavours(entitySelect.value);
+            } catch (err) {
+              setStatus(err.message || 'Unable to update approval.', false);
+              console.error(err);
+            }
           });
           card.appendChild(approvals);
         }
