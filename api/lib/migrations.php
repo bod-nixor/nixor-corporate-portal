@@ -173,10 +173,14 @@ function apply_migrations(PDO $pdo, string $directory): array {
             }
             $insert = $pdo->prepare('INSERT INTO migrations (filename, checksum) VALUES (?, ?)');
             $insert->execute([$file, $checksum]);
-            $pdo->commit();
+            if ($pdo->inTransaction()) {
+                $pdo->commit();
+            }
             $results[] = ['file' => $file, 'status' => 'applied'];
         } catch (Throwable $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log('Migration failed: ' . $file . ' ' . $e->getMessage());
             throw $e;
         }

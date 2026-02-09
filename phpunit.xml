@@ -5,14 +5,10 @@
             <directory>tests</directory>
         </testsuite>
     </testsuites>
+
     <php>
         <env name="APP_ENV" value="testing"/>
-        <env name="ENV_FILE_PATH" value="config/.env.testing"/>
-        <env name="DB_HOST" value="127.0.0.1"/>
-        <env name="DB_PORT" value="3306"/>
-        <env name="DB_NAME" value="nixor_portal_test"/>
-        <env name="DB_USER" value="root"/>
-        <env name="DB_PASS" value=""/>
+        <env name="ENV_FILE_PATH" value=".env.testing"/>
         <env name="TEST_BASE_URL" value="http://127.0.0.1:8001"/>
     </php>
 </phpunit>
