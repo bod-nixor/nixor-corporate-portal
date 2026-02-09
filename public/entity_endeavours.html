@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entity Endeavours</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div class="flex">
+    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
+      <nav class="mt-8 space-y-2 text-sm">
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_endeavours.html">Entity Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      </nav>
+    </aside>
+    <main class="flex-1 p-6 md:p-10">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-semibold">Entity Endeavours</h1>
+          <p class="text-slate-400">Create endeavours, attach plans, and manage lifecycle phases.</p>
+        </div>
+        <div class="flex gap-3">
+          <select id="entity-select" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+        </div>
+      </header>
+
+      <section class="mt-8 bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <h2 class="text-lg font-semibold">Create Endeavour</h2>
+        <form id="create-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <input name="name" required placeholder="Title" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="event_start_at" type="datetime-local" placeholder="Event start" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="event_end_at" type="datetime-local" placeholder="Event end" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="volunteer_registration_deadline" type="datetime-local" placeholder="Volunteer registration deadline" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="pre_financial_deadline" type="datetime-local" placeholder="Pre-financial deadline" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <input name="post_financial_deadline" type="datetime-local" placeholder="Post-financial deadline" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+          <textarea name="description" rows="3" placeholder="Description" class="md:col-span-2 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="volunteering_enabled" class="rounded bg-slate-950 border border-slate-800" />
+            Volunteering enabled
+          </label>
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="transport_fee_required" class="rounded bg-slate-950 border border-slate-800" />
+            Transport fee required
+          </label>
+          <div id="create-status" class="hidden text-sm rounded-xl px-4 py-3 md:col-span-2"></div>
+          <button type="submit" class="md:col-span-2 bg-indigo-500 rounded-xl px-4 py-3 font-medium">Create Endeavour</button>
+        </form>
+      </section>
+
+      <section class="mt-8">
+        <h2 class="text-lg font-semibold">Active Endeavours</h2>
+        <div id="endeavour-list" class="mt-4 space-y-6"></div>
+        <p id="endeavour-empty" class="hidden text-sm text-slate-400 mt-4">No endeavours yet.</p>
+      </section>
+    </main>
+  </div>
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+    const entitySelect = document.getElementById('entity-select');
+    const createForm = document.getElementById('create-form');
+    const createStatus = document.getElementById('create-status');
+    const listEl = document.getElementById('endeavour-list');
+    const emptyEl = document.getElementById('endeavour-empty');
+    let driveFiles = [];
+    let currentUser = null;
+
+    const setStatus = (message, ok) => {
+      createStatus.textContent = message;
+      createStatus.className = `text-sm rounded-xl px-4 py-3 md:col-span-2 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      createStatus.classList.remove('hidden');
+    };
+
+    const loadDriveFiles = async (entityId) => {
+      try {
+        const response = await apiFetch(`/drive/list?entity_id=${entityId}`);
+        driveFiles = (response?.data || []).filter((item) => item.item_type === 'file');
+      } catch (err) {
+        driveFiles = [];
+      }
+    };
+
+    const fileOptions = (selectedId) => {
+      const options = ['<option value=\"\">Select file</option>'];
+      driveFiles.forEach((file) => {
+        const selected = selectedId && Number(selectedId) === Number(file.id) ? 'selected' : '';
+        options.push(`<option value=\"${file.id}\" ${selected}>${file.name}</option>`);
+      });
+      return options.join('');
+    };
+
+    const renderRegistrations = (container, endeavourId, phase) => async () => {
+      container.innerHTML = '<p class=\"text-xs text-slate-500\">Loading registrations...</p>';
+      try {
+        const response = await apiFetch(`/endeavours/${endeavourId}`);
+        const registrations = response?.data?.registrations || [];
+        if (!registrations.length) {
+          container.innerHTML = '<p class=\"text-xs text-slate-500\">No registrations yet.</p>';
+          return;
+        }
+        container.innerHTML = '';
+        registrations.forEach((reg) => {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300 border border-slate-800 rounded-xl p-3';
+          const name = document.createElement('span');
+          name.textContent = `${reg.full_name} (${reg.status})`;
+          row.appendChild(name);
+          const actions = document.createElement('div');
+          actions.className = 'flex gap-2';
+          if (phase === 'VOLUNTEER_SHORTLISTING') {
+            const shortlist = document.createElement('button');
+            shortlist.className = 'px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-200';
+            shortlist.textContent = 'Shortlist';
+            shortlist.addEventListener('click', async () => {
+              await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+              renderRegistrations(container, endeavourId, phase)();
+            });
+            const reject = document.createElement('button');
+            reject.className = 'px-2 py-1 rounded-lg bg-red-500/20 text-red-200';
+            reject.textContent = 'Reject';
+            reject.addEventListener('click', async () => {
+              await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+              renderRegistrations(container, endeavourId, phase)();
+            });
+            actions.appendChild(shortlist);
+            actions.appendChild(reject);
+          }
+          if (phase === 'ON_DAY') {
+            const present = document.createElement('button');
+            present.className = 'px-2 py-1 rounded-lg bg-indigo-500/20 text-indigo-200';
+            present.textContent = 'Mark Present';
+            present.addEventListener('click', async () => {
+              await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
+              renderRegistrations(container, endeavourId, phase)();
+            });
+            const paid = document.createElement('button');
+            paid.className = 'px-2 py-1 rounded-lg bg-amber-500/20 text-amber-200';
+            paid.textContent = 'Transport Paid';
+            paid.addEventListener('click', async () => {
+              await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+              renderRegistrations(container, endeavourId, phase)();
+            });
+            actions.appendChild(present);
+            actions.appendChild(paid);
+          }
+          row.appendChild(actions);
+          container.appendChild(row);
+        });
+      } catch (err) {
+        container.innerHTML = '<p class=\"text-xs text-red-300\">Failed to load registrations.</p>';
+      }
+    };
+
+    const renderEndeavours = (rows) => {
+      listEl.innerHTML = '';
+      if (!rows.length) {
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      rows.forEach((row) => {
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4';
+        const header = document.createElement('div');
+        header.className = 'flex flex-wrap items-center justify-between gap-3';
+        header.innerHTML = `<div><h3 class=\"text-lg font-semibold\">${row.name}</h3><p class=\"text-xs text-slate-500\">Phase: ${row.phase || 'PRE_EVENT'}</p></div>`;
+        card.appendChild(header);
+
+        const plans = document.createElement('div');
+        plans.className = 'grid grid-cols-1 md:grid-cols-3 gap-3 text-sm';
+        plans.innerHTML = `
+          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"ops\">${fileOptions(row.operational_plan_file_id)}</select>
+          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"budget\">${fileOptions(row.budget_plan_file_id)}</select>
+          <button class=\"bg-indigo-500 rounded-xl px-3 py-2\">Attach Plans</button>
+        `;
+        const attachBtn = plans.querySelector('button');
+        attachBtn.addEventListener('click', async () => {
+          const ops = plans.querySelector('[data-role=\"ops\"]').value;
+          const budget = plans.querySelector('[data-role=\"budget\"]').value;
+          await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
+          loadEndeavours(entitySelect.value);
+        });
+        card.appendChild(plans);
+
+        const docs = document.createElement('div');
+        docs.className = 'grid grid-cols-1 md:grid-cols-4 gap-3 text-sm';
+        docs.innerHTML = `
+          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"pre\">${fileOptions(row.pre_financial_file_id)}</select>
+          <button class=\"bg-slate-800 rounded-xl px-3 py-2\" data-action=\"pre\">Submit Pre-Financial</button>
+          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"post\">${fileOptions(row.post_financial_file_id)}</select>
+          <button class=\"bg-slate-800 rounded-xl px-3 py-2\" data-action=\"post\">Submit Post-Financial</button>
+        `;
+        const epilogue = document.createElement('div');
+        epilogue.className = 'grid grid-cols-1 md:grid-cols-2 gap-3 text-sm';
+        epilogue.innerHTML = `
+          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"epilogue\">${fileOptions(row.epilogue_file_id)}</select>
+          <button class=\"bg-slate-800 rounded-xl px-3 py-2\" data-action=\"epilogue\">Submit Epilogue</button>
+        `;
+        docs.querySelector('[data-action=\"pre\"]').addEventListener('click', async () => {
+          const value = docs.querySelector('[data-role=\"pre\"]').value;
+          await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: value }) });
+          loadEndeavours(entitySelect.value);
+        });
+        docs.querySelector('[data-action=\"post\"]').addEventListener('click', async () => {
+          const value = docs.querySelector('[data-role=\"post\"]').value;
+          await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: value }) });
+          loadEndeavours(entitySelect.value);
+        });
+        epilogue.querySelector('[data-action=\"epilogue\"]').addEventListener('click', async () => {
+          const value = epilogue.querySelector('[data-role=\"epilogue\"]').value;
+          await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: value }) });
+          loadEndeavours(entitySelect.value);
+        });
+        card.appendChild(docs);
+        card.appendChild(epilogue);
+
+        const controls = document.createElement('div');
+        controls.className = 'flex flex-wrap gap-3';
+        const startShortlisting = document.createElement('button');
+        startShortlisting.className = 'bg-indigo-500/20 text-indigo-200 rounded-xl px-3 py-2 text-sm';
+        startShortlisting.textContent = 'Start Shortlisting';
+        startShortlisting.addEventListener('click', async () => {
+          await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+          loadEndeavours(entitySelect.value);
+        });
+        const closeShortlisting = document.createElement('button');
+        closeShortlisting.className = 'bg-emerald-500/20 text-emerald-200 rounded-xl px-3 py-2 text-sm';
+        closeShortlisting.textContent = 'Close Shortlisting';
+        closeShortlisting.addEventListener('click', async () => {
+          await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+          loadEndeavours(entitySelect.value);
+        });
+        if (row.phase === 'VOLUNTEER_REGISTRATION') {
+          controls.appendChild(startShortlisting);
+        }
+        if (row.phase === 'VOLUNTEER_SHORTLISTING') {
+          controls.appendChild(closeShortlisting);
+        }
+        card.appendChild(controls);
+
+        if (['board', 'student_affairs', 'admin'].includes(currentUser?.global_role)) {
+          const approvals = document.createElement('div');
+          approvals.className = 'bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm space-y-2';
+          approvals.innerHTML = `
+            <p class=\"text-xs text-slate-500\">Document approvals</p>
+            <div class=\"flex flex-wrap gap-2\">
+              <select class=\"bg-slate-900 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"doc\">
+                <option value=\"operational_plan\">Operational Plan</option>
+                <option value=\"budget_plan\">Budget Plan</option>
+                <option value=\"pre_financial\">Pre-Financial</option>
+                <option value=\"post_financial\">Post-Financial</option>
+                <option value=\"epilogue\">Epilogue</option>
+              </select>
+              <select class=\"bg-slate-900 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"decision\">
+                <option value=\"approved\">Approve</option>
+                <option value=\"rejected\">Reject</option>
+              </select>
+              <button class=\"bg-indigo-500 rounded-xl px-3 py-2\">Submit</button>
+            </div>
+          `;
+          approvals.querySelector('button').addEventListener('click', async () => {
+            const docType = approvals.querySelector('[data-role=\"doc\"]').value;
+            const decision = approvals.querySelector('[data-role=\"decision\"]').value;
+            await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
+            loadEndeavours(entitySelect.value);
+          });
+          card.appendChild(approvals);
+        }
+
+        const registrationContainer = document.createElement('div');
+        registrationContainer.className = 'space-y-2';
+        const loadRegs = document.createElement('button');
+        loadRegs.className = 'text-xs text-slate-300 underline';
+        loadRegs.textContent = 'Load registrations';
+        loadRegs.addEventListener('click', renderRegistrations(registrationContainer, row.id, row.phase));
+        card.appendChild(loadRegs);
+        card.appendChild(registrationContainer);
+
+        listEl.appendChild(card);
+      });
+    };
+
+    const loadEndeavours = async (entityId) => {
+      if (!entityId) {
+        return;
+      }
+      await loadDriveFiles(entityId);
+      try {
+        const response = await apiFetch(`/endeavours?entity_id=${entityId}`);
+        renderEndeavours(response?.data || []);
+      } catch (err) {
+        listEl.innerHTML = '';
+        emptyEl.textContent = 'Failed to load endeavours.';
+        emptyEl.classList.remove('hidden');
+      }
+    };
+
+    apiFetch('/auth/me')
+      .then((response) => {
+        const entities = response?.data?.entities || [];
+        currentUser = response?.data?.user || null;
+        entitySelect.innerHTML = '';
+        entities.forEach((entity) => {
+          const option = document.createElement('option');
+          option.value = entity.id;
+          option.textContent = entity.name;
+          entitySelect.appendChild(option);
+        });
+        if (entities[0]) {
+          entitySelect.value = entities[0].id;
+          loadEndeavours(entitySelect.value);
+        }
+      })
+      .catch(() => {
+        const option = document.createElement('option');
+        option.textContent = 'No entities';
+        entitySelect.appendChild(option);
+      });
+
+    entitySelect.addEventListener('change', () => loadEndeavours(entitySelect.value));
+
+    createForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await apiFetch('/endeavours', {
+          method: 'POST',
+          body: JSON.stringify({
+            entity_id: entitySelect.value,
+            name: createForm.name.value,
+            description: createForm.description.value,
+            volunteering_enabled: createForm.volunteering_enabled.checked,
+            transport_fee_required: createForm.transport_fee_required.checked,
+            volunteer_registration_deadline: createForm.volunteer_registration_deadline.value || null,
+            pre_financial_deadline: createForm.pre_financial_deadline.value || null,
+            post_financial_deadline: createForm.post_financial_deadline.value || null,
+            event_start_at: createForm.event_start_at.value || null,
+            event_end_at: createForm.event_end_at.value || null
+          })
+        });
+        setStatus('Endeavour created.', true);
+        createForm.reset();
+        loadEndeavours(entitySelect.value);
+      } catch (err) {
+        setStatus(err.message || 'Unable to create endeavour.', false);
+      }
+    });
+  </script>
+</body>
+</html>

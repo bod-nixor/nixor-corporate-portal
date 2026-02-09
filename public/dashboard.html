@@ -13,10 +13,11 @@
       <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
       <nav class="mt-8 space-y-2 text-sm">
         <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
       </nav>
     </aside>
@@ -31,11 +32,15 @@
           <button id="announcement-button" class="bg-indigo-500 px-4 py-2 rounded-xl font-medium">Create Announcement</button>
         </div>
       </header>
-      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+      <section class="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-8">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-sm text-slate-400">Documentation Progress</h2>
           <p id="doc-progress" class="text-3xl font-semibold mt-4">--</p>
           <p id="doc-summary" class="text-sm text-slate-500 mt-2"></p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <h2 class="text-sm text-slate-400">Pending Documentation</h2>
+          <ul id="pending-docs-list" class="mt-4 space-y-3 text-sm"></ul>
         </div>
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-sm text-slate-400">Upcoming Meetings</h2>
@@ -72,6 +77,7 @@
     const entitySelect = document.getElementById('entity-select');
     const docProgress = document.getElementById('doc-progress');
     const docSummary = document.getElementById('doc-summary');
+    const pendingDocsList = document.getElementById('pending-docs-list');
     const meetingsList = document.getElementById('meetings-list');
     const deadlinesList = document.getElementById('deadlines-list');
     const announcementsList = document.getElementById('announcements-list');
@@ -96,6 +102,7 @@
     const loadDashboard = async (entityId) => {
       meetingsList.innerHTML = '';
       deadlinesList.innerHTML = '';
+      pendingDocsList.innerHTML = '';
       announcementsList.innerHTML = '';
       announcementsEmpty.classList.add('hidden');
       try {
@@ -103,6 +110,22 @@
         const data = response?.data || {};
         docProgress.textContent = `${data.doc_progress || 0}%`;
         docSummary.textContent = `Tracking ${data.total_endeavours || 0} endeavours.`;
+        if (data.pending_docs?.length) {
+          data.pending_docs.forEach((item) => {
+            const li = document.createElement('li');
+            const docLabels = item.pending.map((pending) => {
+              const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
+              return `${pending.doc_type.replace(/_/g, ' ')} (${group})`;
+            });
+            li.innerHTML = `<span class="text-slate-100">${item.endeavour_name}</span><br /><span class="text-slate-500 text-xs">${docLabels.join(', ')}</span>`;
+            pendingDocsList.appendChild(li);
+          });
+        } else {
+          const empty = document.createElement('li');
+          empty.className = 'text-slate-500';
+          empty.textContent = 'No pending documentation.';
+          pendingDocsList.appendChild(empty);
+        }
         if (data.calendar?.length) {
           data.calendar.forEach((event) => {
             const item = document.createElement('li');
@@ -131,7 +154,8 @@
             left.textContent = deadline.name;
             const right = document.createElement('span');
             right.className = 'text-amber-400';
-            right.textContent = deadline.days_until === null ? 'TBD' : `${deadline.days_until} days`;
+            const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
+            right.textContent = deadline.days_until === null ? 'TBD' : `${label}${deadline.days_until} days`;
             item.appendChild(left);
             item.appendChild(right);
             deadlinesList.appendChild(item);

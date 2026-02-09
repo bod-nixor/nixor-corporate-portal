@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Entities' Endeavours</title>
+  <title>Volunteering</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
@@ -13,31 +13,25 @@
       <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
       <nav class="mt-8 space-y-2 text-sm">
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/endeavours.html">Entities’ Endeavours</a>
+        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/endeavours.html">Volunteering</a>
         <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
       </nav>
     </aside>
     <main class="flex-1 p-6 md:p-10">
       <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-semibold">Entities’ Endeavours</h1>
-          <p class="text-slate-400">Track approvals, documents, and volunteer pipelines.</p>
+          <div class="flex items-center gap-3">
+            <h1 class="text-2xl font-semibold">Volunteering</h1>
+            <span id="notification-badge" class="hidden text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-300"></span>
+          </div>
+          <p class="text-slate-400">Register for endeavours with open volunteer registration.</p>
         </div>
-        <div class="flex gap-3">
-          <select id="status-filter" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">
-            <option value="">All Statuses</option>
-            <option value="pending_board_approval">Pending Board Approval</option>
-            <option value="ops_plan_pending_board_approval">Ops Plan Pending Board</option>
-            <option value="mou_pending_board_approval">MOU Pending Board</option>
-            <option value="pre_financial_pending_board_approval">Pre-Financial Pending</option>
-            <option value="volunteer_posting_pending_board_approval">Volunteer Posting Pending</option>
-            <option value="post_financial_pending_board_approval">Post-Financial Pending</option>
-            <option value="live_volunteer_posting">Live Volunteer Posting</option>
-            <option value="completed">Completed</option>
-          </select>
+        <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          <input id="search-input" placeholder="Search by endeavour or entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm w-full md:w-64" />
           <select id="entity-filter" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
         </div>
       </header>
@@ -47,10 +41,11 @@
   </div>
   <script type="module">
     import { apiFetch } from '/assets/app.js';
-    const statusFilter = document.getElementById('status-filter');
+    const searchInput = document.getElementById('search-input');
     const entityFilter = document.getElementById('entity-filter');
     const grid = document.getElementById('endeavour-grid');
     const emptyState = document.getElementById('endeavour-empty');
+    const notificationBadge = document.getElementById('notification-badge');
 
     const renderEndeavours = (rows) => {
       grid.innerHTML = '';
@@ -65,13 +60,9 @@
         const header = document.createElement('div');
         header.className = 'flex items-center justify-between';
         const status = document.createElement('span');
-        status.className = 'text-xs px-2 py-1 rounded-full bg-indigo-500/10 text-indigo-300';
-        status.textContent = row.status.replace(/_/g, ' ');
-        const category = document.createElement('span');
-        category.className = 'text-xs text-slate-500';
-        category.textContent = row.type_id ? 'Typed' : 'General';
+        status.className = 'text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300';
+        status.textContent = 'Volunteer Registration Open';
         header.appendChild(status);
-        header.appendChild(category);
         const title = document.createElement('h2');
         title.className = 'text-lg font-semibold mt-4';
         title.textContent = row.name;
@@ -81,35 +72,72 @@
         const meta = document.createElement('div');
         meta.className = 'mt-4 text-xs text-slate-500 space-y-1';
         const dates = document.createElement('p');
-        dates.textContent = `Dates: ${row.start_date || 'TBD'} - ${row.end_date || 'TBD'}`;
+        const start = row.event_start_at || row.start_date || 'TBD';
+        const end = row.event_end_at || row.end_date || 'TBD';
+        dates.textContent = `Dates: ${start} - ${end}`;
         const entity = document.createElement('p');
         entity.textContent = `Entity: ${row.entity_name}`;
+        const deadline = document.createElement('p');
+        deadline.textContent = `Registration deadline: ${row.volunteer_registration_deadline || 'TBD'}`;
         meta.appendChild(dates);
         meta.appendChild(entity);
+        meta.appendChild(deadline);
+        const actions = document.createElement('div');
+        actions.className = 'mt-6 flex flex-col gap-2';
+        const registerButton = document.createElement('button');
+        registerButton.className = 'bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center disabled:opacity-60';
+        registerButton.textContent = row.registered ? 'Registered' : 'Register';
+        registerButton.disabled = row.registered;
+        registerButton.addEventListener('click', async () => {
+          try {
+            await apiFetch(`/endeavours/${row.id}/register`, { method: 'POST', body: JSON.stringify({}) });
+            registerButton.textContent = 'Registered';
+            registerButton.disabled = true;
+          } catch (err) {
+            registerButton.textContent = 'Try Again';
+          }
+        });
+        actions.appendChild(registerButton);
         const view = document.createElement('a');
         view.href = `/endeavour_view.html?id=${row.id}`;
-        view.className = 'mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center';
+        view.className = 'bg-slate-800 text-sm px-4 py-2 rounded-xl text-center';
         view.textContent = 'View';
+        actions.appendChild(view);
         card.appendChild(header);
         card.appendChild(title);
         card.appendChild(desc);
         card.appendChild(meta);
-        card.appendChild(view);
+        card.appendChild(actions);
         grid.appendChild(card);
       });
     };
 
     const loadEndeavours = async () => {
       const params = new URLSearchParams();
-      if (statusFilter.value) params.set('status', statusFilter.value);
       if (entityFilter.value) params.set('entity_id', entityFilter.value);
+      if (searchInput.value) params.set('q', searchInput.value);
       try {
-        const response = await apiFetch(`/endeavours?${params.toString()}`);
+        const response = await apiFetch(`/endeavours/volunteering?${params.toString()}`);
         renderEndeavours(response?.data || []);
       } catch (err) {
         grid.innerHTML = '';
         emptyState.textContent = 'Failed to load endeavours. Please try again.';
         emptyState.classList.remove('hidden');
+      }
+    };
+
+    const loadNotifications = async () => {
+      try {
+        const response = await apiFetch('/notifications');
+        const unread = response?.meta?.unread || 0;
+        if (unread > 0) {
+          notificationBadge.textContent = `${unread} new`;
+          notificationBadge.classList.remove('hidden');
+        } else {
+          notificationBadge.classList.add('hidden');
+        }
+      } catch (err) {
+        notificationBadge.classList.add('hidden');
       }
     };
 
@@ -124,15 +152,20 @@
           entityFilter.appendChild(option);
         });
         loadEndeavours();
+        loadNotifications();
       })
       .catch(() => {
         entityFilter.innerHTML = '<option value=\"\">All Entities</option>';
         console.error('Failed to load user entities');
         loadEndeavours();
+        loadNotifications();
       });
 
-    statusFilter.addEventListener('change', loadEndeavours);
     entityFilter.addEventListener('change', loadEndeavours);
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchInput._debounce);
+      searchInput._debounce = setTimeout(loadEndeavours, 250);
+    });
   </script>
 </body>
 </html>

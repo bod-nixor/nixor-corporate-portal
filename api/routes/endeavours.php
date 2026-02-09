@@ -1,9 +1,52 @@
 <?php
 function handle_endeavours(string $method, array $segments): void {
-    $id = isset($segments[1]) ? (int)$segments[1] : null;
+    $rawId = $segments[1] ?? null;
+    $id = is_numeric($rawId) ? (int)$rawId : null;
     $action = $segments[2] ?? null;
+    if (!$id && $rawId && !$action) {
+        $action = $rawId;
+    }
 
-    if ($method === 'GET' && !$id) {
+    if ($method === 'GET' && $action === 'volunteering') {
+        $user = require_auth();
+        $params = [$user['id']];
+        $filters = [
+            'e.volunteering_enabled = 1',
+            'e.phase = "VOLUNTEER_REGISTRATION"',
+            '(e.volunteer_registration_deadline IS NULL OR e.volunteer_registration_deadline >= NOW())'
+        ];
+        if (!in_array($user['global_role'], ['admin', 'board'], true)) {
+            $filters[] = 'e.entity_id IN (SELECT entity_id FROM entity_memberships WHERE user_id = ?)';
+            $params[] = $user['id'];
+        }
+        if (!empty($_GET['entity_id'])) {
+            $filters[] = 'e.entity_id = ?';
+            $params[] = (int)$_GET['entity_id'];
+        }
+        if (!empty($_GET['q'])) {
+            $filters[] = '(e.name LIKE ? OR en.name LIKE ?)';
+            $search = '%' . trim($_GET['q']) . '%';
+            $params[] = $search;
+            $params[] = $search;
+        }
+        $where = $filters ? ('WHERE ' . implode(' AND ', $filters)) : '';
+        $stmt = db()->prepare(
+            "SELECT e.*, en.name AS entity_name, vr.id AS registration_id\n"
+            . "FROM endeavours e\n"
+            . "JOIN entities en ON e.entity_id = en.id\n"
+            . "LEFT JOIN volunteer_registrations vr ON vr.endeavour_id = e.id AND vr.user_id = ?\n"
+            . "{$where}\n"
+            . "ORDER BY e.volunteer_registration_deadline ASC, e.created_at DESC"
+        );
+        $stmt->execute($params);
+        $rows = array_map(static function ($row) {
+            $row['registered'] = !empty($row['registration_id']);
+            return $row;
+        }, $stmt->fetchAll());
+        respond(['ok' => true, 'data' => $rows]);
+    }
+
+    if ($method === 'GET' && !$id && !$action) {
         $user = require_auth();
         $params = [];
         $filters = [];
@@ -40,6 +83,22 @@ function handle_endeavours(string $method, array $segments): void {
             $filters[] = 'e.status = ?';
             $params[] = $_GET['status'];
         }
+        if (!empty($_GET['phase'])) {
+            $allowedPhases = [
+                'PRE_EVENT',
+                'PRE_FINANCIAL',
+                'VOLUNTEER_REGISTRATION',
+                'VOLUNTEER_SHORTLISTING',
+                'ON_DAY',
+                'POST_EVENT',
+                'COMPLETED'
+            ];
+            if (!in_array($_GET['phase'], $allowedPhases, true)) {
+                respond(['ok' => false, 'error' => 'Invalid phase filter'], 400);
+            }
+            $filters[] = 'e.phase = ?';
+            $params[] = $_GET['phase'];
+        }
         $where = $filters ? ('WHERE ' . implode(' AND ', $filters)) : '';
         $stmt = db()->prepare("SELECT e.*, en.name AS entity_name FROM endeavours e JOIN entities en ON e.entity_id = en.id {$where} ORDER BY e.created_at DESC");
         $stmt->execute($params);
@@ -48,13 +107,17 @@ function handle_endeavours(string $method, array $segments): void {
     }
 
     if ($method === 'POST' && !$id) {
-        $user = require_role(['admin', 'ceo']);
         $data = read_json();
         if (empty($data['entity_id'])) {
             respond(['ok' => false, 'error' => 'entity_id is required'], 400);
         }
+        $user = ensure_entity_role((int)$data['entity_id'], ['executive']);
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
-        $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, venue, schedule, start_date, end_date, transport_payment_required, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $eventStart = $data['event_start_at'] ?? null;
+        $eventEnd = $data['event_end_at'] ?? null;
+        $startDate = $eventStart ? substr($eventStart, 0, 10) : null;
+        $endDate = $eventEnd ? substr($eventEnd, 0, 10) : null;
+        $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $data['entity_id'],
             $user['id'],
@@ -63,13 +126,21 @@ function handle_endeavours(string $method, array $segments): void {
             sanitize_text($data['description'] ?? '', 2000),
             sanitize_text($data['venue'] ?? '', 190),
             sanitize_text($data['schedule'] ?? '', 500),
-            $data['start_date'] ?? null,
-            $data['end_date'] ?? null,
+            $startDate,
+            $endDate,
             $data['transport_payment_required'] ?? 0,
-            'pending_board_approval'
+            'PRE_EVENT',
+            !empty($data['volunteering_enabled']) ? 1 : 0,
+            !empty($data['transport_fee_required']) ? 1 : 0,
+            $data['volunteer_registration_deadline'] ?? null,
+            $data['pre_financial_deadline'] ?? null,
+            $data['post_financial_deadline'] ?? null,
+            $eventStart,
+            $eventEnd,
+            'draft'
         ]);
         $endeavourId = (int)db()->lastInsertId();
-        log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'CEO created endeavour', ['status' => 'pending_board_approval']);
+        log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'Executive created endeavour', ['phase' => 'PRE_EVENT']);
         emit_ws_event('endeavour.created', ['id' => $endeavourId]);
         respond(['ok' => true, 'data' => ['id' => $endeavourId]]);
     }
@@ -107,32 +178,270 @@ function handle_endeavours(string $method, array $segments): void {
             $consentStmt->execute($applicationIds);
             $consents = $consentStmt->fetchAll();
         }
+        $docApprovalStmt = db()->prepare('SELECT * FROM endeavour_doc_approvals WHERE endeavour_id = ?');
+        $docApprovalStmt->execute([$id]);
+        $registrationsStmt = db()->prepare('SELECT vr.*, u.full_name FROM volunteer_registrations vr JOIN users u ON vr.user_id = u.id WHERE vr.endeavour_id = ? ORDER BY vr.registered_at DESC');
+        $registrationsStmt->execute([$id]);
         $activity = db()->prepare('SELECT a.*, u.full_name FROM activity_log a LEFT JOIN users u ON a.actor_id = u.id WHERE entity_type = "endeavour" AND entity_id = ? ORDER BY a.created_at DESC');
         $activity->execute([$id]);
-        respond(['ok' => true, 'data' => ['endeavour' => $endeavour, 'documents' => $docsStmt->fetchAll(), 'posts' => $postsStmt->fetchAll(), 'applications' => $appsStmt->fetchAll(), 'payments' => $payments, 'attendance' => $attendance, 'consents' => $consents, 'activity' => $activity->fetchAll()], 'meta' => ['user' => $user]]);
+        respond(['ok' => true, 'data' => ['endeavour' => $endeavour, 'documents' => $docsStmt->fetchAll(), 'posts' => $postsStmt->fetchAll(), 'applications' => $appsStmt->fetchAll(), 'payments' => $payments, 'attendance' => $attendance, 'consents' => $consents, 'doc_approvals' => $docApprovalStmt->fetchAll(), 'registrations' => $registrationsStmt->fetchAll(), 'activity' => $activity->fetchAll()], 'meta' => ['user' => $user]]);
     }
 
     if ($method === 'PUT' && $id && !$action) {
-        $user = require_role(['admin', 'ceo']);
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        $data = read_json();
+        $name = require_non_empty($data['name'] ?? $endeavour['name'] ?? '', 'name', 190);
+        $eventStart = $data['event_start_at'] ?? $endeavour['event_start_at'] ?? null;
+        $eventEnd = $data['event_end_at'] ?? $endeavour['event_end_at'] ?? null;
+        $startDate = $eventStart ? substr($eventStart, 0, 10) : ($data['start_date'] ?? $endeavour['start_date']);
+        $endDate = $eventEnd ? substr($eventEnd, 0, 10) : ($data['end_date'] ?? $endeavour['end_date']);
+        $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ?, volunteering_enabled = ?, transport_fee_required = ?, volunteer_registration_deadline = ?, pre_financial_deadline = ?, post_financial_deadline = ?, event_start_at = ?, event_end_at = ? WHERE id = ?');
+        $stmt->execute([
+            $name,
+            sanitize_text($data['description'] ?? $endeavour['description'] ?? '', 2000),
+            sanitize_text($data['venue'] ?? $endeavour['venue'] ?? '', 190),
+            sanitize_text($data['schedule'] ?? $endeavour['schedule'] ?? '', 500),
+            $startDate,
+            $endDate,
+            $data['transport_payment_required'] ?? $endeavour['transport_payment_required'] ?? 0,
+            isset($data['volunteering_enabled']) ? (int)!empty($data['volunteering_enabled']) : (int)$endeavour['volunteering_enabled'],
+            isset($data['transport_fee_required']) ? (int)!empty($data['transport_fee_required']) : (int)$endeavour['transport_fee_required'],
+            $data['volunteer_registration_deadline'] ?? $endeavour['volunteer_registration_deadline'],
+            $data['pre_financial_deadline'] ?? $endeavour['pre_financial_deadline'],
+            $data['post_financial_deadline'] ?? $endeavour['post_financial_deadline'],
+            $eventStart,
+            $eventEnd,
+            $id
+        ]);
+        log_activity($user['id'], 'endeavour', $id, 'updated', 'Endeavour updated');
+        respond(['ok' => true, 'data' => ['id' => $id]]);
+    }
+
+    if ($id && $action === 'register' && $method === 'POST') {
+        $user = require_auth();
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        if ($endeavour['phase'] !== 'VOLUNTEER_REGISTRATION' || !(int)$endeavour['volunteering_enabled']) {
+            respond(['ok' => false, 'error' => 'Volunteer registration is closed'], 400);
+        }
+        if (!empty($endeavour['volunteer_registration_deadline']) && strtotime($endeavour['volunteer_registration_deadline']) < time()) {
+            respond(['ok' => false, 'error' => 'Volunteer registration deadline has passed'], 400);
+        }
+        if (!in_array($user['global_role'], ['admin', 'board'], true)) {
+            $membership = db()->prepare('SELECT id FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
+            $membership->execute([(int)$endeavour['entity_id'], $user['id']]);
+            if (!$membership->fetch()) {
+                respond(['ok' => false, 'error' => 'Entity access denied'], 403);
+            }
+        }
+        $stmt = db()->prepare('INSERT INTO volunteer_registrations (endeavour_id, entity_id, user_id) VALUES (?, ?, ?)');
+        try {
+            $stmt->execute([$id, (int)$endeavour['entity_id'], $user['id']]);
+        } catch (PDOException $e) {
+            if ((int)$e->getCode() === 23000) {
+                respond(['ok' => true, 'data' => ['registered' => true]]);
+            }
+            throw $e;
+        }
+        log_activity($user['id'], 'endeavour', $id, 'registered', 'Volunteer registered');
+        respond(['ok' => true, 'data' => ['registered' => true]]);
+    }
+
+    if ($id && $action === 'attach_plans' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        $data = read_json();
+        $opsId = (int)($data['operational_plan_file_id'] ?? 0);
+        $budgetId = (int)($data['budget_plan_file_id'] ?? 0);
+        if ($opsId <= 0 || $budgetId <= 0) {
+            respond(['ok' => false, 'error' => 'Operational and budget plan files are required'], 400);
+        }
+        ensure_drive_file((int)$endeavour['entity_id'], $opsId);
+        ensure_drive_file((int)$endeavour['entity_id'], $budgetId);
+        $stmt = db()->prepare('UPDATE endeavours SET operational_plan_file_id = ?, budget_plan_file_id = ? WHERE id = ?');
+        $stmt->execute([$opsId, $budgetId, $id]);
+        seed_doc_approvals($id, ['operational_plan', 'budget_plan']);
+        log_activity($user['id'], 'endeavour', $id, 'plans_attached', 'Operational and budget plans attached');
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'attach_pre_financial' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        $data = read_json();
+        $fileId = (int)($data['pre_financial_file_id'] ?? 0);
+        if ($fileId <= 0) {
+            respond(['ok' => false, 'error' => 'pre_financial_file_id required'], 400);
+        }
+        ensure_drive_file((int)$endeavour['entity_id'], $fileId);
+        $stmt = db()->prepare('UPDATE endeavours SET pre_financial_file_id = ?, phase = "PRE_FINANCIAL" WHERE id = ?');
+        $stmt->execute([$fileId, $id]);
+        seed_doc_approvals($id, ['pre_financial']);
+        log_activity($user['id'], 'endeavour', $id, 'pre_financial_attached', 'Pre-financial document attached');
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'attach_post_financial' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        $data = read_json();
+        $fileId = (int)($data['post_financial_file_id'] ?? 0);
+        if ($fileId <= 0) {
+            respond(['ok' => false, 'error' => 'post_financial_file_id required'], 400);
+        }
+        ensure_drive_file((int)$endeavour['entity_id'], $fileId);
+        $stmt = db()->prepare('UPDATE endeavours SET post_financial_file_id = ?, phase = "POST_EVENT" WHERE id = ?');
+        $stmt->execute([$fileId, $id]);
+        seed_doc_approvals($id, ['post_financial']);
+        log_activity($user['id'], 'endeavour', $id, 'post_financial_attached', 'Post-financial document attached');
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'attach_epilogue' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        $data = read_json();
+        $fileId = (int)($data['epilogue_file_id'] ?? 0);
+        if ($fileId <= 0) {
+            respond(['ok' => false, 'error' => 'epilogue_file_id required'], 400);
+        }
+        ensure_drive_file((int)$endeavour['entity_id'], $fileId);
+        $stmt = db()->prepare('UPDATE endeavours SET epilogue_file_id = ?, phase = "POST_EVENT" WHERE id = ?');
+        $stmt->execute([$fileId, $id]);
+        seed_doc_approvals($id, ['epilogue']);
+        log_activity($user['id'], 'endeavour', $id, 'epilogue_attached', 'Epilogue document attached');
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'doc_approvals' && $method === 'POST') {
+        $user = require_auth();
         $endeavour = fetch_endeavour($id);
         if (!$endeavour) {
             respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
         }
         $data = read_json();
-        $name = require_non_empty($data['name'] ?? '', 'name', 190);
-        $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ? WHERE id = ?');
-        $stmt->execute([
-            $name,
-            sanitize_text($data['description'] ?? '', 2000),
-            sanitize_text($data['venue'] ?? '', 190),
-            sanitize_text($data['schedule'] ?? '', 500),
-            $data['start_date'] ?? null,
-            $data['end_date'] ?? null,
-            $data['transport_payment_required'] ?? 0,
-            $id
-        ]);
-        log_activity($user['id'], 'endeavour', $id, 'updated', 'Endeavour updated');
-        respond(['ok' => true, 'data' => ['id' => $id]]);
+        $docType = $data['doc_type'] ?? '';
+        $decision = $data['decision'] ?? '';
+        $approverGroup = resolve_approver_group($user, $data['approver_group'] ?? null);
+        $allowedDocs = ['operational_plan', 'budget_plan', 'pre_financial', 'post_financial', 'epilogue'];
+        if (!in_array($docType, $allowedDocs, true)) {
+            respond(['ok' => false, 'error' => 'Invalid doc_type'], 400);
+        }
+        if (!in_array($decision, ['approved', 'rejected'], true)) {
+            respond(['ok' => false, 'error' => 'Invalid decision'], 400);
+        }
+        if (!$approverGroup) {
+            respond(['ok' => false, 'error' => 'Approver role required'], 403);
+        }
+        $stmt = db()->prepare('INSERT INTO endeavour_doc_approvals (endeavour_id, doc_type, approver_group, status, approver_user_id, comment) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status = VALUES(status), approver_user_id = VALUES(approver_user_id), comment = VALUES(comment)');
+        $stmt->execute([$id, $docType, $approverGroup, $decision, $user['id'], sanitize_text($data['comment'] ?? '', 1000)]);
+        log_activity($user['id'], 'endeavour', $id, 'doc_approved', 'Document approval updated', ['doc_type' => $docType, 'decision' => $decision, 'group' => $approverGroup]);
+        evaluate_phase_transition($id);
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'start_shortlisting' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        if ($endeavour['phase'] !== 'VOLUNTEER_REGISTRATION') {
+            respond(['ok' => false, 'error' => 'Volunteer registration not active'], 400);
+        }
+        update_phase($id, 'VOLUNTEER_SHORTLISTING');
+        log_activity($user['id'], 'endeavour', $id, 'shortlisting_started', 'Volunteer shortlisting started');
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'close_shortlisting' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+        if ($endeavour['phase'] !== 'VOLUNTEER_SHORTLISTING') {
+            respond(['ok' => false, 'error' => 'Shortlisting not active'], 400);
+        }
+        update_phase($id, 'ON_DAY');
+        notify_shortlisted($id, (int)$endeavour['entity_id']);
+        log_activity($user['id'], 'endeavour', $id, 'shortlisting_closed', 'Volunteer shortlisting closed');
+        respond(['ok' => true]);
+    }
+
+    if ($id && $action === 'registrations' && $method === 'POST') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        $user = require_auth();
+        $subAction = $segments[3] ?? '';
+        $data = read_json();
+        $registrationId = (int)($data['registration_id'] ?? 0);
+        if ($registrationId <= 0) {
+            respond(['ok' => false, 'error' => 'registration_id required'], 400);
+        }
+        $check = db()->prepare('SELECT id FROM volunteer_registrations WHERE id = ? AND endeavour_id = ?');
+        $check->execute([$registrationId, $id]);
+        if (!$check->fetch()) {
+            respond(['ok' => false, 'error' => 'Registration not found'], 404);
+        }
+        if ($subAction === 'shortlist') {
+            ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+            $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "shortlisted" WHERE id = ?');
+            $stmt->execute([$registrationId]);
+            respond(['ok' => true]);
+        }
+        if ($subAction === 'reject') {
+            ensure_entity_role((int)$endeavour['entity_id'], ['executive']);
+            $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "rejected" WHERE id = ?');
+            $stmt->execute([$registrationId]);
+            respond(['ok' => true]);
+        }
+        if ($subAction === 'attendance') {
+            ensure_approver_access($user);
+            if ($endeavour['phase'] !== 'ON_DAY') {
+                respond(['ok' => false, 'error' => 'On-day attendance not open'], 400);
+            }
+            $status = $data['attendance_status'] ?? '';
+            if (!in_array($status, ['present', 'absent'], true)) {
+                respond(['ok' => false, 'error' => 'Invalid attendance_status'], 400);
+            }
+            $stmt = db()->prepare('UPDATE volunteer_registrations SET attendance_status = ? WHERE id = ?');
+            $stmt->execute([$status, $registrationId]);
+            respond(['ok' => true]);
+        }
+        if ($subAction === 'transport_fee') {
+            ensure_approver_access($user);
+            if ($endeavour['phase'] !== 'ON_DAY') {
+                respond(['ok' => false, 'error' => 'Transport fee marking not open'], 400);
+            }
+            if (!(int)$endeavour['transport_fee_required']) {
+                respond(['ok' => false, 'error' => 'Transport fee not required'], 400);
+            }
+            $stmt = db()->prepare('UPDATE volunteer_registrations SET transport_fee_paid = 1, paid_at = NOW() WHERE id = ?');
+            $stmt->execute([$registrationId]);
+            respond(['ok' => true]);
+        }
+        respond(['ok' => false, 'error' => 'Invalid registration action'], 400);
     }
 
     if ($id && $action === 'submit_ops_plan' && $method === 'POST') {
@@ -410,6 +719,117 @@ function fetch_endeavour(int $endeavourId): ?array {
 function update_status(int $endeavourId, string $status): void {
     $stmt = db()->prepare('UPDATE endeavours SET status = ? WHERE id = ?');
     $stmt->execute([$status, $endeavourId]);
+}
+
+function update_phase(int $endeavourId, string $phase): void {
+    $stmt = db()->prepare('UPDATE endeavours SET phase = ? WHERE id = ?');
+    $stmt->execute([$phase, $endeavourId]);
+}
+
+function ensure_drive_file(int $entityId, int $fileId): void {
+    $stmt = db()->prepare('SELECT id FROM file_drive_items WHERE id = ? AND entity_id = ? AND item_type = "file"');
+    $stmt->execute([$fileId, $entityId]);
+    if (!$stmt->fetch()) {
+        respond(['ok' => false, 'error' => 'Drive file not found'], 404);
+    }
+}
+
+function seed_doc_approvals(int $endeavourId, array $docTypes): void {
+    $stmt = db()->prepare('INSERT INTO endeavour_doc_approvals (endeavour_id, doc_type, approver_group, status) VALUES (?, ?, ?, "pending") ON DUPLICATE KEY UPDATE status = "pending", approver_user_id = NULL, comment = NULL');
+    foreach ($docTypes as $docType) {
+        foreach (['bod', 'student_affairs'] as $group) {
+            $stmt->execute([$endeavourId, $docType, $group]);
+        }
+    }
+}
+
+function resolve_approver_group(array $user, ?string $override): ?string {
+    if ($user['global_role'] === 'board') {
+        return 'bod';
+    }
+    if ($user['global_role'] === 'student_affairs') {
+        return 'student_affairs';
+    }
+    if ($user['global_role'] === 'admin' && $override) {
+        return in_array($override, ['bod', 'student_affairs'], true) ? $override : null;
+    }
+    return null;
+}
+
+function ensure_approver_access(array $user): void {
+    if (!in_array($user['global_role'], ['admin', 'board', 'student_affairs'], true)) {
+        respond(['ok' => false, 'error' => 'Forbidden'], 403);
+    }
+}
+
+function evaluate_phase_transition(int $endeavourId): void {
+    $endeavour = fetch_endeavour($endeavourId);
+    if (!$endeavour) {
+        return;
+    }
+    $phase = $endeavour['phase'] ?: 'PRE_EVENT';
+    $approvalStmt = db()->prepare('SELECT doc_type, approver_group, status FROM endeavour_doc_approvals WHERE endeavour_id = ?');
+    $approvalStmt->execute([$endeavourId]);
+    $approvals = $approvalStmt->fetchAll();
+    $approved = [];
+    foreach ($approvals as $approval) {
+        if ($approval['status'] === 'approved') {
+            $approved[$approval['doc_type']][$approval['approver_group']] = true;
+        }
+    }
+    $hasAll = function (string $docType) use ($approved): bool {
+        return !empty($approved[$docType]['bod']) && !empty($approved[$docType]['student_affairs']);
+    };
+    if ($phase === 'PRE_EVENT') {
+        if ($hasAll('operational_plan') && $hasAll('budget_plan')) {
+            update_phase($endeavourId, 'PRE_FINANCIAL');
+        }
+    } elseif ($phase === 'PRE_FINANCIAL') {
+        if ($hasAll('pre_financial')) {
+            $next = (int)$endeavour['volunteering_enabled'] ? 'VOLUNTEER_REGISTRATION' : 'ON_DAY';
+            update_phase($endeavourId, $next);
+        }
+    } elseif ($phase === 'POST_EVENT') {
+        if ($hasAll('post_financial') && $hasAll('epilogue')) {
+            update_phase($endeavourId, 'COMPLETED');
+        }
+    }
+}
+
+function notify_shortlisted(int $endeavourId, int $entityId): void {
+    $stmt = db()->prepare('SELECT vr.user_id, u.email, u.full_name, s.parent_email, s.parent_email_secondary FROM volunteer_registrations vr JOIN users u ON vr.user_id = u.id LEFT JOIN students s ON s.user_id = u.id WHERE vr.endeavour_id = ? AND vr.status = "shortlisted"');
+    $stmt->execute([$endeavourId]);
+    $rows = $stmt->fetchAll();
+    if (!$rows) {
+        return;
+    }
+    $endeavour = fetch_endeavour($endeavourId);
+    $title = $endeavour ? $endeavour['name'] : 'Endeavour';
+    foreach ($rows as $row) {
+        $payload = [
+            'endeavour_id' => $endeavourId,
+            'entity_id' => $entityId,
+            'title' => $title
+        ];
+        $body = '<p>You have been shortlisted for the Nixor endeavour: ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '.</p>';
+        $sent = send_email($row['email'], 'You have been shortlisted', $body, true);
+        create_notification((int)$row['user_id'], 'volunteer_shortlisted', $payload, !$sent);
+        $parentEmail = $row['parent_email'] ?: $row['parent_email_secondary'];
+        if ($parentEmail) {
+            $parentBody = '<p>Your child has been shortlisted for the Nixor endeavour: ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '.</p>';
+            send_email($parentEmail, 'Volunteer shortlisted', $parentBody, true);
+        } else {
+            error_log('Parent email missing for shortlisted volunteer user_id=' . $row['user_id']);
+        }
+    }
+}
+
+function create_notification(int $userId, string $type, array $payload, bool $force = false): void {
+    if (!$force && smtp_configured()) {
+        return;
+    }
+    $stmt = db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)');
+    $stmt->execute([$userId, $type, json_encode($payload)]);
 }
 
 function handle_doc_upload(int $endeavourId, string $docType, string $nextStatus, int $userId, bool $requiresApproval = true): void {
