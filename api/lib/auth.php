@@ -50,6 +50,23 @@ function ensure_entity_access(int $entityId, array $roles = []): array {
     return $user;
 }
 
+function ensure_entity_role(int $entityId, array $roles): array {
+    $user = require_auth();
+    if (in_array($user['global_role'], ['admin', 'ceo'], true)) {
+        return $user;
+    }
+    $stmt = db()->prepare('SELECT role FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
+    $stmt->execute([$entityId, $user['id']]);
+    $membership = $stmt->fetch();
+    if (!$membership) {
+        respond(['ok' => false, 'error' => 'Entity access denied'], 403);
+    }
+    if ($roles && !in_array($membership['role'], $roles, true)) {
+        respond(['ok' => false, 'error' => 'Role access denied'], 403);
+    }
+    return $user;
+}
+
 function verify_password(string $password, string $hash): bool {
     if (str_starts_with($hash, '$2y$')) {
         return password_verify($password, $hash);

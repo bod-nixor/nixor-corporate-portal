@@ -1,6 +1,7 @@
 <?php
 function handle_users(string $method, array $segments): void {
     $user = require_role(['admin']);
+    $allowedRoles = ['admin', 'board', 'ceo', 'staff', 'student_affairs', 'volunteer'];
     $id = $segments[1] ?? null;
 
     if ($method === 'GET' && !$id) {
@@ -29,7 +30,6 @@ function handle_users(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Password must be at least 12 characters'], 400);
         }
         $role = $data['global_role'] ?? 'volunteer';
-        $allowedRoles = ['admin', 'board', 'ceo', 'staff', 'volunteer'];
         if (!in_array($role, $allowedRoles, true)) {
             respond(['ok' => false, 'error' => 'Invalid global_role'], 400);
         }
@@ -38,7 +38,7 @@ function handle_users(string $method, array $segments): void {
         try {
             $stmt->execute([$email, $hash, $fullName, $role]);
         } catch (PDOException $e) {
-            if ((int)$e->getCode() === 23000) {
+            if ($e->getCode() === '23000') {
                 respond(['ok' => false, 'error' => 'Email already exists'], 409);
             }
             throw $e;
@@ -59,7 +59,7 @@ function handle_users(string $method, array $segments): void {
         if ($status && !in_array($status, ['active', 'suspended', 'deleted'], true)) {
             respond(['ok' => false, 'error' => 'Invalid status'], 400);
         }
-        if ($role && !in_array($role, ['admin', 'board', 'ceo', 'staff', 'volunteer'], true)) {
+        if ($role && !in_array($role, $allowedRoles, true)) {
             respond(['ok' => false, 'error' => 'Invalid global_role'], 400);
         }
         $fields = [];
