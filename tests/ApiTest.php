@@ -34,6 +34,9 @@ final class ApiTest extends TestCase {
         } finally {
             $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
         }
+
+        // Clear rate limits
+        array_map('unlink', glob(sys_get_temp_dir() . '/nixor_rate_*'));
     }
 
     public function testCsrfBootstrapReturnsTokenAndSetsSessionCookie(): void {
@@ -68,7 +71,12 @@ final class ApiTest extends TestCase {
             'email' => 'admin@example.com',
             'password' => 'Password123!'
         ], ["X-CSRF-Token: {$token}"]);
+
+        if ($login['status'] !== 200) {
+            echo "\nLogin Failed: " . json_encode($login) . "\n";
+        }
         $this->assertSame(200, $login['status']);
+
         $afterSession = $client->getCookie($sessionName);
         $this->assertNotEmpty($afterSession);
         $this->assertNotSame($beforeSession, $afterSession);
@@ -102,7 +110,12 @@ final class ApiTest extends TestCase {
             'name' => 'Test Entity',
             'description' => 'Entity description'
         ], ["X-CSRF-Token: {$token}"]);
+
+        if ($create['status'] !== 200) {
+            echo "\nCreate Entity Failed: " . json_encode($create) . "\n";
+        }
         $this->assertSame(200, $create['status']);
+
         $entityId = $create['data']['data']['id'] ?? null;
         $this->assertNotNull($entityId);
 
@@ -124,6 +137,10 @@ final class ApiTest extends TestCase {
             'password' => 'Password123!'
         ], ["X-CSRF-Token: {$staffToken}"]);
         $blocked = $staffClient->request('GET', "/api/entities/{$entityId}");
+
+        if ($blocked['status'] !== 403) {
+            echo "\nEntity Access Unexpected Status: " . json_encode($blocked) . "\n";
+        }
         $this->assertSame(403, $blocked['status']);
         $this->assertSame('Forbidden', $blocked['data']['error']);
     }
@@ -159,13 +176,33 @@ final class ApiTest extends TestCase {
         $base = parse_url(self::$baseUrl);
         $host = $base['host'] ?? '127.0.0.1';
         $port = $base['port'] ?? 8001;
-        $command = sprintf('php -S %s:%d -t %s', $host, $port, escapeshellarg(dirname(__DIR__)));
+
+        // Resolve absolute path for env file to ensure child process finds it regardless of CWD
+        $envPath = getenv('ENV_FILE_PATH') ?: '.env.testing';
+        if (!str_starts_with($envPath, '/')) {
+            $envPath = dirname(__DIR__) . '/' . $envPath;
+        }
+        $envPath = realpath($envPath) ?: $envPath;
+
+        $phpIni = realpath(__DIR__ . '/../php.ini');
+
+        $command = sprintf('php -c %s -S %s:%d -t %s',
+            escapeshellarg($phpIni),
+            $host,
+            $port,
+            escapeshellarg(dirname(__DIR__))
+        );
+
         $descriptors = [
             0 => ['pipe', 'r'],
             1 => ['file', sys_get_temp_dir() . '/nixor_test_server.log', 'a'],
             2 => ['file', sys_get_temp_dir() . '/nixor_test_server.err', 'a']
         ];
-        self::$serverProcess = proc_open($command, $descriptors, $pipes, dirname(__DIR__));
+
+        $env = array_filter(array_merge($_ENV, $_SERVER), fn($v) => is_scalar($v));
+        $env['ENV_FILE_PATH'] = $envPath;
+
+        self::$serverProcess = proc_open($command, $descriptors, $pipes, dirname(__DIR__), $env);
         if (!is_resource(self::$serverProcess)) {
             throw new RuntimeException('Failed to start test server');
         }

@@ -33,15 +33,21 @@ function handle_drive(string $method, array $segments): void {
         if (empty($data['entity_id'])) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
+        $entityId = (int)$data['entity_id'];
+        ensure_entity_access($entityId, []);
+
         $name = require_non_empty($data['name'] ?? 'New Folder', 'name', 190);
-        ensure_entity_access((int)$data['entity_id'], []);
+        $parentId = isset($data['parent_id']) ? (int)$data['parent_id'] : null;
+        $parentId = validate_parent_id($parentId, $entityId);
+        $sharingScope = validate_sharing_scope($data['sharing_scope'] ?? 'entity');
+
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
         $stmt->execute([
-            $data['entity_id'],
-            $data['parent_id'] ?? null,
+            $entityId,
+            $parentId,
             $name,
             $data['tags'] ?? '',
-            $data['sharing_scope'] ?? 'entity',
+            $sharingScope,
             $user['id']
         ]);
         $folderId = (int)db()->lastInsertId();
@@ -60,16 +66,21 @@ function handle_drive(string $method, array $segments): void {
         if (($_FILES['file']['size'] ?? 0) > $maxSize) {
             respond(['ok' => false, 'error' => 'File too large'], 400);
         }
+
+        $parentId = isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
+        $parentId = validate_parent_id($parentId, $entityId);
+        $sharingScope = validate_sharing_scope($_POST['sharing_scope'] ?? 'entity');
+
         $uploaded = save_drive_file((string)$entityId, $_FILES['file']);
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, file_path, size_bytes, tags, sharing_scope, created_by) VALUES (?, ?, "file", ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
             $entityId,
-            $_POST['parent_id'] ?? null,
+            $parentId,
             $uploaded['original'],
             $uploaded['path'],
             $uploaded['size'],
             $_POST['tags'] ?? '',
-            $_POST['sharing_scope'] ?? 'entity',
+            $sharingScope,
             $user['id']
         ]);
         $fileId = (int)db()->lastInsertId();
@@ -79,4 +90,24 @@ function handle_drive(string $method, array $segments): void {
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function validate_sharing_scope(string $scope): string {
+    $allowed = ['private', 'entity', 'department', 'public'];
+    if (!in_array($scope, $allowed, true)) {
+        respond(['ok' => false, 'error' => 'Invalid sharing_scope'], 400);
+    }
+    return $scope;
+}
+
+function validate_parent_id(?int $parentId, int $entityId): ?int {
+    if (!$parentId) {
+        return null;
+    }
+    $stmt = db()->prepare('SELECT id FROM file_drive_items WHERE id = ? AND entity_id = ? AND item_type = "folder"');
+    $stmt->execute([$parentId, $entityId]);
+    if (!$stmt->fetch()) {
+        respond(['ok' => false, 'error' => 'Invalid parent_id (folder not found in entity)'], 400);
+    }
+    return $parentId;
 }

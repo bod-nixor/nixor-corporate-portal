@@ -107,11 +107,24 @@ function resolve_upload_path(string $relativePath): string {
         $prev = $relativePath;
         $relativePath = str_replace(['../', '..\\', '..'], '', $relativePath);
     } while ($prev !== $relativePath);
+
     $base = realpath(upload_base_path());
-    $fullPath = upload_base_path() . '/' . $relativePath;
+    if (!$base || !is_dir($base)) {
+        error_log('Upload base path unreachable');
+        respond(['ok' => false, 'error' => 'Storage not available'], 500);
+    }
+
+    $fullPath = $base . DIRECTORY_SEPARATOR . $relativePath;
     $resolved = realpath($fullPath);
-    if ($base && $resolved && !str_starts_with($resolved, $base . DIRECTORY_SEPARATOR)) {
+
+    if (!$resolved || !file_exists($resolved)) {
         respond(['ok' => false, 'error' => 'File not found'], 404);
     }
-    return $fullPath;
+
+    if (!str_starts_with($resolved, $base . DIRECTORY_SEPARATOR)) {
+        error_log("Path traversal attempt: {$resolved}");
+        respond(['ok' => false, 'error' => 'Access denied'], 403);
+    }
+
+    return $resolved;
 }

@@ -1,0 +1,1 @@
+{"version":2,"defects":[],"times":{"ApiTest::testCsrfBootstrapReturnsTokenAndSetsSessionCookie":0.014,"ApiTest::testLoginRequiresCsrf":0.083,"ApiTest::testLoginSessionRotationAndLogout":0.167,"ApiTest::testProtectedRouteRequiresAuth":0.004,"ApiTest::testEntityCrudAndAuthorization":0.339,"ApiTest::testAdminSetupBlockedForNonAdmin":0.231}}
