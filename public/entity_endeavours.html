@@ -11,25 +11,7 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
-      <nav class="space-y-1 text-sm font-medium">
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400" href="/entity_endeavours.html">Entity
-          Endeavours</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/calendar.html">Calendar</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/social.html">Social</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/endeavours.html">Volunteering</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
       <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
@@ -106,6 +88,9 @@
   </div>
   <script type="module">
     import { apiFetch } from '/assets/app.js';
+    import { renderSidebar } from '/assets/sidebar.js';
+    document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_endeavours');
+
     const entitySelect = document.getElementById('entity-select');
     const createForm = document.getElementById('create-form');
     const createStatus = document.getElementById('create-status');
@@ -114,10 +99,10 @@
     let driveFiles = [];
     let currentUser = null;
 
-    const setStatus = (message, ok) => {
-      createStatus.textContent = message;
-      createStatus.className = `text-sm rounded-xl px-4 py-3 md:col-span-2 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
-      createStatus.classList.remove('hidden');
+    const setStatus = (el, message, ok) => {
+      el.textContent = message;
+      el.className = `text-sm rounded-xl px-4 py-3 md:col-span-2 mt-4 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      el.classList.remove('hidden');
     };
 
     const loadDriveFiles = async (entityId) => {
@@ -148,7 +133,7 @@
       return options.join('');
     };
 
-    const renderRegistrations = (container, endeavourId, phase) => async () => {
+    const renderRegistrations = async (container, endeavourId, phase) => {
       container.innerHTML = '<p class=\"text-xs text-slate-500\">Loading registrations...</p>';
       try {
         const response = await apiFetch(`/endeavours/${endeavourId}`);
@@ -173,7 +158,7 @@
             shortlist.addEventListener('click', async () => {
               try {
                 await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                renderRegistrations(container, endeavourId, phase)();
+                await renderRegistrations(container, endeavourId, phase);
               } catch (err) {
                 alert(err?.message || 'Unable to shortlist volunteer.');
                 console.error(err);
@@ -185,7 +170,7 @@
             reject.addEventListener('click', async () => {
               try {
                 await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                renderRegistrations(container, endeavourId, phase)();
+                await renderRegistrations(container, endeavourId, phase);
               } catch (err) {
                 alert(err?.message || 'Unable to reject volunteer.');
                 console.error(err);
@@ -201,7 +186,7 @@
             present.addEventListener('click', async () => {
               try {
                 await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
-                renderRegistrations(container, endeavourId, phase)();
+                await renderRegistrations(container, endeavourId, phase);
               } catch (err) {
                 alert(err?.message || 'Unable to mark attendance.');
                 console.error(err);
@@ -213,7 +198,7 @@
             paid.addEventListener('click', async () => {
               try {
                 await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                renderRegistrations(container, endeavourId, phase)();
+                await renderRegistrations(container, endeavourId, phase);
               } catch (err) {
                 alert(err?.message || 'Unable to mark transport fee.');
                 console.error(err);
@@ -308,17 +293,19 @@
               <select class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
             </div>
           </div>
+          <div data-role="status" class="hidden"></div>
           <button class="btn btn-primary mt-4 w-full sm:w-auto" data-action="attach-plans">Save Plans</button>
         `;
+        const plansStatusEl = plansCard.querySelector('[data-role="status"]');
         plansCard.querySelector('[data-action="attach-plans"]').addEventListener('click', async () => {
           const ops = plansCard.querySelector('[data-role="ops"]').value;
           const budget = plansCard.querySelector('[data-role="budget"]').value;
           try {
             await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
-            setStatus('Plans attached successfully.', true);
+            setStatus(plansStatusEl, 'Plans attached successfully.', true);
             loadEndeavours(entitySelect.value);
           } catch (err) {
-            setStatus(err.message || 'Unable to attach plans.', false);
+            setStatus(plansStatusEl, err.message || 'Unable to attach plans.', false);
           }
         });
         col1.appendChild(plansCard);
@@ -351,27 +338,29 @@
               <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
             </div>
           </div>
+          <div data-role="status" class="hidden"></div>
         `;
+        const finStatusEl = finCard.querySelector('[data-role="status"]');
         finCard.querySelector('[data-action="pre"]').addEventListener('click', async () => {
           try {
             await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: finCard.querySelector('[data-role="pre"]').value }) });
-            setStatus('Pre-financial submitted.', true);
+            setStatus(finStatusEl, 'Pre-financial submitted.', true);
             loadEndeavours(entitySelect.value);
-          } catch (err) { setStatus(err.message || 'Unable to submit', false); }
+          } catch (err) { setStatus(finStatusEl, err.message || 'Unable to submit', false); }
         });
         finCard.querySelector('[data-action="post"]').addEventListener('click', async () => {
           try {
             await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: finCard.querySelector('[data-role="post"]').value }) });
-            setStatus('Post-financial submitted.', true);
+            setStatus(finStatusEl, 'Post-financial submitted.', true);
             loadEndeavours(entitySelect.value);
-          } catch (err) { setStatus(err.message || 'Unable to submit', false); }
+          } catch (err) { setStatus(finStatusEl, err.message || 'Unable to submit', false); }
         });
         finCard.querySelector('[data-action="epilogue"]').addEventListener('click', async () => {
           try {
             await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: finCard.querySelector('[data-role="epilogue"]').value }) });
-            setStatus('Epilogue submitted.', true);
+            setStatus(finStatusEl, 'Epilogue submitted.', true);
             loadEndeavours(entitySelect.value);
-          } catch (err) { setStatus(err.message || 'Unable to submit', false); }
+          } catch (err) { setStatus(finStatusEl, err.message || 'Unable to submit', false); }
         });
         col1.appendChild(finCard);
         contentGrid.appendChild(col1);
@@ -390,6 +379,9 @@
         const volControls = document.createElement('div');
         volControls.className = 'flex gap-2';
 
+        const volStatusEl = document.createElement('div');
+        volStatusEl.className = 'hidden';
+
         if (row.phase === 'VOLUNTEER_REGISTRATION') {
           const startShortlisting = document.createElement('button');
           startShortlisting.className = 'btn btn-primary btn-sm px-3 py-1.5 text-xs';
@@ -402,7 +394,7 @@
               loadEndeavours(entitySelect.value);
             } catch (err) {
               startShortlisting.disabled = false;
-              setStatus(err.message || 'Unable to start shortlisting.', false);
+              setStatus(volStatusEl, err.message || 'Unable to start shortlisting.', false);
             }
           });
           volControls.appendChild(startShortlisting);
@@ -419,7 +411,7 @@
               loadEndeavours(entitySelect.value);
             } catch (err) {
               closeShortlisting.disabled = false;
-              setStatus(err.message || 'Unable to finalize shortlisting.', false);
+              setStatus(volStatusEl, err.message || 'Unable to finalize shortlisting.', false);
             }
           });
           volControls.appendChild(closeShortlisting);
@@ -427,15 +419,16 @@
 
         volHeader.appendChild(volControls);
         volCard.appendChild(volHeader);
+        volCard.appendChild(volStatusEl);
 
         const regContainer = document.createElement('div');
         regContainer.className = 'space-y-2 mt-3';
         const loadRegs = document.createElement('button');
         loadRegs.className = 'btn btn-ghost btn-sm text-xs w-full border border-dashed border-slate-600';
         loadRegs.textContent = 'Load Volunteer Registrations';
-        loadRegs.addEventListener('click', () => {
+        loadRegs.addEventListener('click', async () => {
           loadRegs.classList.add('hidden');
-          renderRegistrations(regContainer, row.id, row.phase)();
+          await renderRegistrations(regContainer, row.id, row.phase);
         });
         volCard.appendChild(loadRegs);
         volCard.appendChild(regContainer);
@@ -462,17 +455,19 @@
                 <option value="rejected">Reject</option>
               </select>
             </div>
+            <div data-role="status" class="hidden"></div>
             <button class="btn bg-indigo-600 hover:bg-indigo-500 text-white mt-3 w-full sm:w-auto" data-action="approve">Submit Decision</button>
           `;
+          const adminStatusEl = adminCard.querySelector('[data-role="status"]');
           adminCard.querySelector('[data-action="approve"]').addEventListener('click', async () => {
             const docType = adminCard.querySelector('[data-role="doc"]').value;
             const decision = adminCard.querySelector('[data-role="decision"]').value;
             try {
               await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
-              setStatus('Decision recorded.', true);
+              setStatus(adminStatusEl, 'Decision recorded.', true);
               loadEndeavours(entitySelect.value);
             } catch (err) {
-              setStatus(err.message || 'Unable to update approval.', false);
+              setStatus(adminStatusEl, err.message || 'Unable to update approval.', false);
             }
           });
           col2.appendChild(adminCard);
@@ -545,11 +540,11 @@
             event_end_at: createForm.event_end_at.value || null
           })
         });
-        setStatus('Endeavour created.', true);
+        setStatus(createStatus, 'Endeavour created.', true);
         createForm.reset();
         loadEndeavours(entitySelect.value);
       } catch (err) {
-        setStatus(err.message || 'Unable to create endeavour.', false);
+        setStatus(createStatus, err.message || 'Unable to create endeavour.', false);
       } finally {
         if (submitButton) {
           submitButton.disabled = false;
