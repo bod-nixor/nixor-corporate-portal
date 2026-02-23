@@ -11,24 +11,7 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
-      <nav class="space-y-1 text-sm font-medium">
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/calendar.html">Calendar</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/social.html">Social</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/endeavours.html">Volunteering</a>
-        <a class="block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400" href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
       <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
@@ -99,20 +82,22 @@
           <h2 class="text-lg font-bold tracking-tight mb-4 text-white">Add User</h2>
           <form id="user-form" class="space-y-4">
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Full Name</label>
-              <input name="full_name" required placeholder="User's full name" class="input-field" />
+              <label for="user-full_name" class="text-xs font-medium text-slate-400">Full Name</label>
+              <input id="user-full_name" name="full_name" required placeholder="User's full name" class="input-field" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Email Address</label>
-              <input name="email" type="email" required placeholder="user@nixor.edu.pk" class="input-field" />
+              <label for="user-email" class="text-xs font-medium text-slate-400">Email Address</label>
+              <input id="user-email" name="email" type="email" required placeholder="user@nixor.edu.pk"
+                class="input-field" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Temporary Password</label>
-              <input name="password" type="password" required placeholder="Generate password" class="input-field" />
+              <label for="user-password" class="text-xs font-medium text-slate-400">Temporary Password</label>
+              <input id="user-password" name="password" type="password" required placeholder="Generate password"
+                class="input-field" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Global Role</label>
-              <select name="global_role" class="input-field">
+              <label for="user-global_role" class="text-xs font-medium text-slate-400">Global Role</label>
+              <select id="user-global_role" name="global_role" class="input-field">
                 <option value="admin">Admin</option>
                 <option value="board">Board</option>
                 <option value="ceo">CEO</option>
@@ -195,6 +180,9 @@
   </div>
   <script type="module">
     import { apiFetch } from '/assets/app.js';
+    import { renderSidebar } from '/assets/sidebar.js';
+    document.getElementById('sidebar-container').outerHTML = renderSidebar('admin');
+
     const metricMissing = document.getElementById('metric-missing');
     const metricUnpaid = document.getElementById('metric-unpaid');
     const metricConsent = document.getElementById('metric-consent');
@@ -228,7 +216,10 @@
         metricUnpaid.textContent = response?.data?.unpaid ?? 0;
         metricConsent.textContent = response?.data?.consents_pending ?? 0;
       } catch (err) {
+        console.error('Failed to load summary:', err);
         metricMissing.textContent = '--';
+        metricUnpaid.textContent = '--';
+        metricConsent.textContent = '--';
       }
     };
 
@@ -293,7 +284,10 @@
           email.textContent = user.email;
           const role = document.createElement('td');
           role.className = 'py-3';
-          role.innerHTML = `<span class="${getRoleBadge(user.global_role)} capitalize">${user.global_role}</span>`;
+          const roleSpan = document.createElement('span');
+          roleSpan.className = `${getRoleBadge(user.global_role)} capitalize`;
+          roleSpan.textContent = user.global_role;
+          role.appendChild(roleSpan);
           row.appendChild(name);
           row.appendChild(email);
           row.appendChild(role);
