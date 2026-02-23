@@ -11,25 +11,7 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
-      <nav class="space-y-1 text-sm font-medium">
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/calendar.html">Calendar</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/social.html">Social</a>
-        <a class="block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400"
-          href="/endeavours.html">Volunteering</a>
-        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
-          href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
       <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
         <div>
@@ -68,6 +50,9 @@
   </div>
   <script type="module">
     import { apiFetch } from '/assets/app.js';
+    import { renderSidebar } from '/assets/sidebar.js';
+    document.getElementById('sidebar-container').outerHTML = renderSidebar('endeavours');
+
     const searchInput = document.getElementById('search-input');
     const entityFilter = document.getElementById('entity-filter');
     const grid = document.getElementById('endeavour-grid');
@@ -192,8 +177,16 @@
         renderEndeavours(response?.data || []);
       } catch (err) {
         grid.innerHTML = '';
-        emptyState.textContent = 'Failed to load endeavours. Please try again.';
+        emptyState.innerHTML = `
+        <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <h3 class="text-lg font-medium text-slate-300">Failed to load</h3>
+        <p class="text-sm text-slate-500 mt-1 max-w-sm">Failed to load endeavours. Please try again.</p>
+        `;
         emptyState.classList.remove('hidden');
+        emptyState.classList.add('flex');
       }
     };
 
