@@ -21,14 +21,17 @@ function handle_drive(string $method, array $segments): void {
 
         $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE entity_id = ? AND ((? IS NULL AND parent_id IS NULL) OR parent_id = ?) ORDER BY FIELD(item_type, "folder", "file", "link"), name');
         $stmt->execute([$entityId, $parentId, $parentId]);
+        $rows = $stmt->fetchAll();
+        $shareTargetsMap = drive_item_share_targets_for_items(array_column($rows, 'id'));
+
         $items = [];
-        foreach ($stmt->fetchAll() as $item) {
+        foreach ($rows as $item) {
             if (!drive_user_can_view_item($user, $item)) {
                 continue;
             }
-            $shares = drive_item_share_targets((int)$item['id']);
-            $item['shared_departments'] = $shares['departments'];
-            $item['shared_users'] = $shares['users'];
+            $targets = $shareTargetsMap[(int)$item['id']] ?? ['departments' => [], 'users' => []];
+            $item['shared_departments'] = $targets['departments'];
+            $item['shared_users'] = $targets['users'];
             $items[] = $item;
         }
 
@@ -131,6 +134,9 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'POST' && $action === 'upload') {
         $entityId = (int)($_POST['entity_id'] ?? 0);
+        if ($entityId <= 0) {
+            respond(['ok' => false, 'error' => 'Missing entity_id'], 400);
+        }
         drive_assert_entity_context_access($user, $entityId);
         if (!isset($_FILES['file'])) {
             respond(['ok' => false, 'error' => 'File missing'], 400);

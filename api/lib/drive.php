@@ -106,6 +106,54 @@ function drive_item_share_targets(int $itemId): array {
     ];
 }
 
+
+
+function drive_item_share_targets_for_items(array $itemIds): array {
+    $normalized = [];
+    foreach ($itemIds as $id) {
+        $id = (int)$id;
+        if ($id > 0) {
+            $normalized[] = $id;
+        }
+    }
+    $normalized = array_values(array_unique($normalized));
+    if (!$normalized) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($normalized), '?'));
+    $stmt = db()->prepare("SELECT item_id, share_type, department, user_id, user_email FROM drive_item_shares WHERE item_id IN ({$placeholders})");
+    $stmt->execute($normalized);
+
+    $map = [];
+    foreach ($normalized as $itemId) {
+        $map[$itemId] = ['departments' => [], 'users' => []];
+    }
+
+    foreach ($stmt->fetchAll() as $row) {
+        $itemId = (int)$row['item_id'];
+        if (!isset($map[$itemId])) {
+            $map[$itemId] = ['departments' => [], 'users' => []];
+        }
+        if ($row['share_type'] === 'department' && $row['department']) {
+            $map[$itemId]['departments'][] = $row['department'];
+            continue;
+        }
+        if ($row['share_type'] === 'user') {
+            $map[$itemId]['users'][] = [
+                'user_id' => $row['user_id'] ? (int)$row['user_id'] : null,
+                'email' => $row['user_email']
+            ];
+        }
+    }
+
+    foreach ($map as $itemId => $targets) {
+        $map[$itemId]['departments'] = array_values(array_unique($targets['departments']));
+    }
+
+    return $map;
+}
+
 function drive_user_is_explicitly_shared(array $user, int $itemId): bool {
     $stmt = db()->prepare('SELECT 1 FROM drive_item_shares WHERE item_id = ? AND share_type = "user" AND (user_id = ? OR user_email = ?) LIMIT 1');
     $stmt->execute([$itemId, (int)$user['id'], strtolower((string)$user['email'])]);

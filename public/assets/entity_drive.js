@@ -12,7 +12,8 @@ const state = {
   query: '',
   contextItemId: null,
   shareItemId: null,
-  loading: false
+  loading: false,
+  loadToken: null
 };
 
 const el = {
@@ -255,6 +256,8 @@ async function openInspector(item) {
 
 async function loadItems() {
   if (!state.entityId) return;
+  const token = Symbol('drive-load');
+  state.loadToken = token;
   state.loading = true;
   el.skeleton.classList.remove('hidden');
   setStatus('Loading...', 'muted');
@@ -262,20 +265,31 @@ async function loadItems() {
     const qs = new URLSearchParams({ entity_id: String(state.entityId) });
     if (state.parentId) qs.set('parent_id', String(state.parentId));
     const res = await apiFetch(`/drive/list?${qs.toString()}`);
+    if (token !== state.loadToken) {
+      return;
+    }
     state.items = res?.data || [];
     state.breadcrumbs = res?.meta?.breadcrumbs || [];
     state.selection.clear();
     renderBreadcrumbs();
     renderItems();
     await openInspector(null);
+    if (token !== state.loadToken) {
+      return;
+    }
     setStatus('Loaded', 'success');
   } catch (err) {
+    if (token !== state.loadToken) {
+      return;
+    }
     state.items = [];
     renderItems();
     setStatus(normalizeError(err), 'error');
   } finally {
-    state.loading = false;
-    el.skeleton.classList.add('hidden');
+    if (token === state.loadToken) {
+      state.loading = false;
+      el.skeleton.classList.add('hidden');
+    }
   }
 }
 
