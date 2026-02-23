@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Drive</title>
-  
+
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
     <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden lg:block">
@@ -41,15 +43,17 @@
     <main class="flex-1 p-6 md:p-8">
       <header class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
         <div class="flex items-start gap-4">
-          <button id="open-nav" class="lg:hidden bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">☰</button>
+          <button id="open-nav"
+            class="lg:hidden bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">☰</button>
           <div>
-          <h1 class="text-2xl font-semibold">Entity Drive</h1>
-          <p class="text-sm text-slate-400">Automated templates, synced permissions, and centralized folders.</p>
+            <h1 class="text-2xl font-semibold">Entity Drive</h1>
+            <p class="text-sm text-slate-400">Automated templates, synced permissions, and centralized folders.</p>
           </div>
         </div>
         <div class="flex flex-wrap gap-3">
           <select id="drive-entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
-          <button id="new-folder" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New Folder</button>
+          <button id="new-folder" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New
+            Folder</button>
           <button id="upload-file" class="bg-indigo-500 rounded-xl px-4 py-2 text-sm">Upload File</button>
         </div>
       </header>
@@ -86,25 +90,31 @@
             <span class="text-xs text-slate-500">Selected</span>
           </div>
           <div class="mt-4">
-            <div class="h-36 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-xs text-slate-500">Preview</div>
+            <div
+              class="h-36 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-xs text-slate-500">
+              Preview</div>
             <h3 id="inspector-name" class="text-lg font-semibold mt-4">Select a file</h3>
             <p id="inspector-meta" class="text-xs text-slate-500"></p>
-            <a id="inspector-download" class="hidden mt-4 inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl" href="#">Download</a>
+            <a id="inspector-download" class="hidden mt-4 inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl"
+              href="#">Download</a>
           </div>
         </aside>
       </section>
     </main>
   </div>
-  <div id="folder-modal" class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6 z-50">
+  <div id="folder-modal" role="dialog" aria-modal="true" aria-labelledby="folder-modal-title"
+    class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6 z-50">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">New Folder</h3>
-        <button id="folder-close" class="text-slate-400 hover:text-slate-200">✕</button>
+        <h3 id="folder-modal-title" class="text-lg font-semibold">New Folder</h3>
+        <button id="folder-close" aria-label="Close dialog" class="text-slate-400 hover:text-slate-200">✕</button>
       </div>
       <form id="folder-form" class="mt-4 space-y-3 text-sm">
-        <input name="folder_name" required placeholder="Folder name" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+        <input name="folder_name" required placeholder="Folder name"
+          class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
         <div id="folder-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-        <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium">Create Folder</button>
+        <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium">Create
+          Folder</button>
       </form>
     </div>
   </div>
@@ -216,10 +226,8 @@
           option.textContent = entity.name;
           entitySelect.appendChild(option);
         });
-        if (entities.length) {
-          entitySelect.value = entities[0].id;
-          loadDrive();
-        }
+        entitySelect.value = entities[0].id;
+        loadDrive();
       })
       .catch(() => {
         window.location.href = '/login.html';
@@ -229,31 +237,45 @@
     const folderModal = document.getElementById('folder-modal');
     const folderForm = document.getElementById('folder-form');
     const folderStatus = document.getElementById('folder-status');
+    let previouslyFocusedFolderElement = null;
     document.getElementById('new-folder').addEventListener('click', () => {
+      previouslyFocusedFolderElement = document.activeElement;
       folderStatus.classList.add('hidden');
       folderModal.classList.remove('hidden');
+      setTimeout(() => folderForm.querySelector('input')?.focus(), 50);
     });
     document.getElementById('folder-close').addEventListener('click', () => {
       folderModal.classList.add('hidden');
+      if (previouslyFocusedFolderElement) previouslyFocusedFolderElement.focus();
     });
     folderForm.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (folderForm.dataset.submitting) return;
+      folderForm.dataset.submitting = 'true';
+      const submitBtn = folderForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
       const name = folderForm.folder_name.value.trim();
       if (!name) {
         folderStatus.textContent = 'Folder name is required.';
         folderStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
         folderStatus.classList.remove('hidden');
+        folderForm.dataset.submitting = '';
+        if (submitBtn) submitBtn.disabled = false;
         return;
       }
       try {
         await apiFetch('/drive/create_folder', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, name }) });
         folderForm.reset();
         folderModal.classList.add('hidden');
+        if (previouslyFocusedFolderElement) previouslyFocusedFolderElement.focus();
         loadDrive();
       } catch (err) {
         folderStatus.textContent = err.message || 'Failed to create folder';
         folderStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
         folderStatus.classList.remove('hidden');
+      } finally {
+        folderForm.dataset.submitting = '';
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
     document.getElementById('upload-file').addEventListener('click', () => {
@@ -301,4 +323,5 @@
     });
   </script>
 </body>
+
 </html>

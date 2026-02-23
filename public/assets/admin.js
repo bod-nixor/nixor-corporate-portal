@@ -66,7 +66,14 @@ const loadEntities = async () => {
         });
     } catch (err) {
         console.error('Failed to load entities:', err);
-        entitiesList.innerHTML = '<tr><td colspan="2" class="py-3 text-red-400 text-center border-t border-slate-800">Failed to load entities</td></tr>';
+        entitiesList.innerHTML = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 2;
+        td.className = 'py-3 text-red-400 text-center border-t border-slate-800';
+        td.textContent = 'Failed to load entities';
+        tr.appendChild(td);
+        entitiesList.appendChild(tr);
     }
 };
 

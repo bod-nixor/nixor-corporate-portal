@@ -10,6 +10,7 @@ const listEl = document.getElementById('endeavour-list');
 const emptyEl = document.getElementById('endeavour-empty');
 let driveFiles = [];
 let currentUser = null;
+let endeavoursRequestId = 0;
 
 const setStatus = (el, message, ok) => {
     if (el._hideTimer) clearTimeout(el._hideTimer);
@@ -17,7 +18,8 @@ const setStatus = (el, message, ok) => {
     el.textContent = message;
 
     // Add status styles but keep base structure
-    el.className = `${el._originalClass.replace('hidden', '')} text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+    const baseClasses = el._originalClass.split(/\s+/).filter(c => c !== 'hidden').join(' ');
+    el.className = `${baseClasses} text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
 
     if (el.id === 'create-status') {
         el.classList.add('md:col-span-2', 'mt-4');
@@ -115,38 +117,43 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                 }
             }
             if (phase === 'ON_DAY') {
-                const present = document.createElement('button');
-                present.className = 'btn btn-secondary text-xs py-1 px-3 bg-indigo-500/10 text-indigo-400 border-none hover:bg-indigo-500/20';
-                present.textContent = 'Present';
-                present.addEventListener('click', async () => {
-                    present.disabled = true;
-                    try {
-                        await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
-                        await renderRegistrations(container, endeavourId, phase);
-                    } catch (err) {
-                        alert(err?.message || 'Unable to mark attendance.');
-                        console.error(err);
-                    } finally {
-                        present.disabled = false;
-                    }
-                });
-                const paid = document.createElement('button');
-                paid.className = 'btn btn-secondary text-xs py-1 px-3 bg-amber-500/10 text-amber-400 border-none hover:bg-amber-500/20';
-                paid.textContent = 'Paid Fee';
-                paid.addEventListener('click', async () => {
-                    paid.disabled = true;
-                    try {
-                        await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                        await renderRegistrations(container, endeavourId, phase);
-                    } catch (err) {
-                        alert(err?.message || 'Unable to mark transport fee.');
-                        console.error(err);
-                    } finally {
-                        paid.disabled = false;
-                    }
-                });
-                actions.appendChild(present);
-                actions.appendChild(paid);
+                if (reg.attendance_status !== 'present') {
+                    const present = document.createElement('button');
+                    present.className = 'btn btn-secondary text-xs py-1 px-3 bg-indigo-500/10 text-indigo-400 border-none hover:bg-indigo-500/20';
+                    present.textContent = 'Present';
+                    present.addEventListener('click', async () => {
+                        present.disabled = true;
+                        try {
+                            await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
+                            await renderRegistrations(container, endeavourId, phase);
+                        } catch (err) {
+                            alert(err?.message || 'Unable to mark attendance.');
+                            console.error(err);
+                        } finally {
+                            present.disabled = false;
+                        }
+                    });
+                    actions.appendChild(present);
+                }
+
+                if (reg.transport_fee_status !== 'paid' && !reg.has_paid_transport) {
+                    const paid = document.createElement('button');
+                    paid.className = 'btn btn-secondary text-xs py-1 px-3 bg-amber-500/10 text-amber-400 border-none hover:bg-amber-500/20';
+                    paid.textContent = 'Paid Fee';
+                    paid.addEventListener('click', async () => {
+                        paid.disabled = true;
+                        try {
+                            await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+                            await renderRegistrations(container, endeavourId, phase);
+                        } catch (err) {
+                            alert(err?.message || 'Unable to mark transport fee.');
+                            console.error(err);
+                        } finally {
+                            paid.disabled = false;
+                        }
+                    });
+                    actions.appendChild(paid);
+                }
             }
             row.appendChild(actions);
             container.appendChild(row);
@@ -154,6 +161,227 @@ const renderRegistrations = async (container, endeavourId, phase) => {
     } catch (err) {
         container.innerHTML = '<p class=\"text-xs text-red-300\">Failed to load registrations.</p>';
     }
+};
+
+const buildPlansCard = (row) => {
+    const plansCard = document.createElement('div');
+    plansCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+    plansCard.innerHTML = `
+      <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Planning</h4>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex-1 space-y-1">
+          <label for="ops-select-${row.id}" class="text-xs text-slate-400">Operational Plan</label>
+          <select id="ops-select-${row.id}" class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id)}</select>
+        </div>
+        <div class="flex-1 space-y-1">
+          <label for="budget-select-${row.id}" class="text-xs text-slate-400">Budget Plan</label>
+          <select id="budget-select-${row.id}" class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
+        </div>
+      </div>
+      <div data-role="status" class="hidden"></div>
+      <button class="btn btn-primary mt-4 w-full sm:w-auto" data-action="attach-plans">Save Plans</button>
+    `;
+    const plansStatusEl = plansCard.querySelector('[data-role="status"]');
+    const attachBtn = plansCard.querySelector('[data-action="attach-plans"]');
+    attachBtn.addEventListener('click', async () => {
+        if (attachBtn.disabled) return;
+        attachBtn.disabled = true;
+        const ops = plansCard.querySelector('[data-role="ops"]').value;
+        const budget = plansCard.querySelector('[data-role="budget"]').value;
+        try {
+            await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
+            setStatus(plansStatusEl, 'Plans attached successfully.', true);
+            loadEndeavours(entitySelect.value);
+        } catch (err) {
+            setStatus(plansStatusEl, err.message || 'Unable to attach plans.', false);
+            attachBtn.disabled = false;
+        }
+    });
+    return plansCard;
+};
+
+const buildFinCard = (row) => {
+    const finCard = document.createElement('div');
+    finCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+    finCard.innerHTML = `
+      <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Financials & Epilogue</h4>
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row gap-2 items-end">
+          <div class="flex-1 w-full space-y-1">
+             <label for="pre-select-${row.id}" class="text-xs text-slate-400">Pre-Financial</label>
+             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id)}</select>
+          </div>
+          <button class="btn btn-secondary w-full sm:w-auto" data-action="pre">Submit Pre-Fin</button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 items-end">
+          <div class="flex-1 w-full space-y-1">
+             <label for="post-select-${row.id}" class="text-xs text-slate-400">Post-Financial</label>
+             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id)}</select>
+          </div>
+          <button class="btn btn-secondary w-full sm:w-auto" data-action="post">Submit Post-Fin</button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 items-end">
+          <div class="flex-1 w-full space-y-1">
+             <label for="epi-select-${row.id}" class="text-xs text-slate-400">Epilogue</label>
+             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id)}</select>
+          </div>
+          <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
+        </div>
+      </div>
+      <div data-role="status" class="hidden"></div>
+    `;
+    const finStatusEl = finCard.querySelector('[data-role="status"]');
+    const preBtn = finCard.querySelector('[data-action="pre"]');
+    const postBtn = finCard.querySelector('[data-action="post"]');
+    const epiBtn = finCard.querySelector('[data-action="epilogue"]');
+
+    preBtn.addEventListener('click', async () => {
+        if (preBtn.disabled) return;
+        preBtn.disabled = true;
+        try {
+            await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: finCard.querySelector('[data-role="pre"]').value }) });
+            setStatus(finStatusEl, 'Pre-financial submitted.', true);
+            loadEndeavours(entitySelect.value);
+        } catch (err) {
+            setStatus(finStatusEl, err?.message || 'Unable to submit', false);
+            preBtn.disabled = false;
+        }
+    });
+    postBtn.addEventListener('click', async () => {
+        if (postBtn.disabled) return;
+        postBtn.disabled = true;
+        try {
+            await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: finCard.querySelector('[data-role="post"]').value }) });
+            setStatus(finStatusEl, 'Post-financial submitted.', true);
+            loadEndeavours(entitySelect.value);
+        } catch (err) {
+            setStatus(finStatusEl, err?.message || 'Unable to submit', false);
+            postBtn.disabled = false;
+        }
+    });
+    epiBtn.addEventListener('click', async () => {
+        if (epiBtn.disabled) return;
+        epiBtn.disabled = true;
+        try {
+            await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: finCard.querySelector('[data-role="epilogue"]').value }) });
+            setStatus(finStatusEl, 'Epilogue submitted.', true);
+            loadEndeavours(entitySelect.value);
+        } catch (err) {
+            setStatus(finStatusEl, err?.message || 'Unable to submit', false);
+            epiBtn.disabled = false;
+        }
+    });
+    return finCard;
+};
+
+const buildVolCard = (row, currentUser) => {
+    const volCard = document.createElement('div');
+    volCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+
+    const volHeader = document.createElement('div');
+    volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-4';
+    volHeader.innerHTML = `<h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Volunteer Management</h4>`;
+
+    const volControls = document.createElement('div');
+    volControls.className = 'flex gap-2';
+
+    const volStatusEl = document.createElement('div');
+    volStatusEl.className = 'hidden';
+
+    if (row.phase === 'VOLUNTEER_REGISTRATION') {
+        const startShortlisting = document.createElement('button');
+        startShortlisting.className = 'btn btn-primary px-3 py-1.5 text-xs';
+        startShortlisting.textContent = 'Start Shortlisting';
+        startShortlisting.addEventListener('click', async () => {
+            if (startShortlisting.disabled) return;
+            startShortlisting.disabled = true;
+            try {
+                await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+                loadEndeavours(entitySelect.value);
+            } catch (err) {
+                startShortlisting.disabled = false;
+                setStatus(volStatusEl, err.message || 'Unable to start shortlisting.', false);
+            }
+        });
+        volControls.appendChild(startShortlisting);
+    }
+    if (row.phase === 'VOLUNTEER_SHORTLISTING') {
+        const closeShortlisting = document.createElement('button');
+        closeShortlisting.className = 'btn btn-primary bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs border-none';
+        closeShortlisting.textContent = 'Close Shortlisting / Finalize';
+        closeShortlisting.addEventListener('click', async () => {
+            if (closeShortlisting.disabled) return;
+            closeShortlisting.disabled = true;
+            try {
+                await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+                loadEndeavours(entitySelect.value);
+            } catch (err) {
+                closeShortlisting.disabled = false;
+                setStatus(volStatusEl, err.message || 'Unable to finalize shortlisting.', false);
+            }
+        });
+        volControls.appendChild(closeShortlisting);
+    }
+
+    volHeader.appendChild(volControls);
+    volCard.appendChild(volHeader);
+    volCard.appendChild(volStatusEl);
+
+    const regContainer = document.createElement('div');
+    regContainer.className = 'space-y-2 mt-3';
+    const loadRegs = document.createElement('button');
+    loadRegs.className = 'btn btn-ghost btn-sm text-xs w-full border border-dashed border-slate-600';
+    loadRegs.textContent = 'Load Volunteer Registrations';
+    loadRegs.addEventListener('click', async () => {
+        loadRegs.classList.add('hidden');
+        await renderRegistrations(regContainer, row.id, row.phase);
+    });
+    volCard.appendChild(loadRegs);
+    volCard.appendChild(regContainer);
+    return volCard;
+};
+
+const buildAdminCard = (row) => {
+    const adminCard = document.createElement('div');
+    adminCard.className = 'p-5 bg-indigo-950/20 border border-indigo-500/20 rounded-xl';
+    adminCard.innerHTML = `
+      <h4 class="text-sm font-semibold text-indigo-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+        Admin Approvals
+      </h4>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <select id="admin-doc-${row.id}" class="input-field py-2 text-sm flex-1" data-role="doc" aria-label="Select Document">
+          <option value="operational_plan">Operational Plan</option>
+          <option value="budget_plan">Budget Plan</option>
+          <option value="pre_financial">Pre-Financial</option>
+          <option value="post_financial">Post-Financial</option>
+          <option value="epilogue">Epilogue</option>
+        </select>
+        <select id="admin-dec-${row.id}" class="input-field py-2 text-sm flex-1" data-role="decision" aria-label="Select Decision">
+          <option value="approved">Approve</option>
+          <option value="rejected">Reject</option>
+        </select>
+      </div>
+      <div data-role="status" class="hidden"></div>
+      <button class="btn bg-indigo-600 hover:bg-indigo-500 text-white mt-3 w-full sm:w-auto" data-action="approve">Submit Decision</button>
+    `;
+    const adminStatusEl = adminCard.querySelector('[data-role="status"]');
+    const approveBtn = adminCard.querySelector('[data-action="approve"]');
+    approveBtn.addEventListener('click', async () => {
+        if (approveBtn.disabled) return;
+        approveBtn.disabled = true;
+        const docType = adminCard.querySelector('[data-role="doc"]').value;
+        const decision = adminCard.querySelector('[data-role="decision"]').value;
+        try {
+            await apiFetch(\`/endeavours/\${row.id}/doc_approvals\`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
+            setStatus(adminStatusEl, 'Decision recorded.', true);
+            loadEndeavours(entitySelect.value);
+        } catch (err) {
+            setStatus(adminStatusEl, err.message || 'Unable to update approval.', false);
+            approveBtn.disabled = false;
+        }
+    });
+    return adminCard;
 };
 
 const renderEndeavours = (rows) => {
@@ -226,227 +454,17 @@ const renderEndeavours = (rows) => {
         // --- Column 1: Core Docs ---
         const col1 = document.createElement('div');
         col1.className = 'space-y-6';
-
-        // Plans
-        const plansCard = document.createElement('div');
-        plansCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
-        plansCard.innerHTML = `
-      <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Planning</h4>
-      <div class="flex flex-col sm:flex-row gap-3">
-        <div class="flex-1 space-y-1">
-          <label for="ops-select-${row.id}" class="text-xs text-slate-400">Operational Plan</label>
-          <select id="ops-select-${row.id}" class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id)}</select>
-        </div>
-        <div class="flex-1 space-y-1">
-          <label for="budget-select-${row.id}" class="text-xs text-slate-400">Budget Plan</label>
-          <select id="budget-select-${row.id}" class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
-        </div>
-      </div>
-      <div data-role="status" class="hidden"></div>
-      <button class="btn btn-primary mt-4 w-full sm:w-auto" data-action="attach-plans">Save Plans</button>
-    `;
-        const plansStatusEl = plansCard.querySelector('[data-role="status"]');
-        const attachBtn = plansCard.querySelector('[data-action="attach-plans"]');
-        attachBtn.addEventListener('click', async () => {
-            if (attachBtn.disabled) return;
-            attachBtn.disabled = true;
-            const ops = plansCard.querySelector('[data-role="ops"]').value;
-            const budget = plansCard.querySelector('[data-role="budget"]').value;
-            try {
-                await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
-                setStatus(plansStatusEl, 'Plans attached successfully.', true);
-                loadEndeavours(entitySelect.value);
-            } catch (err) {
-                setStatus(plansStatusEl, err.message || 'Unable to attach plans.', false);
-                attachBtn.disabled = false;
-            }
-        });
-        col1.appendChild(plansCard);
-
-        // Financials
-        const finCard = document.createElement('div');
-        finCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
-        finCard.innerHTML = `
-      <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Financials & Epilogue</h4>
-      <div class="space-y-4">
-        <div class="flex flex-col sm:flex-row gap-2 items-end">
-          <div class="flex-1 w-full space-y-1">
-             <label for="pre-select-${row.id}" class="text-xs text-slate-400">Pre-Financial</label>
-             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id)}</select>
-          </div>
-          <button class="btn btn-secondary w-full sm:w-auto" data-action="pre">Submit Pre-Fin</button>
-        </div>
-        <div class="flex flex-col sm:flex-row gap-2 items-end">
-          <div class="flex-1 w-full space-y-1">
-             <label for="post-select-${row.id}" class="text-xs text-slate-400">Post-Financial</label>
-             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id)}</select>
-          </div>
-          <button class="btn btn-secondary w-full sm:w-auto" data-action="post">Submit Post-Fin</button>
-        </div>
-        <div class="flex flex-col sm:flex-row gap-2 items-end">
-          <div class="flex-1 w-full space-y-1">
-             <label for="epi-select-${row.id}" class="text-xs text-slate-400">Epilogue</label>
-             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id)}</select>
-          </div>
-          <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
-        </div>
-      </div>
-      <div data-role="status" class="hidden"></div>
-    `;
-        const finStatusEl = finCard.querySelector('[data-role="status"]');
-        const preBtn = finCard.querySelector('[data-action="pre"]');
-        const postBtn = finCard.querySelector('[data-action="post"]');
-        const epiBtn = finCard.querySelector('[data-action="epilogue"]');
-
-        preBtn.addEventListener('click', async () => {
-            if (preBtn.disabled) return;
-            preBtn.disabled = true;
-            try {
-                await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: finCard.querySelector('[data-role="pre"]').value }) });
-                setStatus(finStatusEl, 'Pre-financial submitted.', true);
-                loadEndeavours(entitySelect.value);
-            } catch (err) {
-                setStatus(finStatusEl, err?.message || 'Unable to submit', false);
-                preBtn.disabled = false;
-            }
-        });
-        postBtn.addEventListener('click', async () => {
-            if (postBtn.disabled) return;
-            postBtn.disabled = true;
-            try {
-                await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: finCard.querySelector('[data-role="post"]').value }) });
-                setStatus(finStatusEl, 'Post-financial submitted.', true);
-                loadEndeavours(entitySelect.value);
-            } catch (err) {
-                setStatus(finStatusEl, err?.message || 'Unable to submit', false);
-                postBtn.disabled = false;
-            }
-        });
-        epiBtn.addEventListener('click', async () => {
-            if (epiBtn.disabled) return;
-            epiBtn.disabled = true;
-            try {
-                await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: finCard.querySelector('[data-role="epilogue"]').value }) });
-                setStatus(finStatusEl, 'Epilogue submitted.', true);
-                loadEndeavours(entitySelect.value);
-            } catch (err) {
-                setStatus(finStatusEl, err?.message || 'Unable to submit', false);
-                epiBtn.disabled = false;
-            }
-        });
-        col1.appendChild(finCard);
+        col1.appendChild(buildPlansCard(row));
+        col1.appendChild(buildFinCard(row));
         contentGrid.appendChild(col1);
 
         // --- Column 2: Volunteering & Admin ---
         const col2 = document.createElement('div');
         col2.className = 'space-y-6';
-
-        const volCard = document.createElement('div');
-        volCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
-
-        const volHeader = document.createElement('div');
-        volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-4';
-        volHeader.innerHTML = `<h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Volunteer Management</h4>`;
-
-        const volControls = document.createElement('div');
-        volControls.className = 'flex gap-2';
-
-        const volStatusEl = document.createElement('div');
-        volStatusEl.className = 'hidden';
-
-        if (row.phase === 'VOLUNTEER_REGISTRATION') {
-            const startShortlisting = document.createElement('button');
-            startShortlisting.className = 'btn btn-primary px-3 py-1.5 text-xs';
-            startShortlisting.textContent = 'Start Shortlisting';
-            startShortlisting.addEventListener('click', async () => {
-                if (startShortlisting.disabled) return;
-                startShortlisting.disabled = true;
-                try {
-                    await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
-                    loadEndeavours(entitySelect.value);
-                } catch (err) {
-                    startShortlisting.disabled = false;
-                    setStatus(volStatusEl, err.message || 'Unable to start shortlisting.', false);
-                }
-            });
-            volControls.appendChild(startShortlisting);
-        }
-        if (row.phase === 'VOLUNTEER_SHORTLISTING') {
-            const closeShortlisting = document.createElement('button');
-            closeShortlisting.className = 'btn btn-primary bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs border-none';
-            closeShortlisting.textContent = 'Close Shortlisting / Finalize';
-            closeShortlisting.addEventListener('click', async () => {
-                if (closeShortlisting.disabled) return;
-                closeShortlisting.disabled = true;
-                try {
-                    await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
-                    loadEndeavours(entitySelect.value);
-                } catch (err) {
-                    closeShortlisting.disabled = false;
-                    setStatus(volStatusEl, err.message || 'Unable to finalize shortlisting.', false);
-                }
-            });
-            volControls.appendChild(closeShortlisting);
-        }
-
-        volHeader.appendChild(volControls);
-        volCard.appendChild(volHeader);
-        volCard.appendChild(volStatusEl);
-
-        const regContainer = document.createElement('div');
-        regContainer.className = 'space-y-2 mt-3';
-        const loadRegs = document.createElement('button');
-        loadRegs.className = 'btn btn-ghost btn-sm text-xs w-full border border-dashed border-slate-600';
-        loadRegs.textContent = 'Load Volunteer Registrations';
-        loadRegs.addEventListener('click', async () => {
-            loadRegs.classList.add('hidden');
-            await renderRegistrations(regContainer, row.id, row.phase);
-        });
-        volCard.appendChild(loadRegs);
-        volCard.appendChild(regContainer);
-        col2.appendChild(volCard);
+        col2.appendChild(buildVolCard(row, currentUser));
 
         if (['board', 'student_affairs', 'admin'].includes(currentUser?.global_role)) {
-            const adminCard = document.createElement('div');
-            adminCard.className = 'p-5 bg-indigo-950/20 border border-indigo-500/20 rounded-xl';
-            adminCard.innerHTML = `
-        <h4 class="text-sm font-semibold text-indigo-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-          Admin Approvals
-        </h4>
-        <div class="flex flex-col sm:flex-row gap-2">
-          <select id="admin-doc-${row.id}" class="input-field py-2 text-sm flex-1" data-role="doc" aria-label="Select Document">
-            <option value="operational_plan">Operational Plan</option>
-            <option value="budget_plan">Budget Plan</option>
-            <option value="pre_financial">Pre-Financial</option>
-            <option value="post_financial">Post-Financial</option>
-            <option value="epilogue">Epilogue</option>
-          </select>
-          <select id="admin-dec-${row.id}" class="input-field py-2 text-sm flex-1" data-role="decision" aria-label="Select Decision">
-            <option value="approved">Approve</option>
-            <option value="rejected">Reject</option>
-          </select>
-        </div>
-        <div data-role="status" class="hidden"></div>
-        <button class="btn bg-indigo-600 hover:bg-indigo-500 text-white mt-3 w-full sm:w-auto" data-action="approve">Submit Decision</button>
-      `;
-            const adminStatusEl = adminCard.querySelector('[data-role="status"]');
-            const approveBtn = adminCard.querySelector('[data-action="approve"]');
-            approveBtn.addEventListener('click', async () => {
-                if (approveBtn.disabled) return;
-                approveBtn.disabled = true;
-                const docType = adminCard.querySelector('[data-role="doc"]').value;
-                const decision = adminCard.querySelector('[data-role="decision"]').value;
-                try {
-                    await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
-                    setStatus(adminStatusEl, 'Decision recorded.', true);
-                    loadEndeavours(entitySelect.value);
-                } catch (err) {
-                    setStatus(adminStatusEl, err.message || 'Unable to update approval.', false);
-                    approveBtn.disabled = false;
-                }
-            });
-            col2.appendChild(adminCard);
+            col2.appendChild(buildAdminCard(row));
         }
 
         contentGrid.appendChild(col2);
@@ -459,11 +477,15 @@ const loadEndeavours = async (entityId) => {
     if (!entityId) {
         return;
     }
+    const reqId = ++endeavoursRequestId;
     await loadDriveFiles(entityId);
+    if (reqId !== endeavoursRequestId) return;
     try {
-        const response = await apiFetch(`/endeavours?entity_id=${entityId}`);
+        const response = await apiFetch(`/ endeavours ? entity_id = ${ entityId }`);
+        if (reqId !== endeavoursRequestId) return;
         renderEndeavours(response?.data || []);
     } catch (err) {
+        if (reqId !== endeavoursRequestId) return;
         listEl.innerHTML = '';
         emptyEl.textContent = 'Failed to load endeavours.';
         emptyEl.classList.remove('hidden');
@@ -495,9 +517,13 @@ apiFetch('/auth/me')
         }
     })
     .catch(() => {
+        entitySelect.innerHTML = '';
         const option = document.createElement('option');
         option.textContent = 'No entities';
+        option.disabled = true;
+        option.selected = true;
         entitySelect.appendChild(option);
+        entitySelect.disabled = true;
     });
 
 entitySelect.addEventListener('change', () => loadEndeavours(entitySelect.value));

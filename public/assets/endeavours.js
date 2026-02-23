@@ -164,6 +164,11 @@ const loadEndeavours = async () => {
     const params = new URLSearchParams();
     if (entityFilter.value) params.set('entity_id', entityFilter.value);
     if (searchInput.value) params.set('q', searchInput.value);
+
+    grid.innerHTML = '<div class="col-span-1 md:col-span-2 xl:col-span-3 text-center py-10"><div class="skeleton w-10 h-10 mx-auto rounded-full mb-4"></div><p class="text-sm text-slate-500">Loading opportunities...</p></div>';
+    emptyState.classList.add('hidden');
+    emptyState.classList.remove('flex');
+
     try {
         const response = await apiFetch(`/endeavours/volunteering?${params.toString()}`);
         emptyState.innerHTML = initialEmptyState;

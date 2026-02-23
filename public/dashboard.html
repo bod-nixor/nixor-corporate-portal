@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Dashboard</title>
-  
+
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
@@ -19,6 +19,7 @@
           <p class="text-slate-400 text-sm mt-1">High-level pulse on docs, meetings, deadlines, and announcements.</p>
         </div>
         <div class="flex flex-col md:flex-row gap-3">
+          <label for="entity-select" class="sr-only">Select entity</label>
           <select id="entity-select" class="input-field max-w-xs"></select>
           <button id="announcement-button" class="btn btn-primary shadow-sm disabled:opacity-50">Create
             Announcement</button>
@@ -60,7 +61,7 @@
     <div class="card w-full max-w-lg shadow-2xl animate-fade-in border-slate-700">
       <div class="flex items-center justify-between mb-6">
         <h3 id="announcement-heading" class="text-lg font-semibold tracking-tight">New Announcement</h3>
-        <button id="announcement-close"
+        <button id="announcement-close" aria-label="Close dialog"
           class="text-slate-400 hover:text-white transition-colors p-1 rounded-md hover:bg-slate-800">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
