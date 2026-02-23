@@ -139,7 +139,7 @@ const loadDashboard = async (entityId) => {
     announcementsList.innerHTML = '';
     announcementsEmpty.classList.add('hidden');
     try {
-        const response = await apiFetch(`/dashboard?entity_id=${entityId}`);
+        const response = await apiFetch(`/dashboard?entity_id=${encodeURIComponent(entityId)}`);
         const data = response?.data || {};
         docProgress.textContent = `${data.doc_progress || 0}%`;
         docSummary.textContent = `Tracking ${data.total_endeavours || 0} endeavours.`;
