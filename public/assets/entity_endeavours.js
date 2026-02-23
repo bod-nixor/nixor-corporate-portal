@@ -8,7 +8,6 @@ const createForm = document.getElementById('create-form');
 const createStatus = document.getElementById('create-status');
 const listEl = document.getElementById('endeavour-list');
 const emptyEl = document.getElementById('endeavour-empty');
-let driveFiles = [];
 let currentUser = null;
 let endeavoursRequestId = 0;
 
@@ -33,10 +32,10 @@ const setStatus = (el, message, ok) => {
 
 const loadDriveFiles = async (entityId) => {
     try {
-        const response = await apiFetch(`/drive/list?entity_id=${entityId}`);
-        driveFiles = (response?.data || []).filter((item) => item.item_type === 'file');
+        const response = await apiFetch(`/drive/list?entity_id=${encodeURIComponent(entityId)}`);
+        return (response?.data || []).filter((item) => item.item_type === 'file');
     } catch (err) {
-        driveFiles = [];
+        return [];
     }
 };
 
@@ -49,7 +48,7 @@ const escapeHtml = (value) => {
         .replace(/'/g, '&#39;');
 };
 
-const fileOptions = (selectedId) => {
+const fileOptions = (selectedId, driveFiles) => {
     const options = ['<option value=\"\">Select file</option>'];
     driveFiles.forEach((file) => {
         const selected = selectedId && Number(selectedId) === Number(file.id) ? 'selected' : '';
@@ -163,7 +162,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
     }
 };
 
-const buildPlansCard = (row) => {
+const buildPlansCard = (row, driveFiles) => {
     const plansCard = document.createElement('div');
     plansCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
     plansCard.innerHTML = `
@@ -171,11 +170,11 @@ const buildPlansCard = (row) => {
       <div class="flex flex-col sm:flex-row gap-3">
         <div class="flex-1 space-y-1">
           <label for="ops-select-${row.id}" class="text-xs text-slate-400">Operational Plan</label>
-          <select id="ops-select-${row.id}" class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id)}</select>
+          <select id="ops-select-${row.id}" class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id, driveFiles)}</select>
         </div>
         <div class="flex-1 space-y-1">
           <label for="budget-select-${row.id}" class="text-xs text-slate-400">Budget Plan</label>
-          <select id="budget-select-${row.id}" class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
+          <select id="budget-select-${row.id}" class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id, driveFiles)}</select>
         </div>
       </div>
       <div data-role="status" class="hidden"></div>
@@ -200,7 +199,7 @@ const buildPlansCard = (row) => {
     return plansCard;
 };
 
-const buildFinCard = (row) => {
+const buildFinCard = (row, driveFiles) => {
     const finCard = document.createElement('div');
     finCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
     finCard.innerHTML = `
@@ -209,21 +208,21 @@ const buildFinCard = (row) => {
         <div class="flex flex-col sm:flex-row gap-2 items-end">
           <div class="flex-1 w-full space-y-1">
              <label for="pre-select-${row.id}" class="text-xs text-slate-400">Pre-Financial</label>
-             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id)}</select>
+             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id, driveFiles)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto" data-action="pre">Submit Pre-Fin</button>
         </div>
         <div class="flex flex-col sm:flex-row gap-2 items-end">
           <div class="flex-1 w-full space-y-1">
              <label for="post-select-${row.id}" class="text-xs text-slate-400">Post-Financial</label>
-             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id)}</select>
+             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id, driveFiles)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto" data-action="post">Submit Post-Fin</button>
         </div>
         <div class="flex flex-col sm:flex-row gap-2 items-end">
           <div class="flex-1 w-full space-y-1">
              <label for="epi-select-${row.id}" class="text-xs text-slate-400">Epilogue</label>
-             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id)}</select>
+             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id, driveFiles)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
         </div>
@@ -384,7 +383,7 @@ const buildAdminCard = (row) => {
     return adminCard;
 };
 
-const renderEndeavours = (rows) => {
+const renderEndeavours = (rows, driveFiles) => {
     listEl.innerHTML = '';
     if (!rows.length) {
         emptyEl.classList.remove('hidden');
@@ -454,8 +453,8 @@ const renderEndeavours = (rows) => {
         // --- Column 1: Core Docs ---
         const col1 = document.createElement('div');
         col1.className = 'space-y-6';
-        col1.appendChild(buildPlansCard(row));
-        col1.appendChild(buildFinCard(row));
+        col1.appendChild(buildPlansCard(row, driveFiles));
+        col1.appendChild(buildFinCard(row, driveFiles));
         contentGrid.appendChild(col1);
 
         // --- Column 2: Volunteering & Admin ---
@@ -478,12 +477,14 @@ const loadEndeavours = async (entityId) => {
         return;
     }
     const reqId = ++endeavoursRequestId;
-    await loadDriveFiles(entityId);
-    if (reqId !== endeavoursRequestId) return;
+    const driveFilesPromise = loadDriveFiles(entityId);
+    const endeavoursPromise = apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
+
     try {
         const response = await apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
         if (reqId !== endeavoursRequestId) return;
-        renderEndeavours(response?.data || []);
+
+        renderEndeavours(response?.data || [], driveFilesForRequest);
     } catch (err) {
         if (reqId !== endeavoursRequestId) return;
         listEl.innerHTML = '';
