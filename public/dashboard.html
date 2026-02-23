@@ -1,273 +1,89 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
-          <h1 class="text-2xl font-semibold">Entity Dashboard</h1>
-          <p class="text-slate-400">High-level pulse on docs, meetings, deadlines, and announcements.</p>
+          <h1 class="text-2xl font-bold tracking-tight">Entity Dashboard</h1>
+          <p class="text-slate-400 text-sm mt-1">High-level pulse on docs, meetings, deadlines, and announcements.</p>
         </div>
         <div class="flex flex-col md:flex-row gap-3">
-          <select id="entity-select" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
-          <button id="announcement-button" class="bg-indigo-500 px-4 py-2 rounded-xl font-medium">Create Announcement</button>
+          <label for="entity-select" class="sr-only">Select entity</label>
+          <select id="entity-select" class="input-field max-w-xs"></select>
+          <button id="announcement-button" class="btn btn-primary shadow-sm disabled:opacity-50">Create
+            Announcement</button>
         </div>
       </header>
-      <section class="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-8">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Documentation Progress</h2>
-          <p id="doc-progress" class="text-3xl font-semibold mt-4">--</p>
-          <p id="doc-summary" class="text-sm text-slate-500 mt-2"></p>
+
+      <section class="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
+        <div class="card card-hoverable">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Documentation Progress</h2>
+          <p id="doc-progress" class="text-4xl font-bold mt-4 tracking-tight">--</p>
+          <p id="doc-summary" class="text-sm text-slate-500 mt-2">Loading...</p>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Pending Documentation</h2>
-          <ul id="pending-docs-list" class="mt-4 space-y-3 text-sm"></ul>
+        <div class="card card-hoverable flex flex-col">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Pending Documentation</h2>
+          <ul id="pending-docs-list" class="mt-4 space-y-3 flex-1"></ul>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Upcoming Meetings</h2>
-          <ul id="meetings-list" class="mt-4 space-y-3 text-sm"></ul>
+        <div class="card card-hoverable flex flex-col">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Upcoming Meetings</h2>
+          <ul id="meetings-list" class="mt-4 space-y-3 flex-1"></ul>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Critical Deadlines</h2>
-          <ul id="deadlines-list" class="mt-4 space-y-3 text-sm"></ul>
+        <div class="card card-hoverable flex flex-col">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Critical Deadlines</h2>
+          <ul id="deadlines-list" class="mt-4 space-y-3 flex-1"></ul>
         </div>
       </section>
-      <section class="mt-10">
-        <h2 class="text-lg font-semibold">Announcements</h2>
-        <div id="announcements-list" class="mt-4 space-y-4"></div>
-        <p id="announcements-empty" class="hidden text-sm text-slate-400 mt-4">No announcements yet.</p>
+      <section class="mt-12">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-semibold tracking-tight">Announcements</h2>
+        </div>
+        <div id="announcements-list" class="space-y-4"></div>
+        <div id="announcements-empty" class="hidden text-center py-12 card border-dashed border-slate-700">
+          <p class="text-slate-400">No announcements yet.</p>
+        </div>
       </section>
     </main>
   </div>
-  <div id="announcement-modal" class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">New Announcement</h3>
-        <button id="announcement-close" class="text-slate-400 hover:text-slate-200">✕</button>
+  <div id="announcement-modal" role="dialog" aria-modal="true" aria-labelledby="announcement-heading"
+    class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+    <div class="card w-full max-w-lg shadow-2xl animate-fade-in border-slate-700">
+      <div class="flex items-center justify-between mb-6">
+        <h3 id="announcement-heading" class="text-lg font-semibold tracking-tight">New Announcement</h3>
+        <button id="announcement-close" aria-label="Close dialog"
+          class="text-slate-400 hover:text-white transition-colors p-1 rounded-md hover:bg-slate-800">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
-      <form id="announcement-form" class="mt-4 space-y-4">
-        <input name="title" required placeholder="Announcement title" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-        <textarea name="message" rows="4" required placeholder="Announcement message" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+      <form id="announcement-form" class="space-y-4">
+        <label for="announcement-title" class="sr-only">Announcement title</label>
+        <input id="announcement-title" name="title" required placeholder="Announcement title" class="input-field" />
+
+        <label for="announcement-message" class="sr-only">Announcement message</label>
+        <textarea id="announcement-message" name="message" rows="4" required placeholder="Announcement message"
+          class="input-field resize-none"></textarea>
         <div id="announcement-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-        <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 font-medium">Publish</button>
+        <div class="pt-2 flex justify-end gap-3">
+          <button type="button" id="announcement-cancel" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Publish</button>
+        </div>
       </form>
     </div>
   </div>
-  <script type="module">
-    import { apiFetch } from '/assets/app.js';
-    const entitySelect = document.getElementById('entity-select');
-    const docProgress = document.getElementById('doc-progress');
-    const docSummary = document.getElementById('doc-summary');
-    const pendingDocsList = document.getElementById('pending-docs-list');
-    const meetingsList = document.getElementById('meetings-list');
-    const deadlinesList = document.getElementById('deadlines-list');
-    const announcementsList = document.getElementById('announcements-list');
-    const announcementsEmpty = document.getElementById('announcements-empty');
-    const modal = document.getElementById('announcement-modal');
-    const modalOpen = document.getElementById('announcement-button');
-    const modalClose = document.getElementById('announcement-close');
-    const form = document.getElementById('announcement-form');
-    const statusEl = document.getElementById('announcement-status');
-
-    const normalizeError = (err) => {
-      const message = err?.message || '';
-      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
-    };
-
-    const setStatus = (message, ok) => {
-      statusEl.textContent = message;
-      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
-      statusEl.classList.remove('hidden');
-    };
-
-    const loadDashboard = async (entityId) => {
-      meetingsList.innerHTML = '';
-      deadlinesList.innerHTML = '';
-      pendingDocsList.innerHTML = '';
-      announcementsList.innerHTML = '';
-      announcementsEmpty.classList.add('hidden');
-      try {
-        const response = await apiFetch(`/dashboard?entity_id=${entityId}`);
-        const data = response?.data || {};
-        docProgress.textContent = `${data.doc_progress || 0}%`;
-        docSummary.textContent = `Tracking ${data.total_endeavours || 0} endeavours.`;
-        if (data.pending_docs?.length) {
-          data.pending_docs.forEach((item) => {
-            const li = document.createElement('li');
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'text-slate-100';
-            nameSpan.textContent = item.endeavour_name;
-            const labelsSpan = document.createElement('span');
-            labelsSpan.className = 'text-slate-500 text-xs';
-            const docLabels = item.pending.map((pending) => {
-              const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
-              return `${pending.doc_type.replace(/_/g, ' ')} (${group})`;
-            });
-            labelsSpan.textContent = docLabels.join(', ');
-            li.appendChild(nameSpan);
-            li.appendChild(document.createElement('br'));
-            li.appendChild(labelsSpan);
-            pendingDocsList.appendChild(li);
-          });
-        } else {
-          const empty = document.createElement('li');
-          empty.className = 'text-slate-500';
-          empty.textContent = 'No pending documentation.';
-          pendingDocsList.appendChild(empty);
-        }
-        if (data.calendar?.length) {
-          data.calendar.forEach((event) => {
-            const item = document.createElement('li');
-            item.className = 'flex justify-between';
-            const left = document.createElement('span');
-            left.textContent = event.title;
-            const right = document.createElement('span');
-            right.className = 'text-slate-500';
-            right.textContent = new Date(event.event_date).toLocaleString();
-            item.appendChild(left);
-            item.appendChild(right);
-            meetingsList.appendChild(item);
-          });
-        } else {
-          const empty = document.createElement('li');
-          empty.className = 'text-slate-500';
-          empty.textContent = 'No upcoming meetings.';
-          meetingsList.appendChild(empty);
-        }
-
-        if (data.deadlines?.length) {
-          data.deadlines.forEach((deadline) => {
-            const item = document.createElement('li');
-            item.className = 'flex justify-between';
-            const left = document.createElement('span');
-            left.textContent = deadline.name;
-            const right = document.createElement('span');
-            right.className = 'text-amber-400';
-            const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
-            if (deadline.days_until === null) {
-              right.textContent = 'TBD';
-            } else if (deadline.days_until === 0) {
-              right.textContent = `${label}Due today`;
-            } else if (deadline.days_until < 0) {
-              const overdueDays = Math.abs(deadline.days_until);
-              right.textContent = `${label}Overdue by ${overdueDays} ${overdueDays === 1 ? 'day' : 'days'}`;
-            } else {
-              right.textContent = `${label}${deadline.days_until} ${deadline.days_until === 1 ? 'day' : 'days'}`;
-            }
-            item.appendChild(left);
-            item.appendChild(right);
-            deadlinesList.appendChild(item);
-          });
-        } else {
-          const empty = document.createElement('li');
-          empty.className = 'text-slate-500';
-          empty.textContent = 'No upcoming deadlines.';
-          deadlinesList.appendChild(empty);
-        }
-
-        if (data.announcements?.length) {
-          data.announcements.forEach((announcement) => {
-            const card = document.createElement('div');
-            card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
-            const title = document.createElement('h3');
-            title.className = 'text-lg font-semibold';
-            title.textContent = announcement.title;
-            const message = document.createElement('p');
-            message.className = 'text-sm text-slate-400 mt-2';
-            message.textContent = announcement.message;
-            const meta = document.createElement('p');
-            meta.className = 'text-xs text-slate-500 mt-3';
-            meta.textContent = `By ${announcement.creator_name || announcement.full_name || 'Unknown'}`;
-            card.appendChild(title);
-            card.appendChild(message);
-            card.appendChild(meta);
-            announcementsList.appendChild(card);
-          });
-        } else {
-          announcementsEmpty.classList.remove('hidden');
-        }
-
-        modalOpen.disabled = !data.can_post_announcements;
-        modalOpen.classList.toggle('opacity-60', !data.can_post_announcements);
-        modalOpen.classList.toggle('cursor-not-allowed', !data.can_post_announcements);
-      } catch (err) {
-        docProgress.textContent = '--';
-        docSummary.textContent = err.message || 'Unable to load dashboard.';
-      }
-    };
-
-    apiFetch('/auth/me')
-      .then((response) => {
-        const entities = response?.data?.entities || [];
-        entitySelect.innerHTML = '';
-        entities.forEach((entity) => {
-          const option = document.createElement('option');
-          option.value = entity.id;
-          option.textContent = entity.name;
-          entitySelect.appendChild(option);
-        });
-        const selected = entities[0]?.id;
-        if (selected) {
-          entitySelect.value = selected;
-          loadDashboard(selected);
-        }
-      })
-      .catch(() => {
-        const option = document.createElement('option');
-        option.textContent = 'No entities';
-        entitySelect.appendChild(option);
-        modalOpen.disabled = true;
-        modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
-      });
-
-    entitySelect.addEventListener('change', () => loadDashboard(entitySelect.value));
-
-    modalOpen.addEventListener('click', () => {
-      if (modalOpen.disabled) {
-        return;
-      }
-      statusEl.classList.add('hidden');
-      modal.classList.remove('hidden');
-    });
-    modalClose.addEventListener('click', () => modal.classList.add('hidden'));
-
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try {
-        await apiFetch('/announcements', {
-          method: 'POST',
-          body: JSON.stringify({
-            entity_id: entitySelect.value,
-            title: form.title.value,
-            message: form.message.value
-          })
-        });
-        setStatus('Announcement published.', true);
-        form.reset();
-        loadDashboard(entitySelect.value);
-      } catch (err) {
-        setStatus(normalizeError(err), false);
-      }
-    });
-  </script>
+  <script type="module" src="/assets/dashboard.js"></script>
 </body>
+
 </html>

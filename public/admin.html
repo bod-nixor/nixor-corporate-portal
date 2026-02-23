@@ -1,290 +1,184 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Super Panel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
-          <h1 class="text-2xl font-semibold">Admin Super Panel</h1>
-          <p class="text-slate-400">Manage users, entities, and compliance across the portal.</p>
+          <h1 class="text-2xl font-bold tracking-tight">Admin Super Panel</h1>
+          <p class="text-slate-400 mt-1 text-sm">Manage users, entities, and compliance across the portal.</p>
         </div>
-        <button id="open-entity-form" class="bg-indigo-500 px-4 py-2 rounded-xl text-sm">New Entity</button>
+        <button id="open-entity-form" class="btn btn-primary px-5 shadow-sm">New Entity</button>
       </header>
 
-      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <p class="text-sm text-slate-400">Missing Docs</p>
-          <p id="metric-missing" class="text-3xl font-semibold mt-4">0</p>
-          <p class="text-xs text-slate-500 mt-2">Endeavours waiting on documentation approvals.</p>
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+        <div class="card p-6 flex flex-col justify-between border-slate-700">
+          <p class="text-sm font-medium text-slate-400 uppercase tracking-wider">Missing Docs</p>
+          <div class="mt-4 flex items-end gap-3">
+            <p id="metric-missing" class="text-4xl font-bold tracking-tight text-white animate-pulse">0</p>
+          </div>
+          <p class="text-xs text-slate-500 mt-3">Endeavours waiting on documentation approvals.</p>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <p class="text-sm text-slate-400">Unpaid Transport</p>
-          <p id="metric-unpaid" class="text-3xl font-semibold mt-4">0</p>
-          <p class="text-xs text-slate-500 mt-2">Payments awaiting admin marking.</p>
+        <div class="card p-6 flex flex-col justify-between border-slate-700">
+          <p class="text-sm font-medium text-slate-400 uppercase tracking-wider">Unpaid Transport</p>
+          <div class="mt-4 flex items-end gap-3">
+            <p id="metric-unpaid" class="text-4xl font-bold tracking-tight text-white animate-pulse">0</p>
+          </div>
+          <p class="text-xs text-slate-500 mt-3">Payments awaiting admin marking.</p>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <p class="text-sm text-slate-400">Consent Pending</p>
-          <p id="metric-consent" class="text-3xl font-semibold mt-4">0</p>
-          <p class="text-xs text-slate-500 mt-2">Parent consent for shortlisted volunteers.</p>
+        <div class="card p-6 flex flex-col justify-between border-slate-700">
+          <p class="text-sm font-medium text-slate-400 uppercase tracking-wider">Consent Pending</p>
+          <div class="mt-4 flex items-end gap-3">
+            <p id="metric-consent" class="text-4xl font-bold tracking-tight text-white animate-pulse">0</p>
+          </div>
+          <p class="text-xs text-slate-500 mt-3">Parent consent for shortlisted volunteers.</p>
         </div>
       </section>
 
-      <section class="mt-10 grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-lg font-semibold">Entities</h2>
-          <table class="w-full text-sm mt-4">
-            <thead class="text-slate-500">
-              <tr>
-                <th class="text-left py-2">Name</th>
-                <th class="text-left py-2">Description</th>
-              </tr>
-            </thead>
-            <tbody id="entities-list"></tbody>
-          </table>
+      <section class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 animate-fade-in" style="animation-delay: 100ms;">
+        <div class="card p-6 border-slate-700">
+          <h2 class="text-lg font-bold tracking-tight mb-4">Entities</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                <tr>
+                  <th class="pb-3 font-semibold">Name</th>
+                  <th class="pb-3 font-semibold w-1/2">Description</th>
+                </tr>
+              </thead>
+              <tbody id="entities-list" class="divide-y divide-slate-800/50"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-lg font-semibold">Users</h2>
-          <table class="w-full text-sm mt-4">
-            <thead class="text-slate-500">
-              <tr>
-                <th class="text-left py-2">Name</th>
-                <th class="text-left py-2">Email</th>
-                <th class="text-left py-2">Role</th>
-              </tr>
-            </thead>
-            <tbody id="users-list"></tbody>
-          </table>
+        <div class="card p-6 border-slate-700">
+          <h2 class="text-lg font-bold tracking-tight mb-4">Users</h2>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                <tr>
+                  <th class="pb-3 font-semibold">Name</th>
+                  <th class="pb-3 font-semibold">Email</th>
+                  <th class="pb-3 font-semibold">Role</th>
+                </tr>
+              </thead>
+              <tbody id="users-list" class="divide-y divide-slate-800/50"></tbody>
+            </table>
+          </div>
         </div>
       </section>
-      <section class="mt-10 grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-lg font-semibold">Add User</h2>
-          <form id="user-form" class="mt-4 space-y-3 text-sm">
-            <input name="full_name" required placeholder="Full name" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <input name="email" type="email" required placeholder="Email" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <input name="password" type="password" required placeholder="Temporary password" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <select name="global_role" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm">
-              <option value="admin">Admin</option>
-              <option value="board">Board</option>
-              <option value="ceo">CEO</option>
-              <option value="staff">Staff</option>
-              <option value="volunteer">Volunteer</option>
-            </select>
+
+      <section class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 animate-fade-in" style="animation-delay: 200ms;">
+        <div class="card p-6 border-slate-700">
+          <h2 class="text-lg font-bold tracking-tight mb-4 text-white">Add User</h2>
+          <form id="user-form" class="space-y-4">
+            <div class="space-y-1">
+              <label for="user-full_name" class="text-xs font-medium text-slate-400">Full Name</label>
+              <input id="user-full_name" name="full_name" required placeholder="User's full name" class="input-field" />
+            </div>
+            <div class="space-y-1">
+              <label for="user-email" class="text-xs font-medium text-slate-400">Email Address</label>
+              <input id="user-email" name="email" type="email" required placeholder="user@nixor.edu.pk"
+                class="input-field" />
+            </div>
+            <div class="space-y-1">
+              <label for="user-password" class="text-xs font-medium text-slate-400">Temporary Password</label>
+              <input id="user-password" name="password" type="password" required placeholder="Generate password"
+                class="input-field" />
+            </div>
+            <div class="space-y-1">
+              <label for="user-global_role" class="text-xs font-medium text-slate-400">Global Role</label>
+              <select id="user-global_role" name="global_role" class="input-field">
+                <option value="admin">Admin</option>
+                <option value="board">Board</option>
+                <option value="ceo">CEO</option>
+                <option value="staff">Staff</option>
+                <option value="volunteer" selected>Volunteer</option>
+              </select>
+            </div>
             <div id="user-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Create User</button>
+            <button class="btn btn-primary w-full mt-2" type="submit">Create User</button>
           </form>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-lg font-semibold">Assign Membership</h2>
-          <form id="membership-form" class="mt-4 space-y-3 text-sm">
-            <select name="entity_id" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></select>
-            <select name="user_id" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></select>
-            <select name="department" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm">
-              <option value="operations">Operations</option>
-              <option value="finance">Finance</option>
-              <option value="hr">HR</option>
-              <option value="communications">Communications</option>
-              <option value="management">Management</option>
-              <option value="other">Other</option>
-            </select>
-            <select name="role" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm">
-              <option value="member">Member</option>
-              <option value="manager">Manager</option>
-              <option value="executive">Executive</option>
-              <option value="volunteer">Volunteer</option>
-            </select>
+        <div class="card p-6 border-slate-700">
+          <h2 class="text-lg font-bold tracking-tight mb-4 text-white">Assign Membership</h2>
+          <form id="membership-form" class="space-y-4">
+            <div class="space-y-1">
+              <label for="membership_entity_id" class="text-xs font-medium text-slate-400">Entity</label>
+              <select id="membership_entity_id" name="entity_id" class="input-field"></select>
+            </div>
+            <div class="space-y-1">
+              <label for="membership_user_id" class="text-xs font-medium text-slate-400">User</label>
+              <select id="membership_user_id" name="user_id" class="input-field"></select>
+            </div>
+            <div class="space-y-1">
+              <label for="membership_department" class="text-xs font-medium text-slate-400">Department</label>
+              <select id="membership_department" name="department" class="input-field">
+                <option value="operations">Operations</option>
+                <option value="finance">Finance</option>
+                <option value="hr">HR</option>
+                <option value="communications">Communications</option>
+                <option value="management">Management</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label for="membership_role" class="text-xs font-medium text-slate-400">Role level</label>
+              <select id="membership_role" name="role" class="input-field">
+                <option value="member" selected>Member</option>
+                <option value="manager">Manager</option>
+                <option value="executive">Executive</option>
+                <option value="volunteer">Volunteer</option>
+              </select>
+            </div>
             <div id="membership-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Assign Member</button>
+            <button class="btn btn-primary w-full mt-2" type="submit">Assign Membership</button>
           </form>
         </div>
       </section>
     </main>
   </div>
-  <div id="entity-modal" class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">New Entity</h3>
-        <button id="entity-close" class="text-slate-400 hover:text-slate-200">✕</button>
+  <div id="entity-modal" role="dialog" aria-modal="true" aria-labelledby="entity-modal-title"
+    class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+    <div class="card p-6 w-full max-w-lg shadow-2xl relative animate-fade-in border-slate-700">
+      <div class="flex items-center justify-between mb-5">
+        <h3 id="entity-modal-title" class="text-xl font-bold tracking-tight">New Entity</h3>
+        <button id="entity-close" aria-label="Close entity dialog"
+          class="text-slate-400 hover:text-white transition-colors bg-slate-800/50 hover:bg-slate-700/50 p-2 rounded-full">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
-      <form id="entity-form" class="mt-4 space-y-3 text-sm">
-        <input name="name" required placeholder="Entity name" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-        <textarea name="description" rows="3" placeholder="Description" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+      <form id="entity-form" class="space-y-4">
+        <div class="space-y-1">
+          <label for="modal-entity-name" class="text-xs font-medium text-slate-400">Entity Name</label>
+          <input id="modal-entity-name" name="name" required placeholder="Name of Entity" class="input-field" />
+        </div>
+        <div class="space-y-1">
+          <label for="modal-entity-description" class="text-xs font-medium text-slate-400">Description</label>
+          <textarea id="modal-entity-description" name="description" rows="3"
+            placeholder="Description of the entity goals and function" class="input-field py-3"></textarea>
+        </div>
         <div id="entity-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-        <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Create Entity</button>
+        <div class="flex justify-end pt-2 gap-3">
+          <button type="button" class="btn btn-ghost"
+            onclick="document.getElementById('entity-close').click()">Cancel</button>
+          <button type="submit" class="btn btn-primary px-6">Create Entity</button>
+        </div>
       </form>
     </div>
   </div>
-  <script type="module">
-    import { apiFetch } from '/assets/app.js';
-    const metricMissing = document.getElementById('metric-missing');
-    const metricUnpaid = document.getElementById('metric-unpaid');
-    const metricConsent = document.getElementById('metric-consent');
-    const entitiesList = document.getElementById('entities-list');
-    const usersList = document.getElementById('users-list');
-    const userForm = document.getElementById('user-form');
-    const userStatus = document.getElementById('user-status');
-    const membershipForm = document.getElementById('membership-form');
-    const membershipStatus = document.getElementById('membership-status');
-    const entityModal = document.getElementById('entity-modal');
-    const entityForm = document.getElementById('entity-form');
-    const entityStatus = document.getElementById('entity-status');
-    const openEntityForm = document.getElementById('open-entity-form');
-    const closeEntityForm = document.getElementById('entity-close');
-
-    const normalizeError = (err) => {
-      const message = err?.message || '';
-      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
-    };
-
-    const setStatus = (el, message, ok) => {
-      el.textContent = message;
-      el.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
-      el.classList.remove('hidden');
-    };
-
-    const loadSummary = async () => {
-      try {
-        const response = await apiFetch('/admin/summary');
-        metricMissing.textContent = response?.data?.missing_docs ?? 0;
-        metricUnpaid.textContent = response?.data?.unpaid ?? 0;
-        metricConsent.textContent = response?.data?.consents_pending ?? 0;
-      } catch (err) {
-        metricMissing.textContent = '--';
-      }
-    };
-
-    const loadEntities = async () => {
-      try {
-        const response = await apiFetch('/entities');
-        const entities = response?.data || [];
-        entitiesList.innerHTML = '';
-        membershipForm.entity_id.innerHTML = '';
-        entities.forEach((entity) => {
-          const row = document.createElement('tr');
-          row.className = 'border-t border-slate-800';
-          const name = document.createElement('td');
-          name.className = 'py-3';
-          name.textContent = entity.name;
-          const desc = document.createElement('td');
-          desc.textContent = entity.description || '-';
-          row.appendChild(name);
-          row.appendChild(desc);
-          entitiesList.appendChild(row);
-
-          const option = document.createElement('option');
-          option.value = entity.id;
-          option.textContent = entity.name;
-          membershipForm.entity_id.appendChild(option);
-        });
-      } catch (err) {
-        console.error('Failed to load entities:', err);
-        entitiesList.innerHTML = '<tr><td colspan="2" class="py-3 text-red-400">Failed to load entities</td></tr>';
-      }
-    };
-
-    const loadUsers = async () => {
-      try {
-        const response = await apiFetch('/users');
-        const users = response?.data || [];
-        usersList.innerHTML = '';
-        membershipForm.user_id.innerHTML = '';
-        users.forEach((user) => {
-          const row = document.createElement('tr');
-          row.className = 'border-t border-slate-800';
-          const name = document.createElement('td');
-          name.className = 'py-3';
-          name.textContent = user.full_name;
-          const email = document.createElement('td');
-          email.textContent = user.email;
-          const role = document.createElement('td');
-          role.textContent = user.global_role;
-          row.appendChild(name);
-          row.appendChild(email);
-          row.appendChild(role);
-          usersList.appendChild(row);
-
-          const option = document.createElement('option');
-          option.value = user.id;
-          option.textContent = `${user.full_name} (${user.email})`;
-          membershipForm.user_id.appendChild(option);
-        });
-      } catch (err) {
-        console.error('Failed to load users:', err);
-        const message = err?.message ? `Failed to load users (${err.message})` : 'Failed to load users';
-        usersList.innerHTML = '';
-        const row = document.createElement('tr');
-        const cell = document.createElement('td');
-        row.className = 'border-t border-slate-800';
-        cell.className = 'py-3 text-red-400';
-        cell.colSpan = 3;
-        cell.textContent = message;
-        row.appendChild(cell);
-        usersList.appendChild(row);
-      }
-    };
-
-    openEntityForm.addEventListener('click', () => entityModal.classList.remove('hidden'));
-    closeEntityForm.addEventListener('click', () => entityModal.classList.add('hidden'));
-
-    entityForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      try {
-        await apiFetch('/entities', { method: 'POST', body: JSON.stringify({ name: entityForm.name.value, description: entityForm.description.value }) });
-        setStatus(entityStatus, 'Entity created.', true);
-        entityForm.reset();
-        loadEntities();
-      } catch (err) {
-        setStatus(entityStatus, normalizeError(err), false);
-      }
-    });
-
-    userForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const payload = Object.fromEntries(new FormData(userForm).entries());
-      try {
-        await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
-        setStatus(userStatus, 'User created.', true);
-        userForm.reset();
-        loadUsers();
-      } catch (err) {
-        setStatus(userStatus, normalizeError(err), false);
-      }
-    });
-
-    membershipForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const payload = Object.fromEntries(new FormData(membershipForm).entries());
-      try {
-        await apiFetch('/members', { method: 'POST', body: JSON.stringify(payload) });
-        setStatus(membershipStatus, 'Membership assigned.', true);
-        membershipForm.reset();
-      } catch (err) {
-        setStatus(membershipStatus, normalizeError(err), false);
-      }
-    });
-
-    loadSummary();
-    loadEntities();
-    loadUsers();
-  </script>
+  <script type="module" src="/assets/admin.js"></script>
 </body>
+
 </html>

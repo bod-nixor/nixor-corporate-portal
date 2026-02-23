@@ -124,6 +124,11 @@ function buildApiError(message, status, url, body) {
   return error;
 }
 
+export const normalizeError = (err) => {
+  const message = err?.message || '';
+  return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
+};
+
 export async function bootstrapCsrf() {
   if (csrfBootstrapPromise) {
     return csrfBootstrapPromise;

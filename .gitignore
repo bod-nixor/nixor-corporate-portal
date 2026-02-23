@@ -8,6 +8,7 @@
 node_modules/
 tsconfig.tsbuildinfo
 vendor/
+package-lock.json
 
 # Uploads
 uploads/

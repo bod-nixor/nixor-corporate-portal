@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calendar</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
     <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
@@ -30,7 +32,8 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <div class="flex items-center justify-between">
             <h2 class="text-lg font-semibold">Upcoming Events</h2>
-            <select id="calendar-entity" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+            <select id="calendar-entity"
+              class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
           </div>
           <div id="calendar-list" class="mt-4 space-y-3 text-sm"></div>
           <p id="calendar-empty" class="hidden text-sm text-slate-500 mt-4">No events scheduled.</p>
@@ -38,12 +41,17 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-lg font-semibold">Add Event</h2>
           <form id="calendar-form" class="mt-4 space-y-3 text-sm">
-            <input name="title" required placeholder="Event title" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <input name="event_date" type="datetime-local" required class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <input name="location" placeholder="Location" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <textarea name="description" rows="3" placeholder="Description" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+            <input name="title" required placeholder="Event title"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            <input name="event_date" type="datetime-local" required
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            <input name="location" placeholder="Location"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            <textarea name="description" rows="3" placeholder="Description"
+              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
             <div id="calendar-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Create Event</button>
+            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Create
+              Event</button>
           </form>
         </div>
       </section>
@@ -122,6 +130,10 @@
         }
       })
       .catch((err) => {
+        if (err.status === 401 || err.status === 403 || String(err.message).includes('401') || String(err.message).includes('Unauthorized') || String(err.message).includes('Forbidden')) {
+          window.location.href = '/login.html';
+          return;
+        }
         console.error('Failed to load entities:', err);
         entitySelect.innerHTML = '';
         emptyState.textContent = 'Unable to load calendar without access.';
@@ -131,6 +143,10 @@
     entitySelect.addEventListener('change', loadEvents);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (form.dataset.submitting) return;
+      form.dataset.submitting = 'true';
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
       const payload = Object.fromEntries(new FormData(form).entries());
       payload.entity_id = entitySelect.value;
       try {
@@ -140,8 +156,12 @@
         loadEvents();
       } catch (err) {
         setStatus(normalizeError(err), false);
+      } finally {
+        form.dataset.submitting = '';
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   </script>
 </body>
+
 </html>
