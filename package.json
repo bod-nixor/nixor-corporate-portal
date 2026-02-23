@@ -2,7 +2,8 @@
   "name": "nixor-corporate-portal",
   "private": true,
   "scripts": {
-    "build:css": "tailwindcss -i public/assets/global.css -o public/assets/app.css"
+    "build:css": "tailwindcss --cwd . -c ./tailwind.config.js -i public/assets/global.css -o public/assets/app.css",
+    "dev:css": "tailwindcss -i public/assets/global.css -o public/assets/app.css --watch"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.0",
