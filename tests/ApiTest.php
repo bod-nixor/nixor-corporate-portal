@@ -165,6 +165,129 @@ final class ApiTest extends TestCase {
         $this->assertSame(403, $setup['status']);
     }
 
+
+    public function testDrivePermissionModelAndSharing(): void {
+        $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $ceoId = $this->createUser('ceo@example.com', 'Password123!', 'ceo');
+        $execId = $this->createUser('exec@example.com', 'Password123!', 'staff');
+        $otherId = $this->createUser('other@example.com', 'Password123!', 'staff');
+
+        $entityId = $this->createEntity('Entity One');
+        $this->addMembership($entityId, $ceoId, 'management', 'manager');
+        $this->addMembership($entityId, $execId, 'operations', 'executive');
+
+        $itemId = $this->createDriveItem($entityId, 'Private Doc', 'private', $ceoId);
+
+        $ceoClient = $this->loginClient('ceo@example.com', 'Password123!');
+        $ceoList = $ceoClient->request('GET', '/api/drive/list?entity_id=' . $entityId);
+        $this->assertSame(200, $ceoList['status']);
+        $this->assertCount(1, $ceoList['data']['data']);
+
+        $execClient = $this->loginClient('exec@example.com', 'Password123!');
+        $execList = $execClient->request('GET', '/api/drive/list?entity_id=' . $entityId);
+        $this->assertSame(200, $execList['status']);
+        $this->assertCount(0, $execList['data']['data']);
+
+        $adminClient = $this->loginClient('admin@example.com', 'Password123!');
+        $share = $ceoClient->request('POST', '/api/drive/share', [
+            'id' => $itemId,
+            'sharing_scope' => 'users',
+            'users' => [['user_id' => $otherId]]
+        ], ["X-CSRF-Token: {$ceoClient->csrfToken}"]);
+        $this->assertSame(200, $share['status']);
+
+        $otherClient = $this->loginClient('other@example.com', 'Password123!');
+        $item = $otherClient->request('GET', '/api/drive/item?id=' . $itemId);
+        $this->assertSame(200, $item['status']);
+        $this->assertSame('Private Doc', $item['data']['data']['name']);
+
+        $adminList = $adminClient->request('GET', '/api/drive/list?entity_id=' . $entityId);
+        $this->assertSame(200, $adminList['status']);
+        $this->assertCount(1, $adminList['data']['data']);
+    }
+
+    public function testDriveFolderNavigationRenameDeleteAndLink(): void {
+        $userId = $this->createUser('manager@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Entity Two');
+        $this->addMembership($entityId, $userId, 'management', 'manager');
+        $client = $this->loginClient('manager@example.com', 'Password123!');
+
+        $folder = $client->request('POST', '/api/drive/folder', [
+            'entity_id' => $entityId,
+            'name' => 'Projects'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(200, $folder['status']);
+        $folderId = (int)$folder['data']['data']['id'];
+
+        $link = $client->request('POST', '/api/drive/link', [
+            'entity_id' => $entityId,
+            'parent_id' => $folderId,
+            'name' => 'Portal Link',
+            'url' => 'https://example.com/docs'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(200, $link['status']);
+        $itemId = (int)$link['data']['data']['id'];
+
+        $list = $client->request('GET', '/api/drive/list?entity_id=' . $entityId . '&parent_id=' . $folderId);
+        $this->assertSame(200, $list['status']);
+        $this->assertCount(1, $list['data']['data']);
+
+        $rename = $client->request('POST', '/api/drive/rename', [
+            'id' => $itemId,
+            'name' => 'Portal Link Updated'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(200, $rename['status']);
+
+        $preview = $client->request('GET', '/api/drive/preview?id=' . $itemId);
+        $this->assertSame(200, $preview['status']);
+        $this->assertSame('link', $preview['data']['data']['kind']);
+
+        $deleteFolder = $client->request('POST', '/api/drive/delete', ['id' => $folderId], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(200, $deleteFolder['status']);
+
+        $afterDelete = $client->request('GET', '/api/drive/item?id=' . $itemId);
+        $this->assertSame(404, $afterDelete['status']);
+    }
+
+    private function createEntity(string $name): int {
+        $stmt = db()->prepare('INSERT INTO entities (name) VALUES (?)');
+        $stmt->execute([$name]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function addMembership(int $entityId, int $userId, string $department, string $role): void {
+        $stmt = db()->prepare('INSERT INTO entity_memberships (entity_id, user_id, department, role) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$entityId, $userId, $department, $role]);
+    }
+
+    private function createDriveItem(int $entityId, string $name, string $scope, int $creator): int {
+        $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, item_type, name, sharing_scope, created_by) VALUES (?, "file", ?, ?, ?)');
+        $stmt->execute([$entityId, $name, $scope, $creator]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function loginClient(string $email, string $password): object {
+        $client = new TestClient(self::$baseUrl);
+        $csrf = $client->request('GET', '/api/auth/csrf');
+        $token = $csrf['data']['data']['csrfToken'] ?? '';
+        $login = $client->request('POST', '/api/auth/login', [
+            'email' => $email,
+            'password' => $password
+        ], ["X-CSRF-Token: {$token}"]);
+        $this->assertSame(200, $login['status']);
+        return new class($client, $token) {
+            public TestClient $client;
+            public string $csrfToken;
+            public function __construct(TestClient $client, string $csrfToken) {
+                $this->client = $client;
+                $this->csrfToken = $csrfToken;
+            }
+            public function request(string $method, string $path, ?array $body = null, array $headers = []): array {
+                return $this->client->request($method, $path, $body, $headers);
+            }
+        };
+    }
+
     private function createUser(string $email, string $password, string $role): int {
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $stmt = db()->prepare('INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, ?)');

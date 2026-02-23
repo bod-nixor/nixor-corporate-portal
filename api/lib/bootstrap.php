@@ -34,6 +34,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/rate_limit.php';
 require_once __DIR__ . '/activity.php';
 require_once __DIR__ . '/uploads.php';
+require_once __DIR__ . '/drive.php';
 require_once __DIR__ . '/websocket.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/validation.php';

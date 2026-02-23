@@ -98,6 +98,29 @@ Sample endpoints:
 - `POST /api/endeavours/{id}/request_post_to_feed`
 - `POST /api/endeavours/{id}/publish_post`
 
+
+## Entity Drive
+- Supports folder tree navigation using `parent_id` with breadcrumb metadata from `GET /api/drive/list`.
+- Item types: `folder`, `file`, and `link` (URL-backed document entries).
+- Sharing scopes:
+  - `private`: creator-only plus entity CEO and global elevated roles.
+  - `entity`: all members of the item's entity.
+  - `department`: selected departments in the same entity.
+  - `users`: explicit users by id/email (including users outside the entity).
+- Elevated visibility (inherent): `admin`, `board`, `student_affairs` always view all entity drive content.
+- Entity CEO access: manager in `management` department (or global `ceo` with membership) can view/manage all content in that entity.
+- Link previews support YouTube and direct PDF URLs; file previews support inline PDFs via `GET /api/drive/content?id=`.
+- API endpoints:
+  - `GET /api/drive/list?entity_id=&parent_id=`
+  - `GET /api/drive/item?id=`
+  - `GET /api/drive/preview?id=`
+  - `POST /api/drive/folder`
+  - `POST /api/drive/upload`
+  - `POST /api/drive/link`
+  - `POST /api/drive/rename`
+  - `POST /api/drive/delete` (recursive for folders)
+  - `POST /api/drive/share`
+
 ## Frontend Pages
 - `/login.html`
 - `/home.html`
