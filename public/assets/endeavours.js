@@ -10,9 +10,6 @@ const emptyState = document.getElementById('endeavour-empty');
 const notificationBadge = document.getElementById('notification-badge');
 
 let initialEmptyState = '';
-window.addEventListener('DOMContentLoaded', () => {
-    initialEmptyState = emptyState.innerHTML;
-});
 
 const renderEndeavours = (rows) => {
     grid.innerHTML = '';
@@ -34,6 +31,7 @@ const renderEndeavours = (rows) => {
         const status = document.createElement('span');
         const now = new Date();
         const deadline = row.volunteer_registration_deadline ? new Date(row.volunteer_registration_deadline) : null;
+        const registrationClosed = deadline && now > deadline;
 
         let badgeText = '';
         let badgeClass = 'badge ';
@@ -44,7 +42,7 @@ const renderEndeavours = (rows) => {
         } else if (row.phase === 'COMPLETED') {
             badgeText = 'Completed';
             badgeClass += 'bg-slate-800 text-slate-300 border-slate-700';
-        } else if (deadline && now > deadline) {
+        } else if (registrationClosed) {
             badgeText = 'Registration Closed';
             badgeClass += 'badge-danger';
         } else {
@@ -74,28 +72,49 @@ const renderEndeavours = (rows) => {
 
         const fmtDate = (value) => value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
 
-        meta.innerHTML = `
-      <div class="flex justify-between items-center text-xs">
-        <span class="text-slate-500">Event Dates</span>
-        <span class="font-medium text-slate-300">
-          ${fmtDate(row.event_start_at)} – ${fmtDate(row.event_end_at)}
-        </span>
-      </div>
-      <div class="flex justify-between items-center text-xs">
-        <span class="text-slate-500">Apply By</span>
-        <span class="font-medium text-amber-400">
-          ${fmtDate(row.volunteer_registration_deadline)}
-        </span>
-      </div>
-    `;
+        const dateRow = document.createElement('div');
+        dateRow.className = 'flex justify-between items-center text-xs';
+        const dateLabel = document.createElement('span');
+        dateLabel.className = 'text-slate-500';
+        dateLabel.textContent = 'Event Dates';
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'font-medium text-slate-300';
+        dateSpan.textContent = `${fmtDate(row.event_start_at)} \u2013 ${fmtDate(row.event_end_at)}`;
+        dateRow.appendChild(dateLabel);
+        dateRow.appendChild(dateSpan);
+
+        const applyRow = document.createElement('div');
+        applyRow.className = 'flex justify-between items-center text-xs';
+        const applyLabel = document.createElement('span');
+        applyLabel.className = 'text-slate-500';
+        applyLabel.textContent = 'Apply By';
+        const applySpan = document.createElement('span');
+        applySpan.className = 'font-medium text-amber-400';
+        applySpan.textContent = fmtDate(row.volunteer_registration_deadline);
+        applyRow.appendChild(applyLabel);
+        applyRow.appendChild(applySpan);
+
+        meta.appendChild(dateRow);
+        meta.appendChild(applyRow);
 
         const actions = document.createElement('div');
         actions.className = 'mt-6 pt-2 flex items-center gap-3';
 
         const registerButton = document.createElement('button');
         registerButton.className = 'btn btn-primary flex-1';
-        registerButton.textContent = row.registered ? 'Registered ✓' : 'Register Now';
-        registerButton.disabled = row.registered;
+
+        const isRegistrationDisabled = row.registered || registrationClosed || row.phase === 'COMPLETED';
+        registerButton.disabled = isRegistrationDisabled;
+
+        if (row.registered) {
+            registerButton.textContent = 'Registered ✓';
+        } else if (row.phase === 'COMPLETED') {
+            registerButton.textContent = 'Completed';
+        } else if (registrationClosed) {
+            registerButton.textContent = 'Registration Closed';
+        } else {
+            registerButton.textContent = 'Register Now';
+        }
 
         const viewLink = document.createElement('a');
         viewLink.href = `/endeavour_view.html?id=${row.id}`;
@@ -142,15 +161,17 @@ const renderEndeavours = (rows) => {
 };
 
 const loadEndeavours = async () => {
+    if (!initialEmptyState) initialEmptyState = emptyState.innerHTML;
+
     const params = new URLSearchParams();
     if (entityFilter.value) params.set('entity_id', entityFilter.value);
     if (searchInput.value) params.set('q', searchInput.value);
     try {
         const response = await apiFetch(`/endeavours/volunteering?${params.toString()}`);
+        emptyState.innerHTML = initialEmptyState;
         renderEndeavours(response?.data || []);
     } catch (err) {
         grid.innerHTML = '';
-        if (!initialEmptyState) initialEmptyState = emptyState.innerHTML;
         emptyState.innerHTML = `
     <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

@@ -14,7 +14,8 @@ export function renderSidebar(activeId) {
     const classes = isActive
       ? 'block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 cursor-default'
       : 'block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors';
-    return `<a class="${classes}" href="${link.href}">${link.text}</a>`;
+    const aria = isActive ? ' aria-current="page"' : '';
+    return `<a class="${classes}" href="${link.href}"${aria}>${link.text}</a>`;
   }).join('\n        ');
 
   return `

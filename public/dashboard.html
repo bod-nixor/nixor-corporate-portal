@@ -68,8 +68,11 @@
         </button>
       </div>
       <form id="announcement-form" class="space-y-4">
-        <input name="title" required placeholder="Announcement title" class="input-field" />
-        <textarea name="message" rows="4" required placeholder="Announcement message"
+        <label for="announcement-title" class="sr-only">Announcement title</label>
+        <input id="announcement-title" name="title" required placeholder="Announcement title" class="input-field" />
+
+        <label for="announcement-message" class="sr-only">Announcement message</label>
+        <textarea id="announcement-message" name="message" rows="4" required placeholder="Announcement message"
           class="input-field resize-none"></textarea>
         <div id="announcement-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
         <div class="pt-2 flex justify-end gap-3">

@@ -147,11 +147,11 @@
       </section>
     </main>
   </div>
-  <div id="entity-modal"
+  <div id="entity-modal" role="dialog" aria-modal="true" aria-labelledby="entity-modal-title"
     class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
     <div class="card p-6 w-full max-w-lg shadow-2xl relative animate-fade-in border-slate-700">
       <div class="flex items-center justify-between mb-5">
-        <h3 class="text-xl font-bold tracking-tight">New Entity</h3>
+        <h3 id="entity-modal-title" class="text-xl font-bold tracking-tight">New Entity</h3>
         <button id="entity-close"
           class="text-slate-400 hover:text-white transition-colors bg-slate-800/50 hover:bg-slate-700/50 p-2 rounded-full">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

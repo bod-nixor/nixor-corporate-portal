@@ -1,4 +1,4 @@
-import { apiFetch } from '/assets/app.js';
+import { apiFetch, normalizeError } from '/assets/app.js';
 import { renderSidebar } from '/assets/sidebar.js';
 
 document.getElementById('sidebar-container').outerHTML = renderSidebar('dashboard');
@@ -17,10 +17,7 @@ const modalClose = document.getElementById('announcement-close');
 const form = document.getElementById('announcement-form');
 const statusEl = document.getElementById('announcement-status');
 
-const normalizeError = (err) => {
-    const message = err?.message || '';
-    return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
-};
+
 
 const setStatus = (message, ok) => {
     statusEl.textContent = message;
@@ -115,21 +112,21 @@ const loadDashboard = async (entityId) => {
 
                     let badgeClass = 'badge ';
                     if (deadline.days_until === null) {
-                        right.textContent = 'TBD';
+                        right.textContent = `${label}TBD`;
                         badgeClass += 'badge-info';
                     } else if (deadline.days_until === 0) {
-                        right.textContent = `Due today`;
+                        right.textContent = `${label}Due today`;
                         badgeClass += 'badge-danger';
                     } else if (deadline.days_until < 0) {
                         const overdueDays = Math.abs(deadline.days_until);
-                        right.textContent = `Overdue (${overdueDays}d)`;
+                        right.textContent = `${label}Overdue (${overdueDays}d)`;
                         badgeClass += 'badge-danger';
                     } else if (deadline.days_until <= 3) {
-                        right.textContent = `${deadline.days_until}d left`;
+                        right.textContent = `${label}${deadline.days_until}d left`;
                         badgeClass += 'badge-warning';
                     } else {
-                        right.textContent = `${deadline.days_until}d left`;
-                        badgeClass += 'bg-slate-700 text-slate-300 border-slate-600';
+                        right.textContent = `${label}${deadline.days_until}d left`;
+                        badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
                     }
 
                     right.className = badgeClass;

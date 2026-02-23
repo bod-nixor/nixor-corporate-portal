@@ -1,4 +1,4 @@
-import { apiFetch } from '/assets/app.js';
+import { apiFetch, normalizeError } from '/assets/app.js';
 import { renderSidebar } from '/assets/sidebar.js';
 
 document.getElementById('sidebar-container').outerHTML = renderSidebar('admin');
@@ -18,10 +18,7 @@ const entityStatus = document.getElementById('entity-status');
 const openEntityForm = document.getElementById('open-entity-form');
 const closeEntityForm = document.getElementById('entity-close');
 
-const normalizeError = (err) => {
-    const message = err?.message || '';
-    return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
-};
+
 
 const setStatus = (el, message, ok) => {
     el.textContent = message;
@@ -132,20 +129,51 @@ const loadUsers = async () => {
     }
 };
 
+let previouslyFocusedElement = null;
+
 const closeEntityModal = () => {
     entityModal.classList.add('hidden');
-    document.removeEventListener('keydown', handleEscape);
+    entityModal.setAttribute('aria-hidden', 'true');
+    document.removeEventListener('keydown', handleModalKeydown);
+    if (previouslyFocusedElement) previouslyFocusedElement.focus();
 };
 
-const handleEscape = (e) => {
+const handleModalKeydown = (e) => {
     if (e.key === 'Escape') closeEntityModal();
+    if (e.key === 'Tab') {
+        const focusableElements = entityModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+            if (document.activeElement === firstElement) {
+                lastElement.focus();
+                e.preventDefault();
+            }
+        } else {
+            if (document.activeElement === lastElement) {
+                firstElement.focus();
+                e.preventDefault();
+            }
+        }
+    }
 };
 
 openEntityForm.addEventListener('click', () => {
+    previouslyFocusedElement = document.activeElement;
     entityModal.classList.remove('hidden');
-    document.addEventListener('keydown', handleEscape);
+    entityModal.setAttribute('aria-hidden', 'false');
+    document.addEventListener('keydown', handleModalKeydown);
+
+    setTimeout(() => entityForm.querySelector('input').focus(), 50);
 });
+
 closeEntityForm.addEventListener('click', closeEntityModal);
+entityModal.addEventListener('click', (e) => {
+    if (e.target === entityModal) {
+        closeEntityModal();
+    }
+});
 
 entityForm.addEventListener('submit', async (event) => {
     event.preventDefault();

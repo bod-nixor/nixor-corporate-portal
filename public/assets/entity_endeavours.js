@@ -12,12 +12,21 @@ let driveFiles = [];
 let currentUser = null;
 
 const setStatus = (el, message, ok) => {
+    if (el._hideTimer) clearTimeout(el._hideTimer);
     el.textContent = message;
     el.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
     if (el.id === 'create-status') {
         el.classList.add('md:col-span-2', 'mt-4');
     }
     el.classList.remove('hidden');
+
+    el._hideTimer = setTimeout(() => {
+        el.classList.add('hidden');
+        el.className = '';
+        if (el.id === 'create-status') {
+            el.classList.add('md:col-span-2', 'mt-4');
+        }
+    }, 4000);
 };
 
 const loadDriveFiles = async (entityId) => {
@@ -67,56 +76,73 @@ const renderRegistrations = async (container, endeavourId, phase) => {
             const actions = document.createElement('div');
             actions.className = 'flex gap-2';
             if (phase === 'VOLUNTEER_SHORTLISTING') {
-                const shortlist = document.createElement('button');
-                shortlist.className = 'btn btn-secondary text-xs py-1 px-3 bg-emerald-500/10 text-emerald-400 border-none hover:bg-emerald-500/20';
-                shortlist.textContent = 'Shortlist';
-                shortlist.addEventListener('click', async () => {
-                    try {
-                        await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                        await renderRegistrations(container, endeavourId, phase);
-                    } catch (err) {
-                        alert(err?.message || 'Unable to shortlist volunteer.');
-                        console.error(err);
-                    }
-                });
-                const reject = document.createElement('button');
-                reject.className = 'btn btn-secondary text-xs py-1 px-3 bg-red-500/10 text-red-400 border-none hover:bg-red-500/20';
-                reject.textContent = 'Reject';
-                reject.addEventListener('click', async () => {
-                    try {
-                        await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                        await renderRegistrations(container, endeavourId, phase);
-                    } catch (err) {
-                        alert(err?.message || 'Unable to reject volunteer.');
-                        console.error(err);
-                    }
-                });
-                actions.appendChild(shortlist);
-                actions.appendChild(reject);
+                if (reg.status !== 'SHORTLISTED') {
+                    const shortlist = document.createElement('button');
+                    shortlist.className = 'btn btn-secondary text-xs py-1 px-3 bg-emerald-500/10 text-emerald-400 border-none hover:bg-emerald-500/20';
+                    shortlist.textContent = 'Shortlist';
+                    shortlist.addEventListener('click', async () => {
+                        shortlist.disabled = true;
+                        try {
+                            await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+                            await renderRegistrations(container, endeavourId, phase);
+                        } catch (err) {
+                            alert(err?.message || 'Unable to shortlist volunteer.');
+                            console.error(err);
+                        } finally {
+                            shortlist.disabled = false;
+                        }
+                    });
+                    actions.appendChild(shortlist);
+                }
+
+                if (reg.status !== 'REJECTED') {
+                    const reject = document.createElement('button');
+                    reject.className = 'btn btn-secondary text-xs py-1 px-3 bg-red-500/10 text-red-400 border-none hover:bg-red-500/20';
+                    reject.textContent = 'Reject';
+                    reject.addEventListener('click', async () => {
+                        reject.disabled = true;
+                        try {
+                            await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
+                            await renderRegistrations(container, endeavourId, phase);
+                        } catch (err) {
+                            alert(err?.message || 'Unable to reject volunteer.');
+                            console.error(err);
+                        } finally {
+                            reject.disabled = false;
+                        }
+                    });
+                    actions.appendChild(reject);
+                }
             }
             if (phase === 'ON_DAY') {
                 const present = document.createElement('button');
                 present.className = 'btn btn-secondary text-xs py-1 px-3 bg-indigo-500/10 text-indigo-400 border-none hover:bg-indigo-500/20';
                 present.textContent = 'Present';
                 present.addEventListener('click', async () => {
+                    present.disabled = true;
                     try {
                         await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
                         await renderRegistrations(container, endeavourId, phase);
                     } catch (err) {
                         alert(err?.message || 'Unable to mark attendance.');
                         console.error(err);
+                    } finally {
+                        present.disabled = false;
                     }
                 });
                 const paid = document.createElement('button');
                 paid.className = 'btn btn-secondary text-xs py-1 px-3 bg-amber-500/10 text-amber-400 border-none hover:bg-amber-500/20';
                 paid.textContent = 'Paid Fee';
                 paid.addEventListener('click', async () => {
+                    paid.disabled = true;
                     try {
                         await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
                         await renderRegistrations(container, endeavourId, phase);
                     } catch (err) {
                         alert(err?.message || 'Unable to mark transport fee.');
                         console.error(err);
+                    } finally {
+                        paid.disabled = false;
                     }
                 });
                 actions.appendChild(present);
@@ -269,21 +295,21 @@ const renderEndeavours = (rows) => {
                 await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: finCard.querySelector('[data-role="pre"]').value }) });
                 setStatus(finStatusEl, 'Pre-financial submitted.', true);
                 loadEndeavours(entitySelect.value);
-            } catch (err) { setStatus(finStatusEl, err.message || 'Unable to submit', false); }
+            } catch (err) { setStatus(finStatusEl, err?.message || 'Unable to submit', false); }
         });
         finCard.querySelector('[data-action="post"]').addEventListener('click', async () => {
             try {
                 await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: finCard.querySelector('[data-role="post"]').value }) });
                 setStatus(finStatusEl, 'Post-financial submitted.', true);
                 loadEndeavours(entitySelect.value);
-            } catch (err) { setStatus(finStatusEl, err.message || 'Unable to submit', false); }
+            } catch (err) { setStatus(finStatusEl, err?.message || 'Unable to submit', false); }
         });
         finCard.querySelector('[data-action="epilogue"]').addEventListener('click', async () => {
             try {
                 await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: finCard.querySelector('[data-role="epilogue"]').value }) });
                 setStatus(finStatusEl, 'Epilogue submitted.', true);
                 loadEndeavours(entitySelect.value);
-            } catch (err) { setStatus(finStatusEl, err.message || 'Unable to submit', false); }
+            } catch (err) { setStatus(finStatusEl, err?.message || 'Unable to submit', false); }
         });
         col1.appendChild(finCard);
         contentGrid.appendChild(col1);
@@ -428,7 +454,15 @@ apiFetch('/auth/me')
             option.textContent = entity.name;
             entitySelect.appendChild(option);
         });
-        if (entities[0]) {
+        if (entities.length === 0) {
+            const option = document.createElement('option');
+            option.textContent = 'You have no entity memberships';
+            entitySelect.appendChild(option);
+            entitySelect.disabled = true;
+            listEl.innerHTML = '';
+            emptyEl.textContent = 'No entities found.';
+            emptyEl.classList.remove('hidden');
+        } else if (entities[0]) {
             entitySelect.value = entities[0].id;
             loadEndeavours(entitySelect.value);
         }
@@ -452,15 +486,15 @@ createForm.addEventListener('submit', async (event) => {
             method: 'POST',
             body: JSON.stringify({
                 entity_id: entitySelect.value,
-                name: createForm.name.value,
-                description: createForm.description.value,
-                volunteering_enabled: createForm.volunteering_enabled.checked,
-                transport_fee_required: createForm.transport_fee_required.checked,
-                volunteer_registration_deadline: createForm.volunteer_registration_deadline.value || null,
-                pre_financial_deadline: createForm.pre_financial_deadline.value || null,
-                post_financial_deadline: createForm.post_financial_deadline.value || null,
-                event_start_at: createForm.event_start_at.value || null,
-                event_end_at: createForm.event_end_at.value || null
+                name: createForm.elements.namedItem('name').value,
+                description: createForm.elements.namedItem('description').value,
+                volunteering_enabled: createForm.elements.namedItem('volunteering_enabled').checked,
+                transport_fee_required: createForm.elements.namedItem('transport_fee_required').checked,
+                volunteer_registration_deadline: createForm.elements.namedItem('volunteer_registration_deadline').value || null,
+                pre_financial_deadline: createForm.elements.namedItem('pre_financial_deadline').value || null,
+                post_financial_deadline: createForm.elements.namedItem('post_financial_deadline').value || null,
+                event_start_at: createForm.elements.namedItem('event_start_at').value || null,
+                event_end_at: createForm.elements.namedItem('event_end_at').value || null
             })
         });
         setStatus(createStatus, 'Endeavour created.', true);
