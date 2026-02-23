@@ -7,69 +7,133 @@
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden lg:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_drive.html">Entity Drive</a>
-      </nav>
-    </aside>
-    <main class="flex-1 p-6 md:p-8">
-      <header class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div>
-          <h1 class="text-2xl font-semibold">Entity Drive</h1>
-          <p id="drive-breadcrumbs" class="text-sm text-slate-400 mt-1"></p>
-        </div>
-        <div class="flex flex-wrap gap-3">
-          <select id="drive-entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
-          <button id="new-folder" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New Folder</button>
-          <button id="new-link" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New Link</button>
-          <button id="upload-file" class="bg-indigo-500 rounded-xl px-4 py-2 text-sm">Upload File</button>
-        </div>
-      </header>
-
-      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[1.1fr_2fr_1.1fr] gap-6">
-        <div class="space-y-4">
-          <h2 class="text-sm font-semibold text-slate-300">Quick Access</h2>
-          <div id="drive-summary" class="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 gap-4"></div>
-          <div id="drive-status" class="text-xs text-slate-500"></div>
-        </div>
-
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold text-slate-300">Items</h2>
-            <div id="drive-count" class="text-xs text-slate-500">Showing 0 items</div>
+  <div class="min-h-screen flex flex-col">
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+      <div class="px-4 md:px-6 py-3 flex flex-col gap-3">
+        <div class="flex items-center gap-2 text-sm overflow-x-auto whitespace-nowrap" id="drive-breadcrumbs"></div>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[240px] flex-1">
+            <input id="drive-search" type="search" placeholder="Search in current folder (Ctrl/Cmd+F)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm" />
           </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="text-slate-500">
+          <div class="relative">
+            <button id="new-menu-btn" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm">New ▾</button>
+            <div id="new-menu" class="hidden absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl p-1 z-20">
+              <button id="new-folder" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">New folder</button>
+              <button id="new-link" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">New link</button>
+            </div>
+          </div>
+          <button id="upload-file" class="bg-indigo-500 rounded-xl px-3 py-2 text-sm">Upload</button>
+          <select id="drive-sort" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm">
+            <option value="name_asc">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+            <option value="updated_desc">Recently updated</option>
+            <option value="updated_asc">Oldest updated</option>
+          </select>
+          <div class="inline-flex border border-slate-700 rounded-xl overflow-hidden">
+            <button id="view-list" class="px-3 py-2 text-sm bg-slate-800">List</button>
+            <button id="view-grid" class="px-3 py-2 text-sm">Grid</button>
+          </div>
+          <button id="inspector-toggle" class="lg:hidden bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm">Inspector</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
+      <aside class="border-r border-slate-800 p-4 md:p-5 space-y-4 bg-slate-900/40">
+        <div>
+          <label class="text-xs text-slate-400">Entity</label>
+          <select id="drive-entity" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm"></select>
+        </div>
+        <div>
+          <h2 class="text-sm font-semibold text-slate-300">Quick access</h2>
+          <div id="drive-summary" class="mt-2 grid grid-cols-1 gap-2"></div>
+        </div>
+        <div id="drive-status" class="text-xs text-slate-400"></div>
+      </aside>
+
+      <main class="p-4 md:p-5 min-w-0">
+        <div id="bulk-toolbar" class="hidden mb-3 bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-wrap items-center gap-2 text-sm">
+          <span id="bulk-count" class="text-slate-300"></span>
+          <button id="bulk-delete" class="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-300">Delete</button>
+          <button id="bulk-share" class="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300">Share</button>
+          <button id="bulk-clear" class="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300">Clear</button>
+          <span id="bulk-note" class="text-xs text-slate-500"></span>
+        </div>
+
+        <div class="flex justify-between items-center text-xs text-slate-400 mb-2">
+          <div id="drive-count">Showing 0 items</div>
+        </div>
+
+        <div id="list-shell" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div id="drive-skeleton" class="hidden p-4 space-y-2">
+            <div class="h-10 bg-slate-800 rounded animate-pulse"></div>
+            <div class="h-10 bg-slate-800 rounded animate-pulse"></div>
+            <div class="h-10 bg-slate-800 rounded animate-pulse"></div>
+          </div>
+
+          <div id="drive-list-wrapper" class="overflow-x-auto">
+            <table class="w-full text-sm" id="drive-table">
+              <thead class="text-slate-400 bg-slate-900 sticky top-0">
                 <tr>
-                  <th class="text-left py-2">Name</th>
-                  <th class="text-left py-2">Sharing</th>
-                  <th class="text-left py-2">Size</th>
-                  <th class="text-left py-2">Modified</th>
-                  <th class="text-left py-2">Actions</th>
+                  <th class="text-left px-3 py-2 w-10"><input id="select-all" type="checkbox" /></th>
+                  <th class="text-left px-3 py-2">Name</th>
+                  <th class="text-left px-3 py-2">Sharing</th>
+                  <th class="text-left px-3 py-2">Size</th>
+                  <th class="text-left px-3 py-2">Modified</th>
                 </tr>
               </thead>
               <tbody id="drive-list" class="text-slate-200"></tbody>
             </table>
           </div>
-        </div>
 
-        <aside class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+          <div id="drive-grid" class="hidden p-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+          <div id="drive-empty" class="hidden p-10 text-center text-sm text-slate-400">No items found in this location.</div>
+        </div>
+      </main>
+
+      <aside id="inspector-panel" class="hidden lg:block border-l border-slate-800 p-4 md:p-5 bg-slate-900/30 sticky top-[98px] h-[calc(100vh-98px)] overflow-auto">
+        <div class="flex items-center justify-between">
           <h2 class="text-sm font-semibold text-slate-300">Inspector</h2>
-          <div id="inspector-preview" class="mt-4 min-h-36 bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-center text-xs text-slate-500">Preview</div>
-          <h3 id="inspector-name" class="text-lg font-semibold mt-4">Select a file</h3>
-          <p id="inspector-meta" class="text-xs text-slate-500"></p>
-          <div class="mt-4 flex gap-2">
-            <a id="inspector-open" class="hidden inline-flex text-xs bg-slate-800 px-3 py-2 rounded-xl" target="_blank" rel="noopener noreferrer">Open external</a>
-            <a id="inspector-download" class="hidden inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl">Download</a>
-          </div>
-        </aside>
-      </section>
-    </main>
+          <button id="inspector-close" class="lg:hidden text-xs text-slate-400">Close</button>
+        </div>
+        <div id="inspector-preview" class="mt-3 min-h-40 bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-center text-xs text-slate-500">Preview</div>
+        <h3 id="inspector-name" class="text-lg font-semibold mt-4">Select a file</h3>
+        <p id="inspector-meta" class="text-xs text-slate-400"></p>
+        <div class="mt-4 flex gap-2">
+          <a id="inspector-open" class="hidden inline-flex text-xs bg-slate-800 px-3 py-2 rounded-xl" target="_blank" rel="noopener noreferrer">Open external</a>
+          <a id="inspector-download" class="hidden inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl">Download</a>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden fixed bottom-4 right-4 px-4 py-3 rounded-xl text-sm z-50"></div>
+  <div id="context-menu" class="hidden fixed z-50 bg-slate-900 border border-slate-700 rounded-xl p-1 w-40 shadow-2xl">
+    <button data-action="rename" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">Rename</button>
+    <button data-action="share" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">Share</button>
+    <button data-action="delete" class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/20 text-red-300 text-sm">Delete</button>
+  </div>
+
+  <div id="share-modal" class="hidden fixed inset-0 bg-slate-950/70 z-50 items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold">Update sharing</h3>
+        <button id="share-close" class="text-slate-400">✕</button>
+      </div>
+      <select id="share-scope" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm">
+        <option value="private">Private</option>
+        <option value="entity">Entity-wide</option>
+        <option value="department">Department(s)</option>
+        <option value="users">Specific users</option>
+      </select>
+      <input id="share-departments" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm" placeholder="Departments (comma separated)" />
+      <input id="share-users" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm" placeholder="User ids/emails (comma separated)" />
+      <p class="text-xs text-slate-500">Departments: operations, finance, hr, communications, management, other.</p>
+      <div class="flex justify-end gap-2">
+        <button id="share-cancel" class="px-3 py-2 rounded-xl border border-slate-700 text-sm">Cancel</button>
+        <button id="share-save" class="px-3 py-2 rounded-xl bg-indigo-500 text-sm">Save</button>
+      </div>
+    </div>
   </div>
 
   <input id="upload-input" type="file" class="hidden" />
