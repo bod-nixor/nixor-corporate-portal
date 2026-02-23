@@ -10,54 +10,75 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
     <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
+      <nav class="space-y-1 text-sm font-medium">
+        <a class="block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400" href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors" href="/entity_endeavours.html">Entity Endeavours</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors" href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors" href="/calendar.html">Calendar</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors" href="/social.html">Social</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors" href="/endeavours.html">Volunteering</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors" href="/admin.html">Settings</a>
       </nav>
     </aside>
     <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
-          <h1 class="text-2xl font-semibold">Entity Dashboard</h1>
-          <p class="text-slate-400">High-level pulse on docs, meetings, deadlines, and announcements.</p>
+          <h1 class="text-2xl font-bold tracking-tight">Entity Dashboard</h1>
+          <p class="text-slate-400 text-sm mt-1">High-level pulse on docs, meetings, deadlines, and announcements.</p>
         </div>
         <div class="flex flex-col md:flex-row gap-3">
-          <select id="entity-select" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
-          <button id="announcement-button" class="bg-indigo-500 px-4 py-2 rounded-xl font-medium">Create Announcement</button>
+          <select id="entity-select" class="input-field max-w-xs"></select>
+          <button id="announcement-button" class="btn btn-primary shadow-sm disabled:opacity-50">Create Announcement</button>
         </div>
       </header>
-      <section class="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-8">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Documentation Progress</h2>
-          <p id="doc-progress" class="text-3xl font-semibold mt-4">--</p>
-          <p id="doc-summary" class="text-sm text-slate-500 mt-2"></p>
+      
+      <section class="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in">
+        <div class="card card-hoverable">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Documentation Progress</h2>
+          <p id="doc-progress" class="text-4xl font-bold mt-4 tracking-tight">--</p>
+          <p id="doc-summary" class="text-sm text-slate-500 mt-2">Loading...</p>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Pending Documentation</h2>
-          <ul id="pending-docs-list" class="mt-4 space-y-3 text-sm"></ul>
+        <div class="card card-hoverable flex flex-col">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Pending Documentation</h2>
+          <ul id="pending-docs-list" class="mt-4 space-y-3 flex-1"></ul>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Upcoming Meetings</h2>
-          <ul id="meetings-list" class="mt-4 space-y-3 text-sm"></ul>
+        <div class="card card-hoverable flex flex-col">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Upcoming Meetings</h2>
+          <ul id="meetings-list" class="mt-4 space-y-3 flex-1"></ul>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-sm text-slate-400">Critical Deadlines</h2>
-          <ul id="deadlines-list" class="mt-4 space-y-3 text-sm"></ul>
+        <div class="card card-hoverable flex flex-col">
+          <h2 class="text-sm font-medium text-slate-400 uppercase tracking-wide">Critical Deadlines</h2>
+          <ul id="deadlines-list" class="mt-4 space-y-3 flex-1"></ul>
         </div>
       </section>
-      <section class="mt-10">
-        <h2 class="text-lg font-semibold">Announcements</h2>
-        <div id="announcements-list" class="mt-4 space-y-4"></div>
-        <p id="announcements-empty" class="hidden text-sm text-slate-400 mt-4">No announcements yet.</p>
+      <section class="mt-12">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-semibold tracking-tight">Announcements</h2>
+        </div>
+        <div id="announcements-list" class="space-y-4"></div>
+        <div id="announcements-empty" class="hidden text-center py-12 card border-dashed border-slate-700">
+          <p class="text-slate-400">No announcements yet.</p>
+        </div>
       </section>
     </main>
   </div>
+  <div id="announcement-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+    <div class="card w-full max-w-lg shadow-2xl animate-fade-in border-slate-700">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-lg font-semibold tracking-tight">New Announcement</h3>
+        <button id="announcement-close" class="text-slate-400 hover:text-white transition-colors p-1 rounded-md hover:bg-slate-800">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <form id="announcement-form" class="space-y-4">
+        <input name="title" required placeholder="Announcement title" class="input-field" />
+        <textarea name="message" rows="4" required placeholder="Announcement message" class="input-field resize-none"></textarea>
+        <div id="announcement-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
+        <div class="pt-2 flex justify-end gap-3">
+          <button type="button" id="announcement-cancel" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Publish</button>
+        </div>
   <div id="announcement-modal" class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg">
       <div class="flex items-center justify-between">
@@ -113,43 +134,53 @@
         if (data.pending_docs?.length) {
           data.pending_docs.forEach((item) => {
             const li = document.createElement('li');
-            const nameSpan = document.createElement('span');
-            nameSpan.className = 'text-slate-100';
+            li.className = 'p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors';
+            
+            const nameSpan = document.createElement('div');
+            nameSpan.className = 'text-slate-100 font-medium text-sm mb-1';
             nameSpan.textContent = item.endeavour_name;
-            const labelsSpan = document.createElement('span');
-            labelsSpan.className = 'text-slate-500 text-xs';
-            const docLabels = item.pending.map((pending) => {
+            
+            const labelsContainer = document.createElement('div');
+            labelsContainer.className = 'flex flex-wrap gap-1 mt-1';
+            
+            item.pending.forEach((pending) => {
               const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
-              return `${pending.doc_type.replace(/_/g, ' ')} (${group})`;
+              const docName = pending.doc_type.replace(/_/g, ' ');
+              const badge = document.createElement('span');
+              badge.className = 'badge badge-warning text-[10px] py-0.5';
+              badge.textContent = `${docName} (${group})`;
+              labelsContainer.appendChild(badge);
             });
-            labelsSpan.textContent = docLabels.join(', ');
+
             li.appendChild(nameSpan);
-            li.appendChild(document.createElement('br'));
-            li.appendChild(labelsSpan);
+            li.appendChild(labelsContainer);
             pendingDocsList.appendChild(li);
           });
         } else {
           const empty = document.createElement('li');
-          empty.className = 'text-slate-500';
-          empty.textContent = 'No pending documentation.';
+          empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+          empty.textContent = 'All caught up! 🎉';
           pendingDocsList.appendChild(empty);
         }
         if (data.calendar?.length) {
           data.calendar.forEach((event) => {
             const item = document.createElement('li');
-            item.className = 'flex justify-between';
+            item.className = 'flex flex-col p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
             const left = document.createElement('span');
+            left.className = 'text-sm font-medium text-slate-200';
             left.textContent = event.title;
             const right = document.createElement('span');
-            right.className = 'text-slate-500';
-            right.textContent = new Date(event.event_date).toLocaleString();
+            right.className = 'text-slate-400 text-xs mt-1';
+            right.textContent = new Date(event.event_date).toLocaleString(undefined, {
+              weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            });
             item.appendChild(left);
             item.appendChild(right);
             meetingsList.appendChild(item);
           });
         } else {
           const empty = document.createElement('li');
-          empty.className = 'text-slate-500';
+          empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
           empty.textContent = 'No upcoming meetings.';
           meetingsList.appendChild(empty);
         }
@@ -157,50 +188,71 @@
         if (data.deadlines?.length) {
           data.deadlines.forEach((deadline) => {
             const item = document.createElement('li');
-            item.className = 'flex justify-between';
+            item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
+            
             const left = document.createElement('span');
+            left.className = 'text-sm font-medium text-slate-200';
             left.textContent = deadline.name;
+            
             const right = document.createElement('span');
-            right.className = 'text-amber-400';
             const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
+            
+            let badgeClass = 'badge ';
             if (deadline.days_until === null) {
               right.textContent = 'TBD';
+              badgeClass += 'badge-info';
             } else if (deadline.days_until === 0) {
-              right.textContent = `${label}Due today`;
+              right.textContent = `Due today`;
+              badgeClass += 'badge-danger';
             } else if (deadline.days_until < 0) {
               const overdueDays = Math.abs(deadline.days_until);
-              right.textContent = `${label}Overdue by ${overdueDays} ${overdueDays === 1 ? 'day' : 'days'}`;
+              right.textContent = `Overdue (${overdueDays}d)`;
+              badgeClass += 'badge-danger';
+            } else if (deadline.days_until <= 3) {
+              right.textContent = `${deadline.days_until}d left`;
+              badgeClass += 'badge-warning';
             } else {
-              right.textContent = `${label}${deadline.days_until} ${deadline.days_until === 1 ? 'day' : 'days'}`;
+              right.textContent = `${deadline.days_until}d left`;
+              badgeClass += 'bg-slate-700 text-slate-300 border-slate-600';
             }
+            
+            right.className = badgeClass;
             item.appendChild(left);
             item.appendChild(right);
             deadlinesList.appendChild(item);
           });
         } else {
           const empty = document.createElement('li');
-          empty.className = 'text-slate-500';
-          empty.textContent = 'No upcoming deadlines.';
+          empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+          empty.textContent = 'No critical deadlines.';
           deadlinesList.appendChild(empty);
         }
 
         if (data.announcements?.length) {
           data.announcements.forEach((announcement) => {
-            const card = document.createElement('div');
-            card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
+            const acard = document.createElement('div');
+            acard.className = 'card card-hoverable';
+            const headerRow = document.createElement('div');
+            headerRow.className = 'flex items-center justify-between mb-2';
+            
             const title = document.createElement('h3');
-            title.className = 'text-lg font-semibold';
+            title.className = 'text-lg font-semibold tracking-tight';
             title.textContent = announcement.title;
-            const message = document.createElement('p');
-            message.className = 'text-sm text-slate-400 mt-2';
-            message.textContent = announcement.message;
+            
             const meta = document.createElement('p');
-            meta.className = 'text-xs text-slate-500 mt-3';
-            meta.textContent = `By ${announcement.creator_name || announcement.full_name || 'Unknown'}`;
-            card.appendChild(title);
-            card.appendChild(message);
-            card.appendChild(meta);
-            announcementsList.appendChild(card);
+            meta.className = 'text-xs font-medium text-slate-500';
+            meta.textContent = `${announcement.creator_name || announcement.full_name || 'System'}`;
+            
+            headerRow.appendChild(title);
+            headerRow.appendChild(meta);
+            
+            const message = document.createElement('p');
+            message.className = 'text-sm text-slate-300 leading-relaxed';
+            message.textContent = announcement.message;
+            
+            acard.appendChild(headerRow);
+            acard.appendChild(message);
+            announcementsList.appendChild(acard);
           });
         } else {
           announcementsEmpty.classList.remove('hidden');
@@ -248,7 +300,9 @@
       statusEl.classList.add('hidden');
       modal.classList.remove('hidden');
     });
-    modalClose.addEventListener('click', () => modal.classList.add('hidden'));
+    const closeModal = () => modal.classList.add('hidden');
+    document.getElementById('announcement-cancel').addEventListener('click', closeModal);
+    modalClose.addEventListener('click', closeModal);
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();

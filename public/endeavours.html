@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,36 +8,62 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
     <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
+      <nav class="space-y-1 text-sm font-medium">
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/entity_endeavours.html">Entity Endeavours</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/calendar.html">Calendar</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/social.html">Social</a>
+        <a class="block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400"
+          href="/endeavours.html">Volunteering</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/admin.html">Settings</a>
       </nav>
     </aside>
     <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
         <div>
           <div class="flex items-center gap-3">
-            <h1 class="text-2xl font-semibold">Volunteering</h1>
-            <span id="notification-badge" class="hidden text-xs px-2 py-1 rounded-full bg-amber-500/20 text-amber-300"></span>
+            <h1 class="text-2xl font-bold tracking-tight">Volunteering Opportunities</h1>
+            <span id="notification-badge"
+              class="hidden text-xs px-2 py-1 rounded border bg-amber-500/10 border-amber-500/20 text-amber-400 font-medium"></span>
           </div>
-          <p class="text-slate-400">Register for endeavours with open volunteer registration.</p>
+          <p class="text-slate-400 mt-1 text-sm">Find and register for endeavours across entities.</p>
         </div>
-        <div class="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-          <input id="search-input" placeholder="Search by endeavour or entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm w-full md:w-64" />
-          <select id="entity-filter" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+        <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <div class="relative flex-1 sm:w-72">
+            <svg class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24"
+              stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <input id="search-input" placeholder="Search events..." class="input-field pl-10" />
+          </div>
+          <select id="entity-filter" class="input-field sm:w-48"></select>
         </div>
       </header>
-      <section id="endeavour-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8"></section>
-      <p id="endeavour-empty" class="hidden text-sm text-slate-400 mt-6">No endeavours match the selected filters.</p>
+      <section id="endeavour-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
+      </section>
+      <div id="endeavour-empty"
+        class="hidden flex-col items-center justify-center py-16 text-center card border-dashed border-slate-700 mt-8">
+        <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <h3 class="text-lg font-medium text-slate-300">No opportunities found</h3>
+        <p class="text-sm text-slate-500 mt-1 max-w-sm">No volunteering opportunities align with your search. Try
+          changing the filters above.</p>
+      </div>
     </main>
   </div>
   <script type="module">
@@ -51,72 +78,107 @@
       grid.innerHTML = '';
       if (!rows.length) {
         emptyState.classList.remove('hidden');
+        emptyState.classList.add('flex');
         return;
       }
       emptyState.classList.add('hidden');
+      emptyState.classList.remove('flex');
+
       rows.forEach((row) => {
         const card = document.createElement('div');
-        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col';
+        card.className = 'card card-hoverable flex flex-col p-6 h-full';
+
         const header = document.createElement('div');
-        header.className = 'flex items-center justify-between';
+        header.className = 'flex items-center justify-between mb-3';
+
         const status = document.createElement('span');
-        status.className = 'text-xs px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300';
-        status.textContent = 'Volunteer Registration Open';
+        status.className = 'badge badge-success';
+        status.textContent = 'Registration Open';
+
         header.appendChild(status);
+
         const title = document.createElement('h2');
-        title.className = 'text-lg font-semibold mt-4';
+        title.className = 'text-xl font-bold tracking-tight text-slate-100';
         title.textContent = row.name;
+
+        const entityLabel = document.createElement('p');
+        entityLabel.className = 'text-xs font-semibold text-indigo-400 uppercase tracking-wider mt-1 mb-3';
+        entityLabel.textContent = row.entity_name;
+
         const desc = document.createElement('p');
-        desc.className = 'text-sm text-slate-400 mt-2';
+        desc.className = 'text-sm text-slate-400 leading-relaxed flex-1 line-clamp-3';
         desc.textContent = row.description || 'No description provided.';
+
         const meta = document.createElement('div');
-        meta.className = 'mt-4 text-xs text-slate-500 space-y-1';
-        const dates = document.createElement('p');
-        const fmtDate = (value) => value ? new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' }) : 'TBD';
-        dates.textContent = `Dates: ${fmtDate(row.event_start_at || row.start_date)} – ${fmtDate(row.event_end_at || row.end_date)}`;
-        const entity = document.createElement('p');
-        entity.textContent = `Entity: ${row.entity_name}`;
-        const deadline = document.createElement('p');
-        deadline.textContent = `Registration deadline: ${fmtDate(row.volunteer_registration_deadline)}`;
-        meta.appendChild(dates);
-        meta.appendChild(entity);
-        meta.appendChild(deadline);
+        meta.className = 'mt-5 pt-4 border-t border-slate-800 space-y-2';
+
+        const fmtDate = (value) => value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
+
+        meta.innerHTML = `
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-slate-500">Event Dates</span>
+            <span class="font-medium text-slate-300">
+              ${fmtDate(row.event_start_at)} – ${fmtDate(row.event_end_at)}
+            </span>
+          </div>
+          <div class="flex justify-between items-center text-xs">
+            <span class="text-slate-500">Apply By</span>
+            <span class="font-medium text-amber-400">
+              ${fmtDate(row.volunteer_registration_deadline)}
+            </span>
+          </div>
+        `;
+
         const actions = document.createElement('div');
-        actions.className = 'mt-6 flex flex-col gap-2';
+        actions.className = 'mt-6 pt-2 flex items-center gap-3';
+
         const registerButton = document.createElement('button');
-        registerButton.className = 'bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center disabled:opacity-60';
-        registerButton.textContent = row.registered ? 'Registered' : 'Register';
+        registerButton.className = 'btn btn-primary flex-1';
+        registerButton.textContent = row.registered ? 'Registered ✓' : 'Register Now';
         registerButton.disabled = row.registered;
+
+        const viewLink = document.createElement('a');
+        viewLink.href = `/endeavour_view.html?id=${row.id}`;
+        viewLink.className = 'btn btn-secondary';
+        viewLink.textContent = 'Details';
+
         const registerError = document.createElement('p');
-        registerError.className = 'text-xs text-red-300 hidden';
+        registerError.className = 'text-xs text-red-400 mt-2 font-medium hidden text-center w-full';
+
         registerButton.addEventListener('click', async () => {
           if (registerButton.disabled) return;
           registerButton.disabled = true;
           registerError.classList.add('hidden');
+          const originalText = registerButton.textContent;
           registerButton.textContent = 'Registering...';
           try {
             await apiFetch(`/endeavours/${row.id}/register`, { method: 'POST', body: JSON.stringify({}) });
-            registerButton.textContent = 'Registered';
+            registerButton.textContent = 'Registered ✓';
             registerButton.disabled = true;
           } catch (err) {
-            registerButton.textContent = 'Register';
+            registerButton.textContent = originalText;
             registerButton.disabled = false;
             registerError.textContent = err?.message || 'Unable to register. Please try again.';
             registerError.classList.remove('hidden');
           }
         });
+
         actions.appendChild(registerButton);
-        actions.appendChild(registerError);
-        const view = document.createElement('a');
-        view.href = `/endeavour_view.html?id=${row.id}`;
-        view.className = 'bg-slate-800 text-sm px-4 py-2 rounded-xl text-center';
-        view.textContent = 'View';
-        actions.appendChild(view);
+        actions.appendChild(viewLink);
+
         card.appendChild(header);
         card.appendChild(title);
+        card.appendChild(entityLabel);
         card.appendChild(desc);
         card.appendChild(meta);
-        card.appendChild(actions);
+
+        // Wrap actions to hold the error below correctly if flex-wrapped
+        const actionsWrap = document.createElement('div');
+        actionsWrap.className = 'flex flex-col w-full';
+        actionsWrap.appendChild(actions);
+        actionsWrap.appendChild(registerError);
+
+        card.appendChild(actionsWrap);
         grid.appendChild(card);
       });
     };
@@ -178,4 +240,5 @@
     });
   </script>
 </body>
+
 </html>

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,58 +8,99 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
+
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
     <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
+      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
+      <nav class="space-y-1 text-sm font-medium">
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/dashboard.html">Entity Dashboard</a>
+        <a class="block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400" href="/entity_endeavours.html">Entity
+          Endeavours</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/entity_drive.html">Entity Drive</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/calendar.html">Calendar</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/social.html">Social</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/endeavours.html">Volunteering</a>
+        <a class="block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          href="/admin.html">Settings</a>
       </nav>
     </aside>
     <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
         <div>
-          <h1 class="text-2xl font-semibold">Entity Endeavours</h1>
-          <p class="text-slate-400">Create endeavours, attach plans, and manage lifecycle phases.</p>
+          <h1 class="text-2xl font-bold tracking-tight">Entity Endeavours</h1>
+          <p class="text-slate-400 mt-1 text-sm">Create endeavours, attach plans, and manage lifecycle phases.</p>
         </div>
         <div class="flex gap-3">
-          <select id="entity-select" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+          <select id="entity-select" class="input-field max-w-xs"></select>
         </div>
       </header>
 
-      <section class="mt-8 bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <h2 class="text-lg font-semibold">Create Endeavour</h2>
-        <form id="create-form" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <input name="name" required placeholder="Title" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-          <input name="event_start_at" type="datetime-local" placeholder="Event start" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-          <input name="event_end_at" type="datetime-local" placeholder="Event end" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-          <input name="volunteer_registration_deadline" type="datetime-local" placeholder="Volunteer registration deadline" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-          <input name="pre_financial_deadline" type="datetime-local" placeholder="Pre-financial deadline" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-          <input name="post_financial_deadline" type="datetime-local" placeholder="Post-financial deadline" class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-          <textarea name="description" rows="3" placeholder="Description" class="md:col-span-2 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
-          <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="volunteering_enabled" class="rounded bg-slate-950 border border-slate-800" />
-            Volunteering enabled
-          </label>
-          <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="transport_fee_required" class="rounded bg-slate-950 border border-slate-800" />
-            Transport fee required
-          </label>
+      <section class="card mb-10 animate-fade-in shadow-md">
+        <h2 class="text-lg font-semibold tracking-tight">Create Endeavour</h2>
+        <form id="create-form" class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Title</label>
+            <input name="name" required placeholder="Endeavour Title" class="input-field" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Description</label>
+            <input name="description" placeholder="Short description" class="input-field" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Event Start</label>
+            <input name="event_start_at" type="datetime-local" class="input-field" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Event End</label>
+            <input name="event_end_at" type="datetime-local" class="input-field" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Volunteering Deadline</label>
+            <input name="volunteer_registration_deadline" type="datetime-local" class="input-field" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Pre-Financial Deadline</label>
+            <input name="pre_financial_deadline" type="datetime-local" class="input-field" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-400">Post-Financial Deadline</label>
+            <input name="post_financial_deadline" type="datetime-local" class="input-field" />
+          </div>
+
+          <div class="flex flex-col justify-center gap-3 pt-4">
+            <label class="flex items-center gap-3 cursor-pointer group">
+              <input type="checkbox" name="volunteering_enabled"
+                class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-indigo-500 focus:ring-opacity-25" />
+              <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Volunteering
+                enabled</span>
+            </label>
+            <label class="flex items-center gap-3 cursor-pointer group">
+              <input type="checkbox" name="transport_fee_required"
+                class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-indigo-500 focus:ring-opacity-25" />
+              <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Transport fee
+                required</span>
+            </label>
+          </div>
+
           <div id="create-status" class="hidden text-sm rounded-xl px-4 py-3 md:col-span-2"></div>
-          <button type="submit" class="md:col-span-2 bg-indigo-500 rounded-xl px-4 py-3 font-medium">Create Endeavour</button>
+          <div class="md:col-span-2 flex justify-end mt-2">
+            <button type="submit" class="btn btn-primary px-8">Create Endeavour</button>
+          </div>
         </form>
       </section>
 
       <section class="mt-8">
-        <h2 class="text-lg font-semibold">Active Endeavours</h2>
-        <div id="endeavour-list" class="mt-4 space-y-6"></div>
-        <p id="endeavour-empty" class="hidden text-sm text-slate-400 mt-4">No endeavours yet.</p>
+        <h2 class="text-xl font-semibold tracking-tight mb-6">Active Endeavours</h2>
+        <div id="endeavour-list" class="space-y-8"></div>
+        <div id="endeavour-empty" class="hidden text-center py-16 card border-dashed border-slate-700">
+          <p class="text-slate-400">No active endeavours yet. Create one above.</p>
+        </div>
       </section>
     </main>
   </div>
@@ -126,7 +168,7 @@
           actions.className = 'flex gap-2';
           if (phase === 'VOLUNTEER_SHORTLISTING') {
             const shortlist = document.createElement('button');
-            shortlist.className = 'px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-200';
+            shortlist.className = 'btn btn-secondary text-xs py-1 px-3 bg-emerald-500/10 text-emerald-400 border-none hover:bg-emerald-500/20';
             shortlist.textContent = 'Shortlist';
             shortlist.addEventListener('click', async () => {
               try {
@@ -138,7 +180,7 @@
               }
             });
             const reject = document.createElement('button');
-            reject.className = 'px-2 py-1 rounded-lg bg-red-500/20 text-red-200';
+            reject.className = 'btn btn-secondary text-xs py-1 px-3 bg-red-500/10 text-red-400 border-none hover:bg-red-500/20';
             reject.textContent = 'Reject';
             reject.addEventListener('click', async () => {
               try {
@@ -154,8 +196,8 @@
           }
           if (phase === 'ON_DAY') {
             const present = document.createElement('button');
-            present.className = 'px-2 py-1 rounded-lg bg-indigo-500/20 text-indigo-200';
-            present.textContent = 'Mark Present';
+            present.className = 'btn btn-secondary text-xs py-1 px-3 bg-indigo-500/10 text-indigo-400 border-none hover:bg-indigo-500/20';
+            present.textContent = 'Present';
             present.addEventListener('click', async () => {
               try {
                 await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
@@ -166,8 +208,8 @@
               }
             });
             const paid = document.createElement('button');
-            paid.className = 'px-2 py-1 rounded-lg bg-amber-500/20 text-amber-200';
-            paid.textContent = 'Transport Paid';
+            paid.className = 'btn btn-secondary text-xs py-1 px-3 bg-amber-500/10 text-amber-400 border-none hover:bg-amber-500/20';
+            paid.textContent = 'Paid Fee';
             paid.addEventListener('click', async () => {
               try {
                 await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
@@ -195,179 +237,249 @@
         return;
       }
       emptyEl.classList.add('hidden');
+
+      const PHASES = ['PRE_EVENT', 'PRE_FINANCIAL', 'VOLUNTEER_REGISTRATION', 'VOLUNTEER_SHORTLISTING', 'ON_DAY', 'POST_EVENT', 'COMPLETED'];
+      const phaseLabels = {
+        PRE_EVENT: 'Pre-Event',
+        PRE_FINANCIAL: 'Pre-Financial',
+        VOLUNTEER_REGISTRATION: 'Volunteering',
+        VOLUNTEER_SHORTLISTING: 'Shortlisting',
+        ON_DAY: 'On-Day',
+        POST_EVENT: 'Post-Event',
+        COMPLETED: 'Completed'
+      };
+
+      const renderStepper = (currentPhase) => {
+        const p = currentPhase || 'PRE_EVENT';
+        const currentIndex = Math.max(0, PHASES.indexOf(p));
+        let html = '<div class="stepper-container mt-6 mb-8 px-2">';
+        PHASES.forEach((phase, i) => {
+          let classes = 'step-item';
+          if (i < currentIndex) classes += ' completed';
+          else if (i === currentIndex) classes += ' current';
+          html += `
+            <div class="${classes}">
+              <div class="step-dot">${i < currentIndex ? '✓' : i + 1}</div>
+              <div class="step-label hidden md:block mt-2">${phaseLabels[phase]}</div>
+            </div>
+          `;
+        });
+        html += '</div>';
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = html;
+        return wrapper.firstElementChild;
+      };
+
       rows.forEach((row) => {
         const card = document.createElement('div');
-        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4';
+        card.className = 'card animate-fade-in flex flex-col p-6 shadow-md border-slate-700/60';
+
         const header = document.createElement('div');
-        header.className = 'flex flex-wrap items-center justify-between gap-3';
-        const headerContent = document.createElement('div');
+        header.className = 'flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4';
         const title = document.createElement('h3');
-        title.className = 'text-lg font-semibold';
+        title.className = 'text-xl font-bold tracking-tight';
         title.textContent = row.name;
-        const phaseText = document.createElement('p');
-        phaseText.className = 'text-xs text-slate-500';
-        phaseText.textContent = `Phase: ${row.phase || 'PRE_EVENT'}`;
-        headerContent.appendChild(title);
-        headerContent.appendChild(phaseText);
-        header.appendChild(headerContent);
+        header.appendChild(title);
         card.appendChild(header);
 
-        const plans = document.createElement('div');
-        plans.className = 'grid grid-cols-1 md:grid-cols-3 gap-3 text-sm';
-        plans.innerHTML = `
-          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"ops\">${fileOptions(row.operational_plan_file_id)}</select>
-          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"budget\">${fileOptions(row.budget_plan_file_id)}</select>
-          <button class=\"bg-indigo-500 rounded-xl px-3 py-2\">Attach Plans</button>
+        // Add Stepper
+        card.appendChild(renderStepper(row.phase));
+
+        // Create Content Grid for logical grouping
+        const contentGrid = document.createElement('div');
+        contentGrid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4';
+
+        // --- Column 1: Core Docs ---
+        const col1 = document.createElement('div');
+        col1.className = 'space-y-6';
+
+        // Plans
+        const plansCard = document.createElement('div');
+        plansCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+        plansCard.innerHTML = `
+          <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Planning</h4>
+          <div class="flex flex-col sm:flex-row gap-3">
+            <div class="flex-1 space-y-1">
+              <label class="text-xs text-slate-400">Operational Plan</label>
+              <select class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id)}</select>
+            </div>
+            <div class="flex-1 space-y-1">
+              <label class="text-xs text-slate-400">Budget Plan</label>
+              <select class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
+            </div>
+          </div>
+          <button class="btn btn-primary mt-4 w-full sm:w-auto" data-action="attach-plans">Save Plans</button>
         `;
-        const attachBtn = plans.querySelector('button');
-        attachBtn.addEventListener('click', async () => {
-          const ops = plans.querySelector('[data-role=\"ops\"]').value;
-          const budget = plans.querySelector('[data-role=\"budget\"]').value;
+        plansCard.querySelector('[data-action="attach-plans"]').addEventListener('click', async () => {
+          const ops = plansCard.querySelector('[data-role="ops"]').value;
+          const budget = plansCard.querySelector('[data-role="budget"]').value;
           try {
             await apiFetch(`/endeavours/${row.id}/attach_plans`, { method: 'POST', body: JSON.stringify({ operational_plan_file_id: ops, budget_plan_file_id: budget }) });
-            setStatus('Plans attached.', true);
+            setStatus('Plans attached successfully.', true);
             loadEndeavours(entitySelect.value);
           } catch (err) {
             setStatus(err.message || 'Unable to attach plans.', false);
-            console.error(err);
           }
         });
-        card.appendChild(plans);
+        col1.appendChild(plansCard);
 
-        const docs = document.createElement('div');
-        docs.className = 'grid grid-cols-1 md:grid-cols-4 gap-3 text-sm';
-        docs.innerHTML = `
-          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"pre\">${fileOptions(row.pre_financial_file_id)}</select>
-          <button class=\"bg-slate-800 rounded-xl px-3 py-2\" data-action=\"pre\">Submit Pre-Financial</button>
-          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"post\">${fileOptions(row.post_financial_file_id)}</select>
-          <button class=\"bg-slate-800 rounded-xl px-3 py-2\" data-action=\"post\">Submit Post-Financial</button>
+        // Financials
+        const finCard = document.createElement('div');
+        finCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+        finCard.innerHTML = `
+          <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Financials & Epilogue</h4>
+          <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row gap-2 items-end">
+              <div class="flex-1 w-full space-y-1">
+                 <label class="text-xs text-slate-400">Pre-Financial</label>
+                 <select class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id)}</select>
+              </div>
+              <button class="btn btn-secondary w-full sm:w-auto" data-action="pre">Submit Pre-Fin</button>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 items-end">
+              <div class="flex-1 w-full space-y-1">
+                 <label class="text-xs text-slate-400">Post-Financial</label>
+                 <select class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id)}</select>
+              </div>
+              <button class="btn btn-secondary w-full sm:w-auto" data-action="post">Submit Post-Fin</button>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 items-end">
+              <div class="flex-1 w-full space-y-1">
+                 <label class="text-xs text-slate-400">Epilogue</label>
+                 <select class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id)}</select>
+              </div>
+              <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
+            </div>
+          </div>
         `;
-        const epilogue = document.createElement('div');
-        epilogue.className = 'grid grid-cols-1 md:grid-cols-2 gap-3 text-sm';
-        epilogue.innerHTML = `
-          <select class=\"bg-slate-950 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"epilogue\">${fileOptions(row.epilogue_file_id)}</select>
-          <button class=\"bg-slate-800 rounded-xl px-3 py-2\" data-action=\"epilogue\">Submit Epilogue</button>
-        `;
-        docs.querySelector('[data-action=\"pre\"]').addEventListener('click', async () => {
-          const value = docs.querySelector('[data-role=\"pre\"]').value;
+        finCard.querySelector('[data-action="pre"]').addEventListener('click', async () => {
           try {
-            await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: value }) });
+            await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: finCard.querySelector('[data-role="pre"]').value }) });
             setStatus('Pre-financial submitted.', true);
             loadEndeavours(entitySelect.value);
-          } catch (err) {
-            setStatus(err.message || 'Unable to submit pre-financial.', false);
-            console.error(err);
-          }
+          } catch (err) { setStatus(err.message || 'Unable to submit', false); }
         });
-        docs.querySelector('[data-action=\"post\"]').addEventListener('click', async () => {
-          const value = docs.querySelector('[data-role=\"post\"]').value;
+        finCard.querySelector('[data-action="post"]').addEventListener('click', async () => {
           try {
-            await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: value }) });
+            await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: finCard.querySelector('[data-role="post"]').value }) });
             setStatus('Post-financial submitted.', true);
             loadEndeavours(entitySelect.value);
-          } catch (err) {
-            setStatus(err.message || 'Unable to submit post-financial.', false);
-            console.error(err);
-          }
+          } catch (err) { setStatus(err.message || 'Unable to submit', false); }
         });
-        epilogue.querySelector('[data-action=\"epilogue\"]').addEventListener('click', async () => {
-          const value = epilogue.querySelector('[data-role=\"epilogue\"]').value;
+        finCard.querySelector('[data-action="epilogue"]').addEventListener('click', async () => {
           try {
-            await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: value }) });
+            await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: finCard.querySelector('[data-role="epilogue"]').value }) });
             setStatus('Epilogue submitted.', true);
             loadEndeavours(entitySelect.value);
-          } catch (err) {
-            setStatus(err.message || 'Unable to submit epilogue.', false);
-            console.error(err);
-          }
+          } catch (err) { setStatus(err.message || 'Unable to submit', false); }
         });
-        card.appendChild(docs);
-        card.appendChild(epilogue);
+        col1.appendChild(finCard);
+        contentGrid.appendChild(col1);
 
-        const controls = document.createElement('div');
-        controls.className = 'flex flex-wrap gap-3';
-        const startShortlisting = document.createElement('button');
-        startShortlisting.className = 'bg-indigo-500/20 text-indigo-200 rounded-xl px-3 py-2 text-sm';
-        startShortlisting.textContent = 'Start Shortlisting';
-        startShortlisting.addEventListener('click', async () => {
-          if (startShortlisting.disabled) return;
-          startShortlisting.disabled = true;
-          try {
-            await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
-            loadEndeavours(entitySelect.value);
-          } catch (err) {
-            startShortlisting.disabled = false;
-            setStatus(err.message || 'Unable to start shortlisting.', false);
-            console.error(err);
-          }
-        });
-        const closeShortlisting = document.createElement('button');
-        closeShortlisting.className = 'bg-emerald-500/20 text-emerald-200 rounded-xl px-3 py-2 text-sm';
-        closeShortlisting.textContent = 'Close Shortlisting';
-        closeShortlisting.addEventListener('click', async () => {
-          if (closeShortlisting.disabled) return;
-          closeShortlisting.disabled = true;
-          try {
-            await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
-            loadEndeavours(entitySelect.value);
-          } catch (err) {
-            closeShortlisting.disabled = false;
-            setStatus(err.message || 'Unable to close shortlisting.', false);
-            console.error(err);
-          }
-        });
+        // --- Column 2: Volunteering & Admin ---
+        const col2 = document.createElement('div');
+        col2.className = 'space-y-6';
+
+        const volCard = document.createElement('div');
+        volCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+
+        const volHeader = document.createElement('div');
+        volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-4';
+        volHeader.innerHTML = `<h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Volunteer Management</h4>`;
+
+        const volControls = document.createElement('div');
+        volControls.className = 'flex gap-2';
+
         if (row.phase === 'VOLUNTEER_REGISTRATION') {
-          controls.appendChild(startShortlisting);
+          const startShortlisting = document.createElement('button');
+          startShortlisting.className = 'btn btn-primary btn-sm px-3 py-1.5 text-xs';
+          startShortlisting.textContent = 'Start Shortlisting';
+          startShortlisting.addEventListener('click', async () => {
+            if (startShortlisting.disabled) return;
+            startShortlisting.disabled = true;
+            try {
+              await apiFetch(`/endeavours/${row.id}/start_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+              loadEndeavours(entitySelect.value);
+            } catch (err) {
+              startShortlisting.disabled = false;
+              setStatus(err.message || 'Unable to start shortlisting.', false);
+            }
+          });
+          volControls.appendChild(startShortlisting);
         }
         if (row.phase === 'VOLUNTEER_SHORTLISTING') {
-          controls.appendChild(closeShortlisting);
+          const closeShortlisting = document.createElement('button');
+          closeShortlisting.className = 'btn btn-primary bg-emerald-600 hover:bg-emerald-500 btn-sm px-3 py-1.5 text-xs border-none';
+          closeShortlisting.textContent = 'Close Shortlisting / Finalize';
+          closeShortlisting.addEventListener('click', async () => {
+            if (closeShortlisting.disabled) return;
+            closeShortlisting.disabled = true;
+            try {
+              await apiFetch(`/endeavours/${row.id}/close_shortlisting`, { method: 'POST', body: JSON.stringify({}) });
+              loadEndeavours(entitySelect.value);
+            } catch (err) {
+              closeShortlisting.disabled = false;
+              setStatus(err.message || 'Unable to finalize shortlisting.', false);
+            }
+          });
+          volControls.appendChild(closeShortlisting);
         }
-        card.appendChild(controls);
+
+        volHeader.appendChild(volControls);
+        volCard.appendChild(volHeader);
+
+        const regContainer = document.createElement('div');
+        regContainer.className = 'space-y-2 mt-3';
+        const loadRegs = document.createElement('button');
+        loadRegs.className = 'btn btn-ghost btn-sm text-xs w-full border border-dashed border-slate-600';
+        loadRegs.textContent = 'Load Volunteer Registrations';
+        loadRegs.addEventListener('click', () => {
+          loadRegs.classList.add('hidden');
+          renderRegistrations(regContainer, row.id, row.phase)();
+        });
+        volCard.appendChild(loadRegs);
+        volCard.appendChild(regContainer);
+        col2.appendChild(volCard);
 
         if (['board', 'student_affairs', 'admin'].includes(currentUser?.global_role)) {
-          const approvals = document.createElement('div');
-          approvals.className = 'bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm space-y-2';
-          approvals.innerHTML = `
-            <p class=\"text-xs text-slate-500\">Document approvals</p>
-            <div class=\"flex flex-wrap gap-2\">
-              <select class=\"bg-slate-900 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"doc\">
-                <option value=\"operational_plan\">Operational Plan</option>
-                <option value=\"budget_plan\">Budget Plan</option>
-                <option value=\"pre_financial\">Pre-Financial</option>
-                <option value=\"post_financial\">Post-Financial</option>
-                <option value=\"epilogue\">Epilogue</option>
+          const adminCard = document.createElement('div');
+          adminCard.className = 'p-5 bg-indigo-950/20 border border-indigo-500/20 rounded-xl';
+          adminCard.innerHTML = `
+            <h4 class="text-sm font-semibold text-indigo-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+              Admin Approvals
+            </h4>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <select class="input-field py-2 text-sm flex-1" data-role="doc">
+                <option value="operational_plan">Operational Plan</option>
+                <option value="budget_plan">Budget Plan</option>
+                <option value="pre_financial">Pre-Financial</option>
+                <option value="post_financial">Post-Financial</option>
+                <option value="epilogue">Epilogue</option>
               </select>
-              <select class=\"bg-slate-900 border border-slate-800 rounded-xl px-3 py-2\" data-role=\"decision\">
-                <option value=\"approved\">Approve</option>
-                <option value=\"rejected\">Reject</option>
+              <select class="input-field py-2 text-sm flex-1" data-role="decision">
+                <option value="approved">Approve</option>
+                <option value="rejected">Reject</option>
               </select>
-              <button class=\"bg-indigo-500 rounded-xl px-3 py-2\">Submit</button>
             </div>
+            <button class="btn bg-indigo-600 hover:bg-indigo-500 text-white mt-3 w-full sm:w-auto" data-action="approve">Submit Decision</button>
           `;
-          approvals.querySelector('button').addEventListener('click', async () => {
-            const docType = approvals.querySelector('[data-role=\"doc\"]').value;
-            const decision = approvals.querySelector('[data-role=\"decision\"]').value;
+          adminCard.querySelector('[data-action="approve"]').addEventListener('click', async () => {
+            const docType = adminCard.querySelector('[data-role="doc"]').value;
+            const decision = adminCard.querySelector('[data-role="decision"]').value;
             try {
               await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
-              setStatus('Approval updated.', true);
+              setStatus('Decision recorded.', true);
               loadEndeavours(entitySelect.value);
             } catch (err) {
               setStatus(err.message || 'Unable to update approval.', false);
-              console.error(err);
             }
           });
-          card.appendChild(approvals);
+          col2.appendChild(adminCard);
         }
 
-        const registrationContainer = document.createElement('div');
-        registrationContainer.className = 'space-y-2';
-        const loadRegs = document.createElement('button');
-        loadRegs.className = 'text-xs text-slate-300 underline';
-        loadRegs.textContent = 'Load registrations';
-        loadRegs.addEventListener('click', renderRegistrations(registrationContainer, row.id, row.phase));
-        card.appendChild(loadRegs);
-        card.appendChild(registrationContainer);
-
+        contentGrid.appendChild(col2);
+        card.appendChild(contentGrid);
         listEl.appendChild(card);
       });
     };
@@ -446,4 +558,5 @@
     });
   </script>
 </body>
+
 </html>
