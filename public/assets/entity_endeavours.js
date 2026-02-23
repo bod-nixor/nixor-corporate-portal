@@ -373,7 +373,7 @@ const buildAdminCard = (row) => {
         const docType = adminCard.querySelector('[data-role="doc"]').value;
         const decision = adminCard.querySelector('[data-role="decision"]').value;
         try {
-            await apiFetch(\`/endeavours/\${row.id}/doc_approvals\`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
+            await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
             setStatus(adminStatusEl, 'Decision recorded.', true);
             loadEndeavours(entitySelect.value);
         } catch (err) {
@@ -481,7 +481,7 @@ const loadEndeavours = async (entityId) => {
     await loadDriveFiles(entityId);
     if (reqId !== endeavoursRequestId) return;
     try {
-        const response = await apiFetch(`/ endeavours ? entity_id = ${ entityId }`);
+        const response = await apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
         if (reqId !== endeavoursRequestId) return;
         renderEndeavours(response?.data || []);
     } catch (err) {
