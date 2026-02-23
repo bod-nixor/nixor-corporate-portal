@@ -113,16 +113,16 @@
           <h2 class="text-lg font-bold tracking-tight mb-4 text-white">Assign Membership</h2>
           <form id="membership-form" class="space-y-4">
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Entity</label>
-              <select name="entity_id" class="input-field"></select>
+              <label for="membership_entity_id" class="text-xs font-medium text-slate-400">Entity</label>
+              <select id="membership_entity_id" name="entity_id" class="input-field"></select>
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">User</label>
-              <select name="user_id" class="input-field"></select>
+              <label for="membership_user_id" class="text-xs font-medium text-slate-400">User</label>
+              <select id="membership_user_id" name="user_id" class="input-field"></select>
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Department</label>
-              <select name="department" class="input-field">
+              <label for="membership_department" class="text-xs font-medium text-slate-400">Department</label>
+              <select id="membership_department" name="department" class="input-field">
                 <option value="operations">Operations</option>
                 <option value="finance">Finance</option>
                 <option value="hr">HR</option>
@@ -132,8 +132,8 @@
               </select>
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-medium text-slate-400">Role level</label>
-              <select name="role" class="input-field">
+              <label for="membership_role" class="text-xs font-medium text-slate-400">Role level</label>
+              <select id="membership_role" name="role" class="input-field">
                 <option value="member" selected>Member</option>
                 <option value="manager">Manager</option>
                 <option value="executive">Executive</option>
@@ -161,13 +161,13 @@
       </div>
       <form id="entity-form" class="space-y-4">
         <div class="space-y-1">
-          <label class="text-xs font-medium text-slate-400">Entity Name</label>
-          <input name="name" required placeholder="Name of Entity" class="input-field" />
+          <label for="modal-entity-name" class="text-xs font-medium text-slate-400">Entity Name</label>
+          <input id="modal-entity-name" name="name" required placeholder="Name of Entity" class="input-field" />
         </div>
         <div class="space-y-1">
-          <label class="text-xs font-medium text-slate-400">Description</label>
-          <textarea name="description" rows="3" placeholder="Description of the entity goals and function"
-            class="input-field py-3"></textarea>
+          <label for="modal-entity-description" class="text-xs font-medium text-slate-400">Description</label>
+          <textarea id="modal-entity-description" name="description" rows="3"
+            placeholder="Description of the entity goals and function" class="input-field py-3"></textarea>
         </div>
         <div id="entity-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
         <div class="flex justify-end pt-2 gap-3">
@@ -313,8 +313,20 @@
       }
     };
 
-    openEntityForm.addEventListener('click', () => entityModal.classList.remove('hidden'));
-    closeEntityForm.addEventListener('click', () => entityModal.classList.add('hidden'));
+    const closeEntityModal = () => {
+      entityModal.classList.add('hidden');
+      document.removeEventListener('keydown', handleEscape);
+    };
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') closeEntityModal();
+    };
+
+    openEntityForm.addEventListener('click', () => {
+      entityModal.classList.remove('hidden');
+      document.addEventListener('keydown', handleEscape);
+    });
+    closeEntityForm.addEventListener('click', closeEntityModal);
 
     entityForm.addEventListener('submit', async (event) => {
       event.preventDefault();

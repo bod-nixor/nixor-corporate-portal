@@ -221,7 +221,7 @@ body {
   top: 1rem;
   /* center of dot */
   left: 50%;
-  right: 0;
+  right: -50%;
   height: 2px;
   background-color: var(--border-subtle);
   z-index: -1;

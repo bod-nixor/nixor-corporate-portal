@@ -59,6 +59,11 @@
     const emptyState = document.getElementById('endeavour-empty');
     const notificationBadge = document.getElementById('notification-badge');
 
+    let initialEmptyState = '';
+    window.addEventListener('DOMContentLoaded', () => {
+      initialEmptyState = emptyState.innerHTML;
+    });
+
     const renderEndeavours = (rows) => {
       grid.innerHTML = '';
       if (!rows.length) {
@@ -77,8 +82,28 @@
         header.className = 'flex items-center justify-between mb-3';
 
         const status = document.createElement('span');
-        status.className = 'badge badge-success';
-        status.textContent = 'Registration Open';
+        const now = new Date();
+        const deadline = row.volunteer_registration_deadline ? new Date(row.volunteer_registration_deadline) : null;
+
+        let badgeText = '';
+        let badgeClass = 'badge ';
+
+        if (row.registered) {
+          badgeText = 'Registered';
+          badgeClass += 'badge-info';
+        } else if (row.phase === 'COMPLETED') {
+          badgeText = 'Completed';
+          badgeClass += 'bg-slate-800 text-slate-300 border-slate-700';
+        } else if (deadline && now > deadline) {
+          badgeText = 'Registration Closed';
+          badgeClass += 'badge-danger';
+        } else {
+          badgeText = 'Registration Open';
+          badgeClass += 'badge-success';
+        }
+
+        status.className = badgeClass;
+        status.textContent = badgeText;
 
         header.appendChild(status);
 
@@ -177,10 +202,11 @@
         renderEndeavours(response?.data || []);
       } catch (err) {
         grid.innerHTML = '';
+        if (!initialEmptyState) initialEmptyState = emptyState.innerHTML;
         emptyState.innerHTML = `
         <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
         </svg>
         <h3 class="text-lg font-medium text-slate-300">Failed to load</h3>
         <p class="text-sm text-slate-500 mt-1 max-w-sm">Failed to load endeavours. Please try again.</p>

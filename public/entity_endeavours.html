@@ -27,50 +27,56 @@
         <h2 class="text-lg font-semibold tracking-tight">Create Endeavour</h2>
         <form id="create-form" class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Title</label>
-            <input name="name" required placeholder="Endeavour Title" class="input-field" />
+            <label for="endeavour_name" class="text-xs font-medium text-slate-400">Title</label>
+            <input id="endeavour_name" name="name" required placeholder="Endeavour Title" class="input-field" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Description</label>
-            <input name="description" placeholder="Short description" class="input-field" />
+            <label for="endeavour_description" class="text-xs font-medium text-slate-400">Description</label>
+            <input id="endeavour_description" name="description" placeholder="Short description" class="input-field" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Event Start</label>
-            <input name="event_start_at" type="datetime-local" class="input-field" />
+            <label for="event_start_at" class="text-xs font-medium text-slate-400">Event Start</label>
+            <input id="event_start_at" name="event_start_at" type="datetime-local" class="input-field" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Event End</label>
-            <input name="event_end_at" type="datetime-local" class="input-field" />
+            <label for="event_end_at" class="text-xs font-medium text-slate-400">Event End</label>
+            <input id="event_end_at" name="event_end_at" type="datetime-local" class="input-field" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Volunteering Deadline</label>
-            <input name="volunteer_registration_deadline" type="datetime-local" class="input-field" />
+            <label for="volunteer_registration_deadline" class="text-xs font-medium text-slate-400">Volunteering
+              Deadline</label>
+            <input id="volunteer_registration_deadline" name="volunteer_registration_deadline" type="datetime-local"
+              class="input-field" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Pre-Financial Deadline</label>
-            <input name="pre_financial_deadline" type="datetime-local" class="input-field" />
+            <label for="pre_financial_deadline" class="text-xs font-medium text-slate-400">Pre-Financial
+              Deadline</label>
+            <input id="pre_financial_deadline" name="pre_financial_deadline" type="datetime-local"
+              class="input-field" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-medium text-slate-400">Post-Financial Deadline</label>
-            <input name="post_financial_deadline" type="datetime-local" class="input-field" />
+            <label for="post_financial_deadline" class="text-xs font-medium text-slate-400">Post-Financial
+              Deadline</label>
+            <input id="post_financial_deadline" name="post_financial_deadline" type="datetime-local"
+              class="input-field" />
           </div>
 
           <div class="flex flex-col justify-center gap-3 pt-4">
-            <label class="flex items-center gap-3 cursor-pointer group">
-              <input type="checkbox" name="volunteering_enabled"
+            <label for="volunteering_enabled" class="flex items-center gap-3 cursor-pointer group">
+              <input id="volunteering_enabled" type="checkbox" name="volunteering_enabled"
                 class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-indigo-500 focus:ring-opacity-25" />
               <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Volunteering
                 enabled</span>
             </label>
-            <label class="flex items-center gap-3 cursor-pointer group">
-              <input type="checkbox" name="transport_fee_required"
+            <label for="transport_fee_required" class="flex items-center gap-3 cursor-pointer group">
+              <input id="transport_fee_required" type="checkbox" name="transport_fee_required"
                 class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-indigo-500 focus:ring-opacity-25" />
               <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Transport fee
                 required</span>
             </label>
           </div>
 
-          <div id="create-status" class="hidden text-sm rounded-xl px-4 py-3 md:col-span-2"></div>
+          <div id="create-status" class="hidden text-sm rounded-xl px-4 py-3 md:col-span-2 mt-4"></div>
           <div class="md:col-span-2 flex justify-end mt-2">
             <button type="submit" class="btn btn-primary px-8">Create Endeavour</button>
           </div>
@@ -101,7 +107,10 @@
 
     const setStatus = (el, message, ok) => {
       el.textContent = message;
-      el.className = `text-sm rounded-xl px-4 py-3 md:col-span-2 mt-4 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      el.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      if (el.id === 'create-status') {
+        el.classList.add('md:col-span-2', 'mt-4');
+      }
       el.classList.remove('hidden');
     };
 
@@ -136,8 +145,8 @@
     const renderRegistrations = async (container, endeavourId, phase) => {
       container.innerHTML = '<p class=\"text-xs text-slate-500\">Loading registrations...</p>';
       try {
-        const response = await apiFetch(`/endeavours/${endeavourId}`);
-        const registrations = response?.data?.registrations || [];
+        const response = await apiFetch(`/endeavours/${endeavourId}/registrations`);
+        const registrations = response?.data || [];
         if (!registrations.length) {
           container.innerHTML = '<p class=\"text-xs text-slate-500\">No registrations yet.</p>';
           return;
@@ -237,22 +246,30 @@
       const renderStepper = (currentPhase) => {
         const p = currentPhase || 'PRE_EVENT';
         const currentIndex = Math.max(0, PHASES.indexOf(p));
-        let html = '<div class="stepper-container mt-6 mb-8 px-2">';
+
+        const container = document.createElement('div');
+        container.className = 'stepper-container mt-6 mb-8 px-2';
+
         PHASES.forEach((phase, i) => {
-          let classes = 'step-item';
-          if (i < currentIndex) classes += ' completed';
-          else if (i === currentIndex) classes += ' current';
-          html += `
-            <div class="${classes}">
-              <div class="step-dot">${i < currentIndex ? '✓' : i + 1}</div>
-              <div class="step-label hidden md:block mt-2">${phaseLabels[phase]}</div>
-            </div>
-          `;
+          const stepItem = document.createElement('div');
+          stepItem.className = 'step-item';
+          if (i < currentIndex) stepItem.classList.add('completed');
+          else if (i === currentIndex) stepItem.classList.add('current');
+
+          const stepDot = document.createElement('div');
+          stepDot.className = 'step-dot';
+          stepDot.textContent = i < currentIndex ? '✓' : i + 1;
+
+          const stepLabel = document.createElement('div');
+          stepLabel.className = 'step-label hidden md:block mt-2';
+          stepLabel.textContent = phaseLabels[phase];
+
+          stepItem.appendChild(stepDot);
+          stepItem.appendChild(stepLabel);
+          container.appendChild(stepItem);
         });
-        html += '</div>';
-        const wrapper = document.createElement('div');
-        wrapper.innerHTML = html;
-        return wrapper.firstElementChild;
+
+        return container;
       };
 
       rows.forEach((row) => {
@@ -384,7 +401,7 @@
 
         if (row.phase === 'VOLUNTEER_REGISTRATION') {
           const startShortlisting = document.createElement('button');
-          startShortlisting.className = 'btn btn-primary btn-sm px-3 py-1.5 text-xs';
+          startShortlisting.className = 'btn btn-primary px-3 py-1.5 text-xs';
           startShortlisting.textContent = 'Start Shortlisting';
           startShortlisting.addEventListener('click', async () => {
             if (startShortlisting.disabled) return;
@@ -401,7 +418,7 @@
         }
         if (row.phase === 'VOLUNTEER_SHORTLISTING') {
           const closeShortlisting = document.createElement('button');
-          closeShortlisting.className = 'btn btn-primary bg-emerald-600 hover:bg-emerald-500 btn-sm px-3 py-1.5 text-xs border-none';
+          closeShortlisting.className = 'btn btn-primary bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs border-none';
           closeShortlisting.textContent = 'Close Shortlisting / Finalize';
           closeShortlisting.addEventListener('click', async () => {
             if (closeShortlisting.disabled) return;
