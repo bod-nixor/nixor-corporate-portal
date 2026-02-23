@@ -167,7 +167,7 @@ final class ApiTest extends TestCase {
 
 
     public function testDrivePermissionModelAndSharing(): void {
-        $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $this->createUser('admin@example.com', 'Password123!', 'admin');
         $ceoId = $this->createUser('ceo@example.com', 'Password123!', 'ceo');
         $execId = $this->createUser('exec@example.com', 'Password123!', 'staff');
         $otherId = $this->createUser('other@example.com', 'Password123!', 'staff');
@@ -188,7 +188,6 @@ final class ApiTest extends TestCase {
         $this->assertSame(200, $execList['status']);
         $this->assertCount(0, $execList['data']['data']);
 
-        $adminClient = $this->loginClient('admin@example.com', 'Password123!');
         $share = $ceoClient->request('POST', '/api/drive/share', [
             'id' => $itemId,
             'sharing_scope' => 'users',
@@ -201,6 +200,8 @@ final class ApiTest extends TestCase {
         $this->assertSame(200, $item['status']);
         $this->assertSame('Private Doc', $item['data']['data']['name']);
 
+
+        $adminClient = $this->loginClient('admin@example.com', 'Password123!');
         $adminList = $adminClient->request('GET', '/api/drive/list?entity_id=' . $entityId);
         $this->assertSame(200, $adminList['status']);
         $this->assertCount(1, $adminList['data']['data']);

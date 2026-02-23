@@ -114,6 +114,7 @@ Sample endpoints:
   - `GET /api/drive/list?entity_id=&parent_id=`
   - `GET /api/drive/item?id=`
   - `GET /api/drive/preview?id=`
+  - `GET /api/drive/content?id=`
   - `POST /api/drive/folder`
   - `POST /api/drive/upload`
   - `POST /api/drive/link`

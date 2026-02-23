@@ -86,6 +86,10 @@ function handle_drive(string $method, array $segments): void {
         }
         drive_assert_can_view_item($user, $item);
         $path = resolve_upload_path($item['file_path']);
+        clearstatcache(true, $path);
+        if (!file_exists($path) || !is_readable($path)) {
+            respond(['ok' => false, 'error' => 'File not found'], 404);
+        }
         header_remove('Content-Security-Policy');
         header('Content-Type: ' . ($item['mime_type'] ?: 'application/octet-stream'));
         header('Content-Length: ' . filesize($path));
@@ -120,7 +124,7 @@ function handle_drive(string $method, array $segments): void {
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
         $stmt->execute([$entityId, $parentId, $name, $data['tags'] ?? '', $sharingScope, $user['id']]);
         $folderId = (int)db()->lastInsertId();
-        drive_replace_shares($folderId, $sharingScope, $entityId, $data['departments'] ?? [], $data['users'] ?? []);
+        drive_replace_shares($folderId, $sharingScope, $data['departments'] ?? [], $data['users'] ?? []);
         log_activity($user['id'], 'drive_item', $folderId, 'created', 'Drive folder created');
         respond(['ok' => true, 'data' => ['id' => $folderId]]);
     }
@@ -144,7 +148,7 @@ function handle_drive(string $method, array $segments): void {
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, file_path, mime_type, size_bytes, tags, sharing_scope, created_by) VALUES (?, ?, "file", ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([$entityId, $parentId, $uploaded['original'], $uploaded['path'], $mimeType, $uploaded['size'], $_POST['tags'] ?? '', $sharingScope, $user['id']]);
         $fileId = (int)db()->lastInsertId();
-        drive_replace_shares($fileId, $sharingScope, $entityId, $_POST['departments'] ?? [], $_POST['users'] ?? []);
+        drive_replace_shares($fileId, $sharingScope, $_POST['departments'] ?? [], $_POST['users'] ?? []);
         log_activity($user['id'], 'drive_item', $fileId, 'uploaded', 'Drive file uploaded');
         respond(['ok' => true, 'data' => ['id' => $fileId]]);
     }
@@ -165,7 +169,7 @@ function handle_drive(string $method, array $segments): void {
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, url, mime_type, sharing_scope, created_by) VALUES (?, ?, "link", ?, ?, ?, ?, ?)');
         $stmt->execute([$entityId, $parentId, $name, $url, $mimeType, $sharingScope, $user['id']]);
         $itemId = (int)db()->lastInsertId();
-        drive_replace_shares($itemId, $sharingScope, $entityId, $data['departments'] ?? [], $data['users'] ?? []);
+        drive_replace_shares($itemId, $sharingScope, $data['departments'] ?? [], $data['users'] ?? []);
         log_activity($user['id'], 'drive_item', $itemId, 'created', 'Drive link created');
         respond(['ok' => true, 'data' => ['id' => $itemId]]);
     }
@@ -242,14 +246,14 @@ function handle_drive(string $method, array $segments): void {
         }
         $stmt = db()->prepare('UPDATE file_drive_items SET sharing_scope = ? WHERE id = ?');
         $stmt->execute([$sharingScope, $itemId]);
-        drive_replace_shares($itemId, $sharingScope, (int)$item['entity_id'], $data['departments'] ?? [], $data['users'] ?? []);
+        drive_replace_shares($itemId, $sharingScope, $data['departments'] ?? [], $data['users'] ?? []);
         respond(['ok' => true]);
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
 }
 
-function drive_replace_shares(int $itemId, string $scope, int $entityId, $departments, $users): void {
+function drive_replace_shares(int $itemId, string $scope, $departments, $users): void {
     $deleteStmt = db()->prepare('DELETE FROM drive_item_shares WHERE item_id = ?');
     $deleteStmt->execute([$itemId]);
 

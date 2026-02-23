@@ -187,6 +187,7 @@ function renderItems() {
 
 async function openInspector(item) {
   state.activeId = item?.id ?? null;
+  const targetId = state.activeId;
   el.inspectorName.textContent = item?.name || 'Select a file';
   el.inspectorMeta.textContent = item ? `${item.item_type} • ${item.sharing_scope}` : '';
   el.inspectorOpen.classList.add('hidden');
@@ -196,12 +197,18 @@ async function openInspector(item) {
   if (!item) return;
   try {
     const res = await apiFetch(`/drive/preview?id=${encodeURIComponent(item.id)}`);
+    if (state.activeId !== targetId) {
+      return;
+    }
     const p = res?.data || {};
     el.inspectorPreview.innerHTML = '';
     if (p.kind === 'pdf' || p.kind === 'pdf_link') {
       const f = document.createElement('iframe');
       f.className = 'w-full h-64 rounded-lg border border-slate-800';
       f.src = p.preview_url;
+      if (state.activeId !== targetId) {
+        return;
+      }
       el.inspectorPreview.appendChild(f);
       if (p.open_url) { el.inspectorOpen.href = p.open_url; el.inspectorOpen.classList.remove('hidden'); }
       if (p.download_url) { el.inspectorDownload.href = p.download_url; el.inspectorDownload.classList.remove('hidden'); }
@@ -213,6 +220,9 @@ async function openInspector(item) {
       f.src = p.preview_url;
       f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
       f.allowFullscreen = true;
+      if (state.activeId !== targetId) {
+        return;
+      }
       el.inspectorPreview.appendChild(f);
       el.inspectorOpen.href = p.open_url;
       el.inspectorOpen.classList.remove('hidden');
@@ -222,14 +232,23 @@ async function openInspector(item) {
       const a = document.createElement('a');
       a.className = 'text-indigo-300 underline text-sm break-all';
       a.href = p.open_url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = p.open_url;
+      if (state.activeId !== targetId) {
+        return;
+      }
       el.inspectorPreview.appendChild(a);
       el.inspectorOpen.href = p.open_url;
       el.inspectorOpen.classList.remove('hidden');
       return;
     }
+    if (state.activeId !== targetId) {
+      return;
+    }
     el.inspectorPreview.textContent = 'No inline preview available.';
     if (p.download_url) { el.inspectorDownload.href = p.download_url; el.inspectorDownload.classList.remove('hidden'); }
   } catch (err) {
+    if (state.activeId !== targetId) {
+      return;
+    }
     el.inspectorPreview.textContent = normalizeError(err);
   }
 }
@@ -432,12 +451,14 @@ function bind() {
     if (item?.item_type === 'folder') { state.parentId = item.id; loadItems(); }
   });
 
-  [el.list, el.grid].forEach((node) => node.addEventListener('contextmenu', (e) => {
+  [el.list, el.grid].forEach((node) => {
+    node.addEventListener('contextmenu', (e) => {
     const row = e.target.closest('[data-id]');
     if (!row) return;
     e.preventDefault();
     openContextMenu(e.clientX, e.clientY, Number(row.dataset.id));
-  }));
+    });
+  });
 
   el.contextMenu.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-action]');
@@ -446,7 +467,7 @@ function bind() {
   });
 
   el.selectAll.addEventListener('change', () => {
-    if (el.selectAll.checked) viewItems().forEach((i) => state.selection.add(i.id));
+    if (el.selectAll.checked) viewItems().forEach((i) => { state.selection.add(i.id); });
     else state.selection.clear();
     renderItems();
   });
@@ -469,6 +490,15 @@ function bind() {
 
   el.inspectorToggle.addEventListener('click', () => el.inspectorPanel.classList.toggle('hidden'));
   el.inspectorClose?.addEventListener('click', () => el.inspectorPanel.classList.add('hidden'));
+
+
+  [el.inspectorOpen, el.inspectorDownload].forEach((anchor) => {
+    anchor.addEventListener('click', (event) => {
+      if (anchor.getAttribute('href') === '#') {
+        event.preventDefault();
+      }
+    });
+  });
 
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); el.search.focus(); }

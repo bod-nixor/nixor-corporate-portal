@@ -187,7 +187,12 @@ function drive_build_parent_chain(array $user, array $item): array {
         if (!$parent) {
             break;
         }
-        if (!drive_user_can_view_item($user, $parent) && !drive_user_is_explicitly_shared($user, (int)$item['id'])) {
+        if (!drive_user_can_view_item($user, $parent)) {
+            array_unshift($chain, [
+                'id' => (int)$parent['id'],
+                'name' => '[hidden]',
+                'item_type' => null
+            ]);
             break;
         }
         array_unshift($chain, [
@@ -203,8 +208,9 @@ function drive_build_parent_chain(array $user, array $item): array {
 function drive_collect_folder_tree_ids(int $folderId): array {
     $ids = [$folderId];
     $queue = [$folderId];
-    while ($queue) {
-        $current = array_shift($queue);
+    $index = 0;
+    while ($index < count($queue)) {
+        $current = $queue[$index++];
         $stmt = db()->prepare('SELECT id FROM file_drive_items WHERE parent_id = ?');
         $stmt->execute([$current]);
         foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $childId) {
