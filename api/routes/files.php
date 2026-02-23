@@ -14,13 +14,14 @@ function handle_files(string $method, array $segments): void {
     }
 
     if ($type === 'drive') {
-        $stmt = db()->prepare('SELECT f.*, e.id as entity_id FROM file_drive_items f JOIN entities e ON f.entity_id = e.id WHERE f.id = ? AND f.item_type = "file"');
+        $user = require_auth();
+        $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE id = ? AND item_type = "file"');
         $stmt->execute([$id]);
         $item = $stmt->fetch();
         if (!$item) {
             respond(['ok' => false, 'error' => 'File not found'], 404);
         }
-        ensure_entity_access((int)$item['entity_id'], []);
+        drive_assert_can_view_item($user, $item);
         stream_download(resolve_upload_path($item['file_path']), $item['name']);
     } elseif ($type === 'endeavour_document') {
         $stmt = db()->prepare('SELECT ed.*, e.entity_id FROM endeavour_documents ed JOIN endeavours e ON ed.endeavour_id = e.id WHERE ed.id = ?');

@@ -38,7 +38,7 @@ function handle_auth(string $method, array $segments): void {
         $user = current_user();
         $entities = [];
         if ($user) {
-            if (in_array($user['global_role'], ['admin', 'board'], true)) {
+            if (in_array($user['global_role'], ['admin', 'board', 'student_affairs'], true)) {
                 $entities = db()->query('SELECT * FROM entities ORDER BY name')->fetchAll();
             } else {
                 $stmt = db()->prepare('SELECT e.* FROM entities e JOIN entity_memberships em ON e.id = em.entity_id WHERE em.user_id = ? ORDER BY e.name');

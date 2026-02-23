@@ -1,327 +1,142 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Drive</title>
-
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
-
 <body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden lg:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
-      </nav>
-    </aside>
-    <div id="mobile-nav" class="fixed inset-0 bg-black/60 z-40 hidden lg:hidden">
-      <div class="absolute left-0 top-0 h-full w-72 bg-slate-900 border-r border-slate-800 p-6">
-        <div class="flex items-center justify-between">
-          <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-          <button id="close-nav" class="text-slate-400 hover:text-white">✕</button>
+  <div class="min-h-screen flex flex-col">
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+      <div class="px-4 md:px-6 py-3 flex flex-col gap-3">
+        <div class="flex items-center gap-2 text-sm overflow-x-auto whitespace-nowrap" id="drive-breadcrumbs"></div>
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="relative min-w-[240px] flex-1">
+            <input id="drive-search" type="search" placeholder="Search in current folder (Ctrl/Cmd+F)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm" />
+          </div>
+          <div class="relative">
+            <button id="new-menu-btn" class="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm">New ▾</button>
+            <div id="new-menu" class="hidden absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl p-1 z-20">
+              <button id="new-folder" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">New folder</button>
+              <button id="new-link" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">New link</button>
+            </div>
+          </div>
+          <button id="upload-file" class="bg-indigo-500 rounded-xl px-3 py-2 text-sm">Upload</button>
+          <select id="drive-sort" class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm">
+            <option value="name_asc">Name A-Z</option>
+            <option value="name_desc">Name Z-A</option>
+            <option value="updated_desc">Recently updated</option>
+            <option value="updated_asc">Oldest updated</option>
+          </select>
+          <div class="inline-flex border border-slate-700 rounded-xl overflow-hidden">
+            <button id="view-list" class="px-3 py-2 text-sm bg-slate-800">List</button>
+            <button id="view-grid" class="px-3 py-2 text-sm">Grid</button>
+          </div>
+          <button id="inspector-toggle" class="lg:hidden bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm">Inspector</button>
         </div>
-        <nav class="mt-8 space-y-2 text-sm">
-          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-          <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/entity_drive.html">Entity Drive</a>
-          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-          <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
-        </nav>
       </div>
-    </div>
-    <main class="flex-1 p-6 md:p-8">
-      <header class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-        <div class="flex items-start gap-4">
-          <button id="open-nav"
-            class="lg:hidden bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm">☰</button>
-          <div>
-            <h1 class="text-2xl font-semibold">Entity Drive</h1>
-            <p class="text-sm text-slate-400">Automated templates, synced permissions, and centralized folders.</p>
-          </div>
-        </div>
-        <div class="flex flex-wrap gap-3">
-          <select id="drive-entity" class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
-          <button id="new-folder" class="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm">New
-            Folder</button>
-          <button id="upload-file" class="bg-indigo-500 rounded-xl px-4 py-2 text-sm">Upload File</button>
-        </div>
-      </header>
+    </header>
 
-      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[1.2fr_2fr_1fr] gap-6">
-        <div class="space-y-4">
-          <h2 class="text-sm font-semibold text-slate-300">Quick Access</h2>
-          <div id="drive-summary" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-4"></div>
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)_320px]">
+      <aside class="border-r border-slate-800 p-4 md:p-5 space-y-4 bg-slate-900/40">
+        <div>
+          <label class="text-xs text-slate-400">Entity</label>
+          <select id="drive-entity" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm"></select>
+        </div>
+        <div>
+          <h2 class="text-sm font-semibold text-slate-300">Quick access</h2>
+          <div id="drive-summary" class="mt-2 grid grid-cols-1 gap-2"></div>
+        </div>
+        <div id="drive-status" class="text-xs text-slate-400"></div>
+      </aside>
+
+      <main class="p-4 md:p-5 min-w-0">
+        <div id="bulk-toolbar" class="hidden mb-3 bg-slate-900 border border-slate-700 rounded-xl p-3 flex flex-wrap items-center gap-2 text-sm">
+          <span id="bulk-count" class="text-slate-300"></span>
+          <button id="bulk-delete" class="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-300">Delete</button>
+          <button id="bulk-share" class="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300">Share</button>
+          <button id="bulk-clear" class="px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300">Clear</button>
+          <span id="bulk-note" class="text-xs text-slate-500"></span>
         </div>
 
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold text-slate-300">All Files</h2>
-            <div id="drive-count" class="text-xs text-slate-500">Showing 0 items</div>
+        <div class="flex justify-between items-center text-xs text-slate-400 mb-2">
+          <div id="drive-count">Showing 0 items</div>
+        </div>
+
+        <div id="list-shell" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+          <div id="drive-skeleton" class="hidden p-4 space-y-2">
+            <div class="h-10 bg-slate-800 rounded animate-pulse"></div>
+            <div class="h-10 bg-slate-800 rounded animate-pulse"></div>
+            <div class="h-10 bg-slate-800 rounded animate-pulse"></div>
           </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="text-slate-500">
+
+          <div id="drive-list-wrapper" class="overflow-x-auto">
+            <table class="w-full text-sm" id="drive-table">
+              <thead class="text-slate-400 bg-slate-900 sticky top-0">
                 <tr>
-                  <th class="text-left py-2">Name</th>
-                  <th class="text-left py-2">Sharing</th>
-                  <th class="text-left py-2">Size</th>
-                  <th class="text-left py-2">Modified</th>
+                  <th class="text-left px-3 py-2 w-10"><input id="select-all" type="checkbox" aria-label="Select all items" title="Select all items" /></th>
+                  <th class="text-left px-3 py-2">Name</th>
+                  <th class="text-left px-3 py-2">Sharing</th>
+                  <th class="text-left px-3 py-2">Size</th>
+                  <th class="text-left px-3 py-2">Modified</th>
                 </tr>
               </thead>
               <tbody id="drive-list" class="text-slate-200"></tbody>
             </table>
           </div>
-        </div>
 
-        <aside class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-semibold text-slate-300">Inspector</h2>
-            <span class="text-xs text-slate-500">Selected</span>
-          </div>
-          <div class="mt-4">
-            <div
-              class="h-36 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-xs text-slate-500">
-              Preview</div>
-            <h3 id="inspector-name" class="text-lg font-semibold mt-4">Select a file</h3>
-            <p id="inspector-meta" class="text-xs text-slate-500"></p>
-            <a id="inspector-download" class="hidden mt-4 inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl"
-              href="#">Download</a>
-          </div>
-        </aside>
-      </section>
-    </main>
-  </div>
-  <div id="folder-modal" role="dialog" aria-modal="true" aria-labelledby="folder-modal-title"
-    class="hidden fixed inset-0 bg-slate-950/80 flex items-center justify-center p-6 z-50">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md">
-      <div class="flex items-center justify-between">
-        <h3 id="folder-modal-title" class="text-lg font-semibold">New Folder</h3>
-        <button id="folder-close" aria-label="Close dialog" class="text-slate-400 hover:text-slate-200">✕</button>
-      </div>
-      <form id="folder-form" class="mt-4 space-y-3 text-sm">
-        <input name="folder_name" required placeholder="Folder name"
-          class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-        <div id="folder-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-        <button type="submit" class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium">Create
-          Folder</button>
-      </form>
+          <div id="drive-grid" class="hidden p-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3"></div>
+          <div id="drive-empty" class="hidden p-10 text-center text-sm text-slate-400">No items found in this location.</div>
+        </div>
+      </main>
+
+      <aside id="inspector-panel" class="hidden lg:block border-l border-slate-800 p-4 md:p-5 bg-slate-900/30 sticky top-[98px] h-[calc(100vh-98px)] overflow-auto">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-slate-300">Inspector</h2>
+          <button id="inspector-close" class="lg:hidden text-xs text-slate-400">Close</button>
+        </div>
+        <div id="inspector-preview" class="mt-3 min-h-40 bg-slate-950 border border-slate-800 rounded-xl p-3 flex items-center justify-center text-xs text-slate-500">Preview</div>
+        <h3 id="inspector-name" class="text-lg font-semibold mt-4">Select a file</h3>
+        <p id="inspector-meta" class="text-xs text-slate-400"></p>
+        <div class="mt-4 flex gap-2">
+          <a id="inspector-open" href="#" class="hidden inline-flex text-xs bg-slate-800 px-3 py-2 rounded-xl" target="_blank" rel="noopener noreferrer">Open external</a>
+          <a id="inspector-download" href="#" class="hidden inline-flex text-xs bg-indigo-500 px-3 py-2 rounded-xl">Download</a>
+        </div>
+      </aside>
     </div>
   </div>
-  <div id="upload-status" class="hidden text-sm rounded-xl px-4 py-3 mx-6 mb-6"></div>
+
+  <div id="toast" class="hidden fixed bottom-4 right-4 px-4 py-3 rounded-xl text-sm z-50"></div>
+  <div id="context-menu" class="hidden fixed z-50 bg-slate-900 border border-slate-700 rounded-xl p-1 w-40 shadow-2xl">
+    <button data-action="rename" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">Rename</button>
+    <button data-action="share" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-sm">Share</button>
+    <button data-action="delete" class="w-full text-left px-3 py-2 rounded-lg hover:bg-red-500/20 text-red-300 text-sm">Delete</button>
+  </div>
+
+  <div id="share-modal" class="hidden fixed inset-0 bg-slate-950/70 z-50 items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-4 space-y-3">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold">Update sharing</h3>
+        <button id="share-close" class="text-slate-400">✕</button>
+      </div>
+      <select id="share-scope" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm">
+        <option value="private">Private</option>
+        <option value="entity">Entity-wide</option>
+        <option value="department">Department(s)</option>
+        <option value="users">Specific users</option>
+      </select>
+      <input id="share-departments" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm" placeholder="Departments (comma separated)" />
+      <input id="share-users" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm" placeholder="User ids/emails (comma separated)" />
+      <p class="text-xs text-slate-500">Departments: operations, finance, hr, communications, management, other.</p>
+      <div class="flex justify-end gap-2">
+        <button id="share-cancel" class="px-3 py-2 rounded-xl border border-slate-700 text-sm">Cancel</button>
+        <button id="share-save" class="px-3 py-2 rounded-xl bg-indigo-500 text-sm">Save</button>
+      </div>
+    </div>
+  </div>
+
   <input id="upload-input" type="file" class="hidden" />
-  <script type="module">
-    import { apiFetch } from '/assets/app.js';
-    const mobileNav = document.getElementById('mobile-nav');
-    document.getElementById('open-nav')?.addEventListener('click', () => {
-      mobileNav?.classList.remove('hidden');
-    });
-    document.getElementById('close-nav')?.addEventListener('click', () => {
-      mobileNav?.classList.add('hidden');
-    });
-    mobileNav?.addEventListener('click', (event) => {
-      if (event.target === mobileNav) {
-        mobileNav.classList.add('hidden');
-      }
-    });
-    const entitySelect = document.getElementById('drive-entity');
-    const driveList = document.getElementById('drive-list');
-    const driveCount = document.getElementById('drive-count');
-    const driveSummary = document.getElementById('drive-summary');
-    const inspectorName = document.getElementById('inspector-name');
-    const inspectorMeta = document.getElementById('inspector-meta');
-    const inspectorDownload = document.getElementById('inspector-download');
-    const uploadInput = document.getElementById('upload-input');
-    const uploadStatus = document.getElementById('upload-status');
-
-    const renderSummary = (items) => {
-      const folders = items.filter((item) => item.item_type === 'folder').length;
-      const files = items.filter((item) => item.item_type === 'file').length;
-      driveSummary.innerHTML = '';
-      [
-        { label: 'Folders', value: folders },
-        { label: 'Files', value: files }
-      ].forEach((entry) => {
-        const card = document.createElement('div');
-        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-4';
-        const title = document.createElement('p');
-        title.className = 'text-xs uppercase text-indigo-300';
-        title.textContent = entry.label;
-        const value = document.createElement('h3');
-        value.className = 'text-lg font-semibold mt-2';
-        value.textContent = entry.value;
-        card.appendChild(title);
-        card.appendChild(value);
-        driveSummary.appendChild(card);
-      });
-    };
-
-    const loadDrive = async () => {
-      const entityId = entitySelect.value;
-      if (!entityId) return;
-      try {
-        const response = await apiFetch(`/drive/list?entity_id=${entityId}`);
-        const items = response?.data || [];
-        driveList.innerHTML = '';
-        items.forEach((item) => {
-          const row = document.createElement('tr');
-          row.className = 'border-t border-slate-800';
-          const nameCell = document.createElement('td');
-          nameCell.className = 'py-3';
-          nameCell.textContent = item.name;
-          const shareCell = document.createElement('td');
-          shareCell.textContent = item.sharing_scope;
-          const sizeCell = document.createElement('td');
-          sizeCell.textContent = item.item_type === 'folder' ? '-' : `${((item.size_bytes || 0) / 1024).toFixed(1)} KB`;
-          const dateCell = document.createElement('td');
-          dateCell.textContent = new Date(item.updated_at || item.created_at).toLocaleDateString();
-          row.appendChild(nameCell);
-          row.appendChild(shareCell);
-          row.appendChild(sizeCell);
-          row.appendChild(dateCell);
-          row.addEventListener('click', () => {
-            inspectorName.textContent = item.name;
-            inspectorMeta.textContent = item.item_type === 'folder' ? 'Folder' : `${((Number(item.size_bytes) || 0) / 1024).toFixed(1)} KB`;
-            if (item.item_type === 'file') {
-              inspectorDownload.classList.remove('hidden');
-              inspectorDownload.href = `/api/files/download?type=drive&id=${encodeURIComponent(item.id)}`;
-            } else {
-              inspectorDownload.classList.add('hidden');
-            }
-          });
-          driveList.appendChild(row);
-        });
-        driveCount.textContent = `Showing ${items.length} items`;
-        renderSummary(items);
-      } catch (err) {
-        driveList.innerHTML = '';
-        driveCount.textContent = err?.message ? `Failed to load (${err.message})` : 'Failed to load';
-        console.error('Drive load error:', err);
-      }
-    };
-
-    apiFetch('/auth/me')
-      .then((response) => {
-        const entities = response?.data?.entities || [];
-        entitySelect.innerHTML = '';
-        if (!entities.length) {
-          entitySelect.innerHTML = '<option disabled selected>No entities available</option>';
-          driveList.innerHTML = '';
-          driveCount.textContent = 'No entities found';
-          return;
-        }
-        entities.forEach((entity) => {
-          const option = document.createElement('option');
-          option.value = entity.id;
-          option.textContent = entity.name;
-          entitySelect.appendChild(option);
-        });
-        entitySelect.value = entities[0].id;
-        loadDrive();
-      })
-      .catch(() => {
-        window.location.href = '/login.html';
-      });
-
-    entitySelect.addEventListener('change', loadDrive);
-    const folderModal = document.getElementById('folder-modal');
-    const folderForm = document.getElementById('folder-form');
-    const folderStatus = document.getElementById('folder-status');
-    let previouslyFocusedFolderElement = null;
-    document.getElementById('new-folder').addEventListener('click', () => {
-      previouslyFocusedFolderElement = document.activeElement;
-      folderStatus.classList.add('hidden');
-      folderModal.classList.remove('hidden');
-      setTimeout(() => folderForm.querySelector('input')?.focus(), 50);
-    });
-    document.getElementById('folder-close').addEventListener('click', () => {
-      folderModal.classList.add('hidden');
-      if (previouslyFocusedFolderElement) previouslyFocusedFolderElement.focus();
-    });
-    folderForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (folderForm.dataset.submitting) return;
-      folderForm.dataset.submitting = 'true';
-      const submitBtn = folderForm.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
-      const name = folderForm.folder_name.value.trim();
-      if (!name) {
-        folderStatus.textContent = 'Folder name is required.';
-        folderStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
-        folderStatus.classList.remove('hidden');
-        folderForm.dataset.submitting = '';
-        if (submitBtn) submitBtn.disabled = false;
-        return;
-      }
-      try {
-        await apiFetch('/drive/create_folder', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, name }) });
-        folderForm.reset();
-        folderModal.classList.add('hidden');
-        if (previouslyFocusedFolderElement) previouslyFocusedFolderElement.focus();
-        loadDrive();
-      } catch (err) {
-        folderStatus.textContent = err.message || 'Failed to create folder';
-        folderStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
-        folderStatus.classList.remove('hidden');
-      } finally {
-        folderForm.dataset.submitting = '';
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    });
-    document.getElementById('upload-file').addEventListener('click', () => {
-      uploadStatus.classList.add('hidden');
-      uploadInput.click();
-    });
-    uploadInput.addEventListener('change', async () => {
-      if (!uploadInput.files.length) return;
-      const file = uploadInput.files[0];
-      const maxSize = 10 * 1024 * 1024;
-      if (file.size > maxSize) {
-        uploadStatus.textContent = 'File size exceeds 10MB limit.';
-        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
-        uploadStatus.classList.remove('hidden');
-        uploadInput.value = '';
-        return;
-      }
-      const formData = new FormData();
-      formData.append('entity_id', entitySelect.value);
-      formData.append('file', file);
-      try {
-        uploadStatus.textContent = 'Uploading...';
-        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-slate-800 text-slate-200 border border-slate-700';
-        uploadStatus.classList.remove('hidden');
-        let dots = 0;
-        const progressTimer = setInterval(() => {
-          dots = (dots + 1) % 4;
-          uploadStatus.textContent = `Uploading${'.'.repeat(dots)}`;
-        }, 500);
-        try {
-          await apiFetch('/drive/upload', { method: 'POST', body: formData });
-        } finally {
-          clearInterval(progressTimer);
-        }
-        uploadInput.value = '';
-        loadDrive();
-        uploadStatus.textContent = 'Upload complete.';
-        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30';
-      } catch (err) {
-        console.error('Upload error:', err);
-        uploadStatus.textContent = err.message || 'Upload failed.';
-        uploadStatus.className = 'text-sm rounded-xl px-4 py-3 bg-red-500/10 text-red-300 border border-red-500/30';
-        uploadStatus.classList.remove('hidden');
-      }
-    });
-  </script>
+  <script type="module" src="/assets/entity_drive.js"></script>
 </body>
-
 </html>
