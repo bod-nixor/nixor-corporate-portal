@@ -477,11 +477,16 @@ const loadEndeavours = async (entityId) => {
         return;
     }
     const reqId = ++endeavoursRequestId;
-    const driveFilesForRequest = await loadDriveFiles(entityId);
-    if (reqId !== endeavoursRequestId) return;
+    const driveFilesPromise = loadDriveFiles(entityId);
+    const endeavoursPromise = apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
+
     try {
-        const response = await apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
+        const driveFilesForRequest = await driveFilesPromise;
         if (reqId !== endeavoursRequestId) return;
+
+        const response = await endeavoursPromise;
+        if (reqId !== endeavoursRequestId) return;
+
         renderEndeavours(response?.data || [], driveFilesForRequest);
     } catch (err) {
         if (reqId !== endeavoursRequestId) return;
