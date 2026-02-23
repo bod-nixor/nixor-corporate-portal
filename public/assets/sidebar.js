@@ -36,12 +36,21 @@ export function renderSidebar(activeId) {
 if (typeof document !== 'undefined') {
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#mobile-menu-btn');
+    const sidebar = document.getElementById('sidebar');
+
     if (btn) {
-      const sidebar = document.getElementById('sidebar');
       if (sidebar) {
         sidebar.classList.toggle('hidden');
         const isHidden = sidebar.classList.contains('hidden');
         btn.setAttribute('aria-expanded', !isHidden);
+      }
+    } else if (sidebar && !sidebar.classList.contains('hidden')) {
+      if (!e.target.closest('#sidebar')) {
+        sidebar.classList.add('hidden');
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        if (menuBtn) {
+          menuBtn.setAttribute('aria-expanded', 'false');
+        }
       }
     }
   });

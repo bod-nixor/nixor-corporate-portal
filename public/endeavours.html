@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Volunteering</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
@@ -17,7 +17,7 @@
         <div>
           <div class="flex items-center gap-3">
             <h1 class="text-2xl font-bold tracking-tight">Volunteering Opportunities</h1>
-            <span id="notification-badge"
+            <span id="notification-badge" aria-live="polite" aria-atomic="true"
               class="hidden text-xs px-2 py-1 rounded border bg-amber-500/10 border-amber-500/20 text-amber-400 font-medium"></span>
           </div>
           <p class="text-slate-400 mt-1 text-sm">Find and register for endeavours across entities.</p>
@@ -30,19 +30,23 @@
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
             <label for="search-input" class="sr-only">Search events</label>
-            <input id="search-input" placeholder="Search events..." class="input-field pl-10" />
+            <input id="search-input" type="search" placeholder="Search events..." class="input-field pl-10" />
           </div>
           <div class="relative">
             <label for="entity-filter" class="sr-only">Filter by Entity</label>
-            <select id="entity-filter" class="input-field sm:w-48"></select>
+            <select id="entity-filter" class="input-field sm:w-48">
+              <option value="">All Entities</option>
+            </select>
           </div>
         </div>
       </header>
-      <section id="endeavour-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
+      <section id="endeavour-grid" aria-label="Endeavours"
+        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
       </section>
       <div id="endeavour-empty"
         class="hidden flex flex-col items-center justify-center py-16 text-center card border-dashed border-slate-700 mt-8">
-        <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
         </svg>

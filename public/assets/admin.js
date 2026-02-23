@@ -177,6 +177,8 @@ entityModal.addEventListener('click', (e) => {
 
 entityForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const submitBtn = entityForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
     try {
         await apiFetch('/entities', { method: 'POST', body: JSON.stringify({ name: entityForm.name.value, description: entityForm.description.value }) });
         setStatus(entityStatus, 'Entity created.', true);
@@ -184,11 +186,15 @@ entityForm.addEventListener('submit', async (event) => {
         loadEntities();
     } catch (err) {
         setStatus(entityStatus, normalizeError(err), false);
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
     }
 });
 
 userForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const submitBtn = userForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
     const payload = Object.fromEntries(new FormData(userForm).entries());
     try {
         await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
@@ -197,11 +203,15 @@ userForm.addEventListener('submit', async (event) => {
         loadUsers();
     } catch (err) {
         setStatus(userStatus, normalizeError(err), false);
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
     }
 });
 
 membershipForm.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const submitBtn = membershipForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
     const payload = Object.fromEntries(new FormData(membershipForm).entries());
     try {
         await apiFetch('/members', { method: 'POST', body: JSON.stringify(payload) });
@@ -209,6 +219,8 @@ membershipForm.addEventListener('submit', async (event) => {
         membershipForm.reset();
     } catch (err) {
         setStatus(membershipStatus, normalizeError(err), false);
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
     }
 });
 

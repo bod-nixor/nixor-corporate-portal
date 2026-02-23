@@ -9,7 +9,7 @@ const grid = document.getElementById('endeavour-grid');
 const emptyState = document.getElementById('endeavour-empty');
 const notificationBadge = document.getElementById('notification-badge');
 
-let initialEmptyState = '';
+const initialEmptyState = emptyState.innerHTML;
 
 const renderEndeavours = (rows) => {
     grid.innerHTML = '';
@@ -161,8 +161,6 @@ const renderEndeavours = (rows) => {
 };
 
 const loadEndeavours = async () => {
-    if (!initialEmptyState) initialEmptyState = emptyState.innerHTML;
-
     const params = new URLSearchParams();
     if (entityFilter.value) params.set('entity_id', entityFilter.value);
     if (searchInput.value) params.set('q', searchInput.value);

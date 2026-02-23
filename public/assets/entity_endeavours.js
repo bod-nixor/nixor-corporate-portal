@@ -13,19 +13,19 @@ let currentUser = null;
 
 const setStatus = (el, message, ok) => {
     if (el._hideTimer) clearTimeout(el._hideTimer);
+    if (!el._originalClass) el._originalClass = el.className;
     el.textContent = message;
-    el.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+
+    // Add status styles but keep base structure
+    el.className = `${el._originalClass.replace('hidden', '')} text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+
     if (el.id === 'create-status') {
         el.classList.add('md:col-span-2', 'mt-4');
     }
-    el.classList.remove('hidden');
 
     el._hideTimer = setTimeout(() => {
+        el.className = el._originalClass;
         el.classList.add('hidden');
-        el.className = '';
-        if (el.id === 'create-status') {
-            el.classList.add('md:col-span-2', 'mt-4');
-        }
     }, 4000);
 };
 
@@ -234,19 +234,22 @@ const renderEndeavours = (rows) => {
       <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Planning</h4>
       <div class="flex flex-col sm:flex-row gap-3">
         <div class="flex-1 space-y-1">
-          <label class="text-xs text-slate-400">Operational Plan</label>
-          <select class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id)}</select>
+          <label for="ops-select-${row.id}" class="text-xs text-slate-400">Operational Plan</label>
+          <select id="ops-select-${row.id}" class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id)}</select>
         </div>
         <div class="flex-1 space-y-1">
-          <label class="text-xs text-slate-400">Budget Plan</label>
-          <select class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
+          <label for="budget-select-${row.id}" class="text-xs text-slate-400">Budget Plan</label>
+          <select id="budget-select-${row.id}" class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id)}</select>
         </div>
       </div>
       <div data-role="status" class="hidden"></div>
       <button class="btn btn-primary mt-4 w-full sm:w-auto" data-action="attach-plans">Save Plans</button>
     `;
         const plansStatusEl = plansCard.querySelector('[data-role="status"]');
-        plansCard.querySelector('[data-action="attach-plans"]').addEventListener('click', async () => {
+        const attachBtn = plansCard.querySelector('[data-action="attach-plans"]');
+        attachBtn.addEventListener('click', async () => {
+            if (attachBtn.disabled) return;
+            attachBtn.disabled = true;
             const ops = plansCard.querySelector('[data-role="ops"]').value;
             const budget = plansCard.querySelector('[data-role="budget"]').value;
             try {
@@ -255,6 +258,7 @@ const renderEndeavours = (rows) => {
                 loadEndeavours(entitySelect.value);
             } catch (err) {
                 setStatus(plansStatusEl, err.message || 'Unable to attach plans.', false);
+                attachBtn.disabled = false;
             }
         });
         col1.appendChild(plansCard);
@@ -267,22 +271,22 @@ const renderEndeavours = (rows) => {
       <div class="space-y-4">
         <div class="flex flex-col sm:flex-row gap-2 items-end">
           <div class="flex-1 w-full space-y-1">
-             <label class="text-xs text-slate-400">Pre-Financial</label>
-             <select class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id)}</select>
+             <label for="pre-select-${row.id}" class="text-xs text-slate-400">Pre-Financial</label>
+             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto" data-action="pre">Submit Pre-Fin</button>
         </div>
         <div class="flex flex-col sm:flex-row gap-2 items-end">
           <div class="flex-1 w-full space-y-1">
-             <label class="text-xs text-slate-400">Post-Financial</label>
-             <select class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id)}</select>
+             <label for="post-select-${row.id}" class="text-xs text-slate-400">Post-Financial</label>
+             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto" data-action="post">Submit Post-Fin</button>
         </div>
         <div class="flex flex-col sm:flex-row gap-2 items-end">
           <div class="flex-1 w-full space-y-1">
-             <label class="text-xs text-slate-400">Epilogue</label>
-             <select class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id)}</select>
+             <label for="epi-select-${row.id}" class="text-xs text-slate-400">Epilogue</label>
+             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
         </div>
@@ -290,26 +294,45 @@ const renderEndeavours = (rows) => {
       <div data-role="status" class="hidden"></div>
     `;
         const finStatusEl = finCard.querySelector('[data-role="status"]');
-        finCard.querySelector('[data-action="pre"]').addEventListener('click', async () => {
+        const preBtn = finCard.querySelector('[data-action="pre"]');
+        const postBtn = finCard.querySelector('[data-action="post"]');
+        const epiBtn = finCard.querySelector('[data-action="epilogue"]');
+
+        preBtn.addEventListener('click', async () => {
+            if (preBtn.disabled) return;
+            preBtn.disabled = true;
             try {
                 await apiFetch(`/endeavours/${row.id}/attach_pre_financial`, { method: 'POST', body: JSON.stringify({ pre_financial_file_id: finCard.querySelector('[data-role="pre"]').value }) });
                 setStatus(finStatusEl, 'Pre-financial submitted.', true);
                 loadEndeavours(entitySelect.value);
-            } catch (err) { setStatus(finStatusEl, err?.message || 'Unable to submit', false); }
+            } catch (err) {
+                setStatus(finStatusEl, err?.message || 'Unable to submit', false);
+                preBtn.disabled = false;
+            }
         });
-        finCard.querySelector('[data-action="post"]').addEventListener('click', async () => {
+        postBtn.addEventListener('click', async () => {
+            if (postBtn.disabled) return;
+            postBtn.disabled = true;
             try {
                 await apiFetch(`/endeavours/${row.id}/attach_post_financial`, { method: 'POST', body: JSON.stringify({ post_financial_file_id: finCard.querySelector('[data-role="post"]').value }) });
                 setStatus(finStatusEl, 'Post-financial submitted.', true);
                 loadEndeavours(entitySelect.value);
-            } catch (err) { setStatus(finStatusEl, err?.message || 'Unable to submit', false); }
+            } catch (err) {
+                setStatus(finStatusEl, err?.message || 'Unable to submit', false);
+                postBtn.disabled = false;
+            }
         });
-        finCard.querySelector('[data-action="epilogue"]').addEventListener('click', async () => {
+        epiBtn.addEventListener('click', async () => {
+            if (epiBtn.disabled) return;
+            epiBtn.disabled = true;
             try {
                 await apiFetch(`/endeavours/${row.id}/attach_epilogue`, { method: 'POST', body: JSON.stringify({ epilogue_file_id: finCard.querySelector('[data-role="epilogue"]').value }) });
                 setStatus(finStatusEl, 'Epilogue submitted.', true);
                 loadEndeavours(entitySelect.value);
-            } catch (err) { setStatus(finStatusEl, err?.message || 'Unable to submit', false); }
+            } catch (err) {
+                setStatus(finStatusEl, err?.message || 'Unable to submit', false);
+                epiBtn.disabled = false;
+            }
         });
         col1.appendChild(finCard);
         contentGrid.appendChild(col1);
@@ -392,14 +415,14 @@ const renderEndeavours = (rows) => {
           Admin Approvals
         </h4>
         <div class="flex flex-col sm:flex-row gap-2">
-          <select class="input-field py-2 text-sm flex-1" data-role="doc">
+          <select id="admin-doc-${row.id}" class="input-field py-2 text-sm flex-1" data-role="doc" aria-label="Select Document">
             <option value="operational_plan">Operational Plan</option>
             <option value="budget_plan">Budget Plan</option>
             <option value="pre_financial">Pre-Financial</option>
             <option value="post_financial">Post-Financial</option>
             <option value="epilogue">Epilogue</option>
           </select>
-          <select class="input-field py-2 text-sm flex-1" data-role="decision">
+          <select id="admin-dec-${row.id}" class="input-field py-2 text-sm flex-1" data-role="decision" aria-label="Select Decision">
             <option value="approved">Approve</option>
             <option value="rejected">Reject</option>
           </select>
@@ -408,7 +431,10 @@ const renderEndeavours = (rows) => {
         <button class="btn bg-indigo-600 hover:bg-indigo-500 text-white mt-3 w-full sm:w-auto" data-action="approve">Submit Decision</button>
       `;
             const adminStatusEl = adminCard.querySelector('[data-role="status"]');
-            adminCard.querySelector('[data-action="approve"]').addEventListener('click', async () => {
+            const approveBtn = adminCard.querySelector('[data-action="approve"]');
+            approveBtn.addEventListener('click', async () => {
+                if (approveBtn.disabled) return;
+                approveBtn.disabled = true;
                 const docType = adminCard.querySelector('[data-role="doc"]').value;
                 const decision = adminCard.querySelector('[data-role="decision"]').value;
                 try {
@@ -417,6 +443,7 @@ const renderEndeavours = (rows) => {
                     loadEndeavours(entitySelect.value);
                 } catch (err) {
                     setStatus(adminStatusEl, err.message || 'Unable to update approval.', false);
+                    approveBtn.disabled = false;
                 }
             });
             col2.appendChild(adminCard);

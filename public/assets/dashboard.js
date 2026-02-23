@@ -25,6 +25,113 @@ const setStatus = (message, ok) => {
     statusEl.classList.remove('hidden');
 };
 
+const renderPendingDocs = (listEl, docs) => {
+    listEl.innerHTML = '';
+    if (docs?.length) {
+        docs.forEach((item) => {
+            const li = document.createElement('li');
+            li.className = 'p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors';
+
+            const nameSpan = document.createElement('div');
+            nameSpan.className = 'text-slate-100 font-medium text-sm mb-1';
+            nameSpan.textContent = item.endeavour_name;
+
+            const labelsContainer = document.createElement('div');
+            labelsContainer.className = 'flex flex-wrap gap-1 mt-1';
+
+            item.pending.forEach((pending) => {
+                const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
+                const docName = pending.doc_type.replace(/_/g, ' ');
+                const badge = document.createElement('span');
+                badge.className = 'badge badge-warning text-[10px] py-0.5';
+                badge.textContent = `${docName} (${group})`;
+                labelsContainer.appendChild(badge);
+            });
+
+            li.appendChild(nameSpan);
+            li.appendChild(labelsContainer);
+            listEl.appendChild(li);
+        });
+    } else {
+        const empty = document.createElement('li');
+        empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+        empty.textContent = 'All caught up! 🎉';
+        listEl.appendChild(empty);
+    }
+};
+
+const renderMeetings = (listEl, meetings) => {
+    listEl.innerHTML = '';
+    if (meetings?.length) {
+        meetings.forEach((event) => {
+            const item = document.createElement('li');
+            item.className = 'flex flex-col p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
+            const left = document.createElement('span');
+            left.className = 'text-sm font-medium text-slate-200';
+            left.textContent = event.title;
+            const right = document.createElement('span');
+            right.className = 'text-slate-400 text-xs mt-1';
+            right.textContent = new Date(event.event_date).toLocaleString(undefined, {
+                weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+            });
+            item.appendChild(left);
+            item.appendChild(right);
+            listEl.appendChild(item);
+        });
+    } else {
+        const empty = document.createElement('li');
+        empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+        empty.textContent = 'No upcoming meetings.';
+        listEl.appendChild(empty);
+    }
+};
+
+const renderDeadlines = (listEl, deadlines) => {
+    listEl.innerHTML = '';
+    if (deadlines?.length) {
+        deadlines.forEach((deadline) => {
+            const item = document.createElement('li');
+            item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
+
+            const left = document.createElement('span');
+            left.className = 'text-sm font-medium text-slate-200';
+            left.textContent = deadline.name;
+
+            const right = document.createElement('span');
+            const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
+
+            let badgeClass = 'badge ';
+            if (deadline.days_until === null) {
+                right.textContent = `${label}TBD`;
+                badgeClass += 'badge-info';
+            } else if (deadline.days_until === 0) {
+                right.textContent = `${label}Due today`;
+                badgeClass += 'badge-danger';
+            } else if (deadline.days_until < 0) {
+                const overdueDays = Math.abs(deadline.days_until);
+                right.textContent = `${label}Overdue (${overdueDays}d)`;
+                badgeClass += 'badge-danger';
+            } else if (deadline.days_until <= 3) {
+                right.textContent = `${label}${deadline.days_until}d left`;
+                badgeClass += 'badge-warning';
+            } else {
+                right.textContent = `${label}${deadline.days_until}d left`;
+                badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
+            }
+
+            right.className = badgeClass;
+            item.appendChild(left);
+            item.appendChild(right);
+            listEl.appendChild(item);
+        });
+    } else {
+        const empty = document.createElement('li');
+        empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+        empty.textContent = 'No critical deadlines.';
+        listEl.appendChild(empty);
+    }
+};
+
 const loadDashboard = async (entityId) => {
     meetingsList.innerHTML = '';
     deadlinesList.innerHTML = '';
@@ -36,111 +143,6 @@ const loadDashboard = async (entityId) => {
         const data = response?.data || {};
         docProgress.textContent = `${data.doc_progress || 0}%`;
         docSummary.textContent = `Tracking ${data.total_endeavours || 0} endeavours.`;
-        const renderPendingDocs = (listEl, docs) => {
-            listEl.innerHTML = '';
-            if (docs?.length) {
-                docs.forEach((item) => {
-                    const li = document.createElement('li');
-                    li.className = 'p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors';
-
-                    const nameSpan = document.createElement('div');
-                    nameSpan.className = 'text-slate-100 font-medium text-sm mb-1';
-                    nameSpan.textContent = item.endeavour_name;
-
-                    const labelsContainer = document.createElement('div');
-                    labelsContainer.className = 'flex flex-wrap gap-1 mt-1';
-
-                    item.pending.forEach((pending) => {
-                        const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
-                        const docName = pending.doc_type.replace(/_/g, ' ');
-                        const badge = document.createElement('span');
-                        badge.className = 'badge badge-warning text-[10px] py-0.5';
-                        badge.textContent = `${docName} (${group})`;
-                        labelsContainer.appendChild(badge);
-                    });
-
-                    li.appendChild(nameSpan);
-                    li.appendChild(labelsContainer);
-                    listEl.appendChild(li);
-                });
-            } else {
-                const empty = document.createElement('li');
-                empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
-                empty.textContent = 'All caught up! 🎉';
-                listEl.appendChild(empty);
-            }
-        };
-        const renderMeetings = (listEl, meetings) => {
-            listEl.innerHTML = '';
-            if (meetings?.length) {
-                meetings.forEach((event) => {
-                    const item = document.createElement('li');
-                    item.className = 'flex flex-col p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
-                    const left = document.createElement('span');
-                    left.className = 'text-sm font-medium text-slate-200';
-                    left.textContent = event.title;
-                    const right = document.createElement('span');
-                    right.className = 'text-slate-400 text-xs mt-1';
-                    right.textContent = new Date(event.event_date).toLocaleString(undefined, {
-                        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-                    });
-                    item.appendChild(left);
-                    item.appendChild(right);
-                    listEl.appendChild(item);
-                });
-            } else {
-                const empty = document.createElement('li');
-                empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
-                empty.textContent = 'No upcoming meetings.';
-                listEl.appendChild(empty);
-            }
-        };
-
-        const renderDeadlines = (listEl, deadlines) => {
-            listEl.innerHTML = '';
-            if (deadlines?.length) {
-                deadlines.forEach((deadline) => {
-                    const item = document.createElement('li');
-                    item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
-
-                    const left = document.createElement('span');
-                    left.className = 'text-sm font-medium text-slate-200';
-                    left.textContent = deadline.name;
-
-                    const right = document.createElement('span');
-                    const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
-
-                    let badgeClass = 'badge ';
-                    if (deadline.days_until === null) {
-                        right.textContent = `${label}TBD`;
-                        badgeClass += 'badge-info';
-                    } else if (deadline.days_until === 0) {
-                        right.textContent = `${label}Due today`;
-                        badgeClass += 'badge-danger';
-                    } else if (deadline.days_until < 0) {
-                        const overdueDays = Math.abs(deadline.days_until);
-                        right.textContent = `${label}Overdue (${overdueDays}d)`;
-                        badgeClass += 'badge-danger';
-                    } else if (deadline.days_until <= 3) {
-                        right.textContent = `${label}${deadline.days_until}d left`;
-                        badgeClass += 'badge-warning';
-                    } else {
-                        right.textContent = `${label}${deadline.days_until}d left`;
-                        badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
-                    }
-
-                    right.className = badgeClass;
-                    item.appendChild(left);
-                    item.appendChild(right);
-                    listEl.appendChild(item);
-                });
-            } else {
-                const empty = document.createElement('li');
-                empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
-                empty.textContent = 'No critical deadlines.';
-                listEl.appendChild(empty);
-            }
-        };
 
         if (data.announcements?.length) {
             data.announcements.forEach((announcement) => {
@@ -179,7 +181,6 @@ const loadDashboard = async (entityId) => {
         renderPendingDocs(pendingDocsList, data.pending_docs);
         renderMeetings(meetingsList, data.calendar);
         renderDeadlines(deadlinesList, data.deadlines);
-
     } catch (err) {
         docProgress.textContent = '--';
         docSummary.textContent = err.message || 'Unable to load dashboard.';
