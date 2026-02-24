@@ -23,14 +23,48 @@ CREATE TABLE IF NOT EXISTS drive_item_shares (
   user_id INT NULL,
   user_email VARCHAR(190) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
   KEY idx_item_share (item_id, share_type),
-  KEY idx_share_user (user_id),
-  CONSTRAINT chk_drive_item_shares_department CHECK (
-    (share_type <> 'department') OR (department IS NOT NULL AND user_id IS NULL AND user_email IS NULL)
-  ),
-  CONSTRAINT chk_drive_item_shares_user CHECK (
-    (share_type <> 'user') OR (department IS NULL AND (user_id IS NOT NULL OR user_email IS NOT NULL))
-  ),
-  FOREIGN KEY (item_id) REFERENCES file_drive_items(id) ON DELETE CASCADE,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+  KEY idx_share_user_id (user_id),
+  KEY idx_share_user_email (user_email),
+
+  CONSTRAINT fk_drive_item_shares_item
+    FOREIGN KEY (item_id) REFERENCES file_drive_items(id) ON DELETE CASCADE,
+
+  CONSTRAINT fk_drive_item_shares_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+DELIMITER //
+
+CREATE TRIGGER drive_item_shares_bi
+BEFORE INSERT ON drive_item_shares
+FOR EACH ROW
+BEGIN
+  IF NEW.share_type = 'department' THEN
+    IF NEW.department IS NULL OR NEW.user_id IS NOT NULL OR NEW.user_email IS NOT NULL THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid department share row';
+    END IF;
+  ELSEIF NEW.share_type = 'user' THEN
+    IF NEW.department IS NOT NULL OR (NEW.user_id IS NULL AND NEW.user_email IS NULL) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid user share row';
+    END IF;
+  END IF;
+END//
+
+CREATE TRIGGER drive_item_shares_bu
+BEFORE UPDATE ON drive_item_shares
+FOR EACH ROW
+BEGIN
+  IF NEW.share_type = 'department' THEN
+    IF NEW.department IS NULL OR NEW.user_id IS NOT NULL OR NEW.user_email IS NOT NULL THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid department share row';
+    END IF;
+  ELSEIF NEW.share_type = 'user' THEN
+    IF NEW.department IS NOT NULL OR (NEW.user_id IS NULL AND NEW.user_email IS NULL) THEN
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid user share row';
+    END IF;
+  END IF;
+END//
+
+DELIMITER ;
