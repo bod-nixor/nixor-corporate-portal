@@ -1,16 +1,19 @@
 <?php
 function get_client_ip(): string {
-    $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
-    if ($forwarded) {
-        $parts = array_map('trim', explode(',', $forwarded));
-        $candidate = $parts[0] ?? '';
-        if (filter_var($candidate, FILTER_VALIDATE_IP)) {
-            return $candidate;
+    $canTrustForwarded = function_exists('is_trusted_proxy') && is_trusted_proxy();
+    if ($canTrustForwarded) {
+        $forwarded = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+        if ($forwarded) {
+            $parts = array_map('trim', explode(',', $forwarded));
+            $candidate = $parts[0] ?? '';
+            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
         }
-    }
-    $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
-    if ($realIp && filter_var($realIp, FILTER_VALIDATE_IP)) {
-        return $realIp;
+        $realIp = $_SERVER['HTTP_X_REAL_IP'] ?? '';
+        if ($realIp && filter_var($realIp, FILTER_VALIDATE_IP)) {
+            return $realIp;
+        }
     }
     $remote = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
     return filter_var($remote, FILTER_VALIDATE_IP) ? $remote : 'unknown';
