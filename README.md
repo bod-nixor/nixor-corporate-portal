@@ -1,138 +1,216 @@
 # Nixor Corporate Portal
 
-A centralized, lightweight portal for entity documentation, endeavours, approvals, and volunteer management.
+Nixor Corporate Portal is a PHP 8.1+ and static-JS internal portal for entity operations, approvals, volunteering, shared drive content, calendar events, social updates, and admin/user management.
+
+## What the product includes
+- Session-based authentication with CSRF bootstrapped from `GET /api/auth/csrf`.
+- Entity dashboard with announcements, meetings, deadlines, and documentation progress.
+- Entity endeavour lifecycle management with approvals, volunteer registration, and document attachment flows.
+- Entity drive with folders, files, links, sharing scopes, previews, and bulk actions.
+- Calendar and social feed modules scoped to entities.
+- Admin tools for entities, users, memberships, and high-level operational metrics.
+
+## Architecture Overview
+
+### Backend
+- `api/index.php`: API entrypoint and route dispatcher.
+- `api/routes/*.php`: route handlers grouped by domain.
+- `api/lib/*.php`: shared infrastructure for auth, DB, env loading, migrations, uploads, drive access, security headers, mail, and websocket events.
+- All API responses are JSON.
+
+### Frontend
+- `public/*.html`: page entrypoints.
+- `public/assets/app.js`: shared fetch wrapper, CSRF bootstrap, config loading, websocket/polling helpers, and error normalization.
+- `public/assets/sidebar.js`: shared authenticated shell/sidebar renderer.
+- `public/assets/*.js`: module/page behavior.
+- `public/assets/global.css` -> `public/assets/app.css`: shared design tokens and generated Tailwind output.
+
+### Database
+- MariaDB/MySQL only.
+- `sql/migrations/*.sql`: ordered schema migrations.
+- `sql/dev/*.sql`: dev-only reference/sample seeds.
+- `scripts/migrate.php`: migration runner.
+- `scripts/seed_dev.php`: guarded dev seed entrypoint.
+
+### Realtime / async
+- `ws/server.py`: optional websocket broadcaster.
+- `cron/run.php`: cron-safe reminders/maintenance entrypoint.
 
 ## Repo Layout
-- `/api` PHP API (REST-ish JSON endpoints)
-- `/public` HTML/CSS/JS front-end pages
-- `/ws` Python websocket broadcaster (reads an events queue)
-- `/sql` MariaDB schema + seed data
-- `/uploads` stored documents (gitignored)
+- `api/`
+- `public/`
+- `sql/`
+- `scripts/`
+- `tests/`
+- `ws/`
+- `cron/`
+- `config/`
 
-## Setup
+## Requirements
+- PHP 8.1 or newer.
+- MariaDB or MySQL.
+- Node.js/npm only if you need to rebuild CSS.
+- Composer only if you need PHP dependencies such as Google auth verification or the PHPUnit test suite.
 
-### 1) Database
-1. Create the database in MariaDB (via CLI or cPanel).
-2. Ensure `.env` is configured (or export `DB_*` variables) so `scripts/migrate.php` can connect.
-3. Apply migrations:
-   ```bash
-   php scripts/migrate.php
-   ```
-4. (Dev-only) Seed reference/sample data (requires `APP_ENV=development` + `ALLOW_DEV_SEED=true`):
-   ```bash
-   APP_ENV=development ALLOW_DEV_SEED=true php scripts/seed_dev.php
-   ```
-5. Create an admin account via the setup endpoint (see DEPLOYMENT.md).
+## Local Setup
 
-### 2) Environment
-Copy and edit the environment file:
+### 1. Configure environment
+Copy one of the example env files:
+
 ```bash
 cp .env.example .env
 ```
-Optionally set `ENV_FILE_PATH` if the `.env` file is stored outside the repo root.
 
-### 2.1) Google Login (Optional)
-To enable Google sign-in:
-1. Create a Google OAuth client (Web application) in the Google Cloud Console.
-2. Set the authorized JavaScript origin to your app URL (e.g. `http://localhost:8000`).
-3. The backend callback endpoint is `http://localhost:8000/api/auth/google_callback` (the frontend posts the Google ID token here).
-4. Add the client ID to your `.env`:
-   ```bash
-   GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-   ```
-5. Optionally restrict logins to your organization domain:
-   ```bash
-   GOOGLE_ALLOWED_DOMAIN=nixor.io
-   ```
+You can also use `config/.env`. The app will read either root `.env`, `config/.env`, or a file pointed to by `ENV_FILE_PATH`.
 
-### 2.2) PHP Dependencies
-Install PHP dependencies (Google API client for ID token verification):
+Important values:
+- `APP_ENV`
+- `BASE_URL`
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
+- `UPLOAD_PATH`
+- `LOG_PATH`
+- `SESSION_COOKIE_PATH`
+
+Recommended local defaults:
+- `APP_ENV=development`
+- `BASE_URL=http://127.0.0.1:8000`
+- `SESSION_COOKIE_PATH=/`
+
+### 2. Create the database
+Create an empty MariaDB/MySQL database before running migrations.
+
+### 3. Apply migrations
+
 ```bash
-composer install
+php scripts/migrate.php
 ```
 
-### 2.3) Running Tests
-Configure a test database and run:
+If you are using a non-default env file:
+
 ```bash
+ENV_FILE_PATH=.env php scripts/migrate.php
+```
+
+### 4. Optional dev seed
+Dev-only seed data is guarded behind `APP_ENV=development` and `ALLOW_DEV_SEED=true`.
+
+```bash
+APP_ENV=development ALLOW_DEV_SEED=true php scripts/seed_dev.php
+```
+
+Seed notes:
+- `sql/dev/seed_reference_data.sql` creates base entity/type data.
+- `sql/dev/seed_sample_data.sql` creates example users and sample records.
+- Seeded sample user password: `Password123!`
+
+### 5. Create the first admin
+If you are not using dev seeds, create the first admin through `POST /api/admin/setup`.
+
+Because setup is still CSRF-protected, first request `GET /api/auth/csrf` to obtain:
+- a session cookie
+- `data.csrfToken`
+
+Then call `POST /api/admin/setup` with:
+
+```json
+{
+  "email": "admin@example.com",
+  "full_name": "Portal Admin",
+  "password": "YourSecurePassword123!"
+}
+```
+
+In production, include the configured setup token as documented in [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### 6. Run the local app
+Use the built-in router from repo root:
+
+```bash
+php -S 127.0.0.1:8000 router.php
+```
+
+Then open:
+- UI: `http://127.0.0.1:8000/login.html`
+- API: `http://127.0.0.1:8000/api`
+
+### 7. Rebuild CSS if you changed `public/assets/global.css`
+
+```bash
+npm install
+npm run build:css
+```
+
+## Development Workflow
+- Make backend changes in `api/routes/*` or `api/lib/*`.
+- Make page-specific UI changes in `public/*.html` and `public/assets/*.js`.
+- Keep shared layout/navigation behavior in `public/assets/sidebar.js`.
+- Keep shared fetch/auth/CSRF behavior in `public/assets/app.js`.
+- Add schema changes only through new files in `sql/migrations/`.
+- Run targeted browser QA after every user-facing change.
+- Run PHP linting and whatever tests are available in your environment.
+
+## Testing
+
+### PHP / route checks
+- Lint changed PHP files:
+
+```bash
+php -l path/to/file.php
+```
+
+### Automated tests
+If Composer dependencies are installed:
+
+```bash
+composer install
 composer test
 ```
 
-### 3) PHP API + Frontend
-Minimum PHP version: **8.0**.
+### Browser QA
+Use the checklist in [QA_CHECKLIST.md](QA_CHECKLIST.md) for manual regression coverage.
 
-Run the PHP dev server from the repo root:
+## Migration Workflow
+- Add a new timestamped file to `sql/migrations/`.
+- Do not silently mutate schema in runtime code.
+- Do not edit already-applied migrations unless you are intentionally coordinating checksum resets across environments.
+- Prefer additive, guarded changes.
+- Smoke-test migrations on a fresh empty database before shipping.
+
+See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for the detailed rules and patterns used in this repo.
+
+## Deployment Assumptions
+- Shared hosting / cPanel friendly.
+- Apache routes public traffic into `public/`.
+- Secrets live in env/config, never in git.
+- Uploads and logs should live outside the public web root.
+- Websockets are optional; the app can fall back to polling.
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the cPanel-oriented deployment flow.
+
+## Troubleshooting
+
+### Local server returns 404s for `/login.html` or `/assets/*`
+Run the app with:
+
 ```bash
-php -S localhost:8000
-```
-The API will be available at `http://localhost:8000/api` and the UI at `http://localhost:8000/login.html`.
-
-### 4) Websocket Server
-The websocket server broadcasts events that PHP appends to a queue file.
-
-Install the dependency:
-```bash
-pip install -r ws/requirements.txt
+php -S 127.0.0.1:8000 router.php
 ```
 
-Run the server:
-```bash
-python ws/server.py
-```
+### Login succeeds but other authenticated pages look logged out
+Check `SESSION_COOKIE_PATH`. It should resolve to `/`, not a route-specific path.
 
-By default the websocket server binds to `127.0.0.1`. Set `WS_HOST`/`WS_PORT` to change this and optionally set `WS_TOKEN` to require a `?token=` query parameter for clients.
-If you set `WS_TOKEN`, expose it on the frontend (for example `window.WS_TOKEN = '...';`) before calling `connectWebsocket`.
+### Migrations fail on guarded `ALTER TABLE` statements
+Use the current migration runner and smoke-test on a clean DB. The repo now supports guarded `ADD COLUMN IF NOT EXISTS` and `ADD INDEX IF NOT EXISTS` patterns during migration execution.
 
-## API Overview
-All endpoints return JSON:
-```json
-{ "ok": true, "data": {}, "error": null, "meta": {} }
-```
+### Dev seed data loads but logins still fail
+Make sure you ran the current `sql/dev/seed_sample_data.sql`; the seeded sample users now share the dev password `Password123!`.
 
-Sample endpoints:
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-- `GET /api/endeavours`
-- `POST /api/endeavours/{id}/approve`
-- `POST /api/endeavours/{id}/submit_ops_plan`
-- `POST /api/endeavours/{id}/request_post_to_feed`
-- `POST /api/endeavours/{id}/publish_post`
+### Mobile pages lose navigation
+Authenticated pages should render the shared shell from `public/assets/sidebar.js`. Avoid standalone sidebars that disappear on small screens.
 
-
-## Entity Drive
-- Supports folder tree navigation using `parent_id` with breadcrumb metadata from `GET /api/drive/list`.
-- Item types: `folder`, `file`, and `link` (URL-backed document entries).
-- Sharing scopes:
-  - `private`: creator-only plus entity CEO and global elevated roles.
-  - `entity`: all members of the item's entity.
-  - `department`: selected departments in the same entity.
-  - `users`: explicit users by id/email (including users outside the entity).
-- Elevated visibility (inherent): `admin`, `board`, `student_affairs` always view all entity drive content.
-- Entity CEO access: manager in `management` department (or global `ceo` with membership) can view/manage all content in that entity.
-- Link previews support YouTube and direct PDF URLs; file previews support inline PDFs via `GET /api/drive/content?id=`.
-- API endpoints:
-  - `GET /api/drive/list?entity_id=&parent_id=`
-  - `GET /api/drive/item?id=`
-  - `GET /api/drive/preview?id=`
-  - `GET /api/drive/content?id=`
-  - `POST /api/drive/folder`
-  - `POST /api/drive/upload`
-  - `POST /api/drive/link`
-  - `POST /api/drive/rename`
-  - `POST /api/drive/delete` (recursive for folders)
-  - `POST /api/drive/share`
-
-## Frontend Pages
-- `/login.html`
-- `/home.html`
-- `/dashboard.html`
-- `/entity_drive.html`
-- `/endeavours.html`
-- `/endeavour_view.html`
-- `/admin.html`
-
-## Notes
-- Uploaded documents are stored in `/uploads/{endeavour_id}/{doc_type}`
-- The websocket server reads from the queue file configured in `.env` (default: `/ws/events.queue`).
-- Consider cleaning expired session rows via a periodic job (based on `sessions.expires_at`).
-- Tailwind is loaded via CDN for rapid prototyping; for production, consider a build step with purged CSS.
+## Related Docs
+- [agents.md](agents.md)
+- [DEPLOYMENT.md](DEPLOYMENT.md)
+- [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
+- [QA_CHECKLIST.md](QA_CHECKLIST.md)
+- [PRODUCTION_READINESS_REPORT.md](PRODUCTION_READINESS_REPORT.md)
