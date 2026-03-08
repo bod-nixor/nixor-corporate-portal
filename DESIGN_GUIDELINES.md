@@ -38,7 +38,7 @@ This document outlines the visual language and component architecture for the Ni
   - `btn-primary`: Bright, distinct white/primary, used for the main action. Apple style: inverted dark mode (white bg, dark text) logic or stark primary.
   - `btn-secondary`: Subtle surface background, used for standard actions.
   - `btn-ghost`: Transparent, used for cancelling or minor actions to reduce visual clutter.
-  - `btn-danger`: Red tinted surface, used carefully for destructive states.
+  - `btn-danger`: Red-tinted surface, used carefully for destructive states.
 - **Empty States**: Must be communicative, guiding the user to the next action or explaining the lack of data with an icon/graphic and descriptive text.
 
 ## 5. Implementation Rules

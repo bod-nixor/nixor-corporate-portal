@@ -3,16 +3,7 @@
 
 <head>
   <!-- Theme Init Script to prevent FOUC -->
-  <script>
-    (function() {
-      try {
-        const theme = localStorage.getItem('nixor_theme') || 'theme-default';
-        if (theme !== 'theme-default') {
-          document.documentElement.classList.add(theme);
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Social Feed</title>
@@ -159,8 +150,18 @@
               cAvatar.style.background = `linear-gradient(135deg, hsl(${cHue}, 60%, 50%), hsl(${(cHue + 40) % 360}, 60%, 30%))`;
 
               const cContent = document.createElement('div');
-              cContent.className = 'bg-[var(--bg-base)] rounded-xl px-3 py-2 text-[13px] border border-[var(--border-strong)]';
-              cContent.innerHTML = `<span class="font-bold text-[var(--text-primary)] mr-2">${comment.full_name}</span><span class="text-[var(--text-secondary)] font-medium leading-snug">${comment.comment}</span>`;
+              cContent.className = 'bg-[var(--bg-base)] rounded-xl px-3 py-2 text-[13px] border border-[var(--border-strong)] flex items-start flex-wrap content-start';
+
+              const nameSpan = document.createElement('span');
+              nameSpan.className = 'font-bold text-[var(--text-primary)] mr-2';
+              nameSpan.textContent = comment.full_name;
+
+              const commentSpan = document.createElement('span');
+              commentSpan.className = 'text-[var(--text-secondary)] font-medium leading-snug break-all sm:break-normal';
+              commentSpan.textContent = comment.comment;
+
+              cContent.appendChild(nameSpan);
+              cContent.appendChild(commentSpan);
 
               line.appendChild(cAvatar);
               line.appendChild(cContent);

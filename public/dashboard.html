@@ -3,21 +3,6 @@
 
 <head>
   <!-- Theme Init Script to prevent FOUC -->
-  <script>
-    (function() {
-      try {
-        const theme = localStorage.getItem('nixor_theme') || 'theme-default';
-        if (theme !== 'theme-default') {
-          document.documentElement.classList.add(theme);
-        }
-      } catch (e) {}
-    })();
-  </script>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Entity Dashboard</title>
-  <link rel="stylesheet" href="/assets/app.css" />
-</head>
 
 <body
   class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">

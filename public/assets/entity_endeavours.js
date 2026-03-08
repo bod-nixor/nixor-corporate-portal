@@ -390,7 +390,7 @@ const buildAdminCard = (row) => {
         </div>
       </div>
       <div data-role="status" class="hidden mb-4 relative z-10"></div>
-      <button class="btn btn-primary w-full sm:w-auto self-start relative z-10 bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] border-transparent" data-action="approve">Submit Decision</button>
+      <button class="btn btn-primary w-full sm:w-auto self-start relative z-10 bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] border-transparent" data-action="approve">Submit Decision</button>
     `;
     const adminStatusEl = adminCard.querySelector('[data-role="status"]');
     const approveBtn = adminCard.querySelector('[data-action="approve"]');

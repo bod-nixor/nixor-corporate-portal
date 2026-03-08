@@ -24,6 +24,9 @@ export function getCsrfToken() {
 }
 
 export function setTheme(themeName) {
+  if (!themeName || !themeName.startsWith('theme-')) {
+    return false;
+  }
   try {
     const docEl = document.documentElement;
     const currentTheme = Array.from(docEl.classList).find(c => c.startsWith('theme-') && c !== 'theme-default');

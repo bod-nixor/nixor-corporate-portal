@@ -54,6 +54,7 @@
   /* Zinc 400 */
   --text-tertiary: #71717a;
   /* Zinc 500 */
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 
 /* --- Theme Variants --- */
@@ -75,6 +76,7 @@
   /* Zinc 500 */
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
+  --skeleton-highlight: rgba(0, 0, 0, 0.05);
 }
 
 /* Theme Midnight (Deep Navy) */
@@ -96,6 +98,7 @@
   --color-primary: #3b82f6;
   /* Blue 500 */
   --color-primary-hover: #2563eb;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 
 /* Theme Graphite (Charcoal/Neutral) */
@@ -113,6 +116,7 @@
   --color-primary: #e5e5e5;
   /* Very subtle primary */
   --color-primary-hover: #ffffff;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 
 /* Theme Indigo (Rich dark purple/blue) */
@@ -136,6 +140,7 @@
   /* Indigo 400 */
   --color-primary-hover: #6366f1;
   /* Indigo 500 */
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 
 /* Theme Emerald (Dark Green tint) */
@@ -159,6 +164,7 @@
   /* Emerald 500 */
   --color-primary-hover: #059669;
   /* Emerald 600 */
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 
 body {
@@ -208,7 +214,7 @@ body {
 }
 
 .btn-primary:not(:disabled):hover {
-  background-color: #e4e4e7;
+  background-color: var(--color-primary-hover);
   /* Zinc 200 */
   transform: scale(0.98);
 }
@@ -221,7 +227,7 @@ body {
 }
 
 .btn-secondary:not(:disabled):hover {
-  background-color: #3f3f46;
+  background-color: var(--bg-surface-hover);
   /* Zinc 700 */
   border-color: var(--border-strong);
 }
@@ -445,7 +451,7 @@ tbody tr:hover {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-surface-hover) 25%, #3f3f46 50%, var(--bg-surface-hover) 75%);
+  background: linear-gradient(90deg, var(--bg-surface-hover) 25%, var(--skeleton-highlight) 50%, var(--bg-surface-hover) 75%);
   background-size: 200% 100%;
   animation: loading 1.5s infinite;
   border-radius: 0.5rem;

@@ -47,7 +47,7 @@ export function renderSidebar(activeId) {
           </div>
           <div class="text-sm min-w-0">
             <p class="font-medium text-[var(--text-primary)] truncate" id="sidebar-user-name">User Profile</p>
-            <p class="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5" onclick="window.location.href='/login.html'">Sign out</p>
+            <p id="sidebar-signout" class="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5" >Sign out</p>
           </div>
         </div>
       </div>
@@ -89,6 +89,19 @@ if (typeof document !== 'undefined') {
         const menuBtn = document.getElementById('mobile-menu-btn');
         if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
       }
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const signoutBtn = document.getElementById('sidebar-signout');
+    if (signoutBtn) {
+      signoutBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+          await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        } catch (err) { }
+        window.location.href = '/login.html';
+      });
     }
   });
 }

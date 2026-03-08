@@ -134,8 +134,11 @@ const renderEndeavours = (rows) => {
             registerButton.textContent = 'Registering...';
             try {
                 await apiFetch(`/endeavours/${row.id}/register`, { method: 'POST', body: JSON.stringify({}) });
+                registerError.classList.add('hidden');
                 registerButton.textContent = 'Registered \u2713';
-                registerButton.disabled = true;
+                setTimeout(() => {
+                    registerButton.disabled = true;
+                }, 1500);
             } catch (err) {
                 registerButton.textContent = originalText;
                 registerButton.disabled = false;

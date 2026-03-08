@@ -21,10 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.classList.add('ring-2', 'ring-[var(--color-primary)]', 'border-transparent');
                 // Reset border color style completely since ring overrides it
                 btn.style.borderColor = 'transparent';
+                btn.setAttribute('aria-pressed', 'true');
                 if (check) check.classList.remove('hidden');
             } else {
                 btn.classList.remove('ring-2', 'ring-[var(--color-primary)]', 'border-transparent');
                 btn.style.borderColor = ''; // Reverts to inline style
+                btn.setAttribute('aria-pressed', 'false');
                 if (check) check.classList.add('hidden');
             }
         });
@@ -39,10 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const newTheme = btn.getAttribute('data-theme');
 
             // Update global CSS and storage
-            setTheme(newTheme);
-
-            // Update local UI
-            updateActiveThemeUI(newTheme);
+            if (setTheme(newTheme)) {
+                // Update local UI
+                updateActiveThemeUI(newTheme);
+            }
         });
     });
 });

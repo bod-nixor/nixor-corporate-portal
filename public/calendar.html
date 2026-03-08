@@ -3,16 +3,7 @@
 
 <head>
   <!-- Theme Init Script to prevent FOUC -->
-  <script>
-    (function() {
-      try {
-        const theme = localStorage.getItem('nixor_theme') || 'theme-default';
-        if (theme !== 'theme-default') {
-          document.documentElement.classList.add(theme);
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calendar</title>
@@ -47,8 +38,9 @@
                     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                 </svg>
               </span>
-              <p class="text-sm font-semibold text-[var(--text-secondary)]">No events scheduled.</p>
-              <p class="text-xs text-[var(--text-tertiary)] mt-1">Select a different entity or create a new event.</p>
+              <p data-empty-heading class="text-sm font-semibold text-[var(--text-secondary)]">No events scheduled.</p>
+              <p data-empty-subtext class="text-xs text-[var(--text-tertiary)] mt-1">Select a different entity or create
+                a new event.</p>
             </div>
           </div>
         </div>
@@ -138,11 +130,26 @@
           title.textContent = event.title;
           const meta = document.createElement('p');
           meta.className = 'text-[10px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-2 flex items-center gap-2';
-          meta.innerHTML = `<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <span>${new Date(event.event_date).toLocaleString()}</span>
-                            <span class="text-[var(--border-strong)]">|</span>
-                            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            <span class="truncate">${event.location || 'TBD'}</span>`;
+          const timeSpan = document.createElement('span');
+          timeSpan.textContent = new Date(event.event_date).toLocaleString();
+
+          const separatorSpan = document.createElement('span');
+          separatorSpan.className = 'text-[var(--border-strong)]';
+          separatorSpan.textContent = '|';
+
+          const locSpan = document.createElement('span');
+          locSpan.className = 'truncate';
+          locSpan.textContent = event.location || 'TBD';
+
+          meta.innerHTML = `<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
+          meta.appendChild(timeSpan);
+          meta.appendChild(separatorSpan);
+
+          const iconSpan = document.createElement('span');
+          iconSpan.innerHTML = `<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`;
+          meta.appendChild(iconSpan.firstChild);
+          meta.appendChild(locSpan);
+
           const desc = document.createElement('p');
           desc.className = 'text-[13px] font-medium text-[var(--text-secondary)] mt-3 leading-relaxed';
           desc.textContent = event.description || 'No description provided.';
@@ -154,8 +161,8 @@
       } catch (err) {
         console.error('Failed to load events:', err);
         list.innerHTML = '';
-        emptyState.querySelector('p.font-semibold').textContent = 'Failed to load events.';
-        emptyState.querySelector('p.text-xs').textContent = 'Please try again later.';
+        emptyState.querySelector('[data-empty-heading]').textContent = 'Failed to load events.';
+        emptyState.querySelector('[data-empty-subtext]').textContent = 'Please try again later.';
         emptyState.classList.remove('hidden');
       }
     };

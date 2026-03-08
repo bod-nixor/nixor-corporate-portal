@@ -3,16 +3,7 @@
 
 <head>
   <!-- Theme Init Script to prevent FOUC -->
-  <script>
-    (function() {
-      try {
-        const theme = localStorage.getItem('nixor_theme') || 'theme-default';
-        if (theme !== 'theme-default') {
-          document.documentElement.classList.add(theme);
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Drive</title>
@@ -228,8 +219,8 @@
                 </div>
 
                 <!-- Grid View -->
-                <div id="drive-grid"
-                  class="hidden p-5 grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 content-start gap-4"></div>
+                <div id="drive-grid" class="hidden p-5 grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 content-start gap-4">
+                </div>
 
                 <!-- Empty State -->
                 <div id="drive-empty" class="hidden p-16 flex flex-col items-center justify-center h-full text-center">
