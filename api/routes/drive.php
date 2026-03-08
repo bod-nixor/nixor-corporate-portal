@@ -24,15 +24,21 @@ function handle_drive(string $method, array $segments): void {
         $rows = $stmt->fetchAll();
         $shareTargetsMap = drive_item_share_targets_for_items(array_column($rows, 'id'));
 
-        $items = [];
+        $visibleRows = [];
         foreach ($rows as $item) {
             if (!drive_user_can_view_item($user, $item)) {
                 continue;
             }
+            $visibleRows[] = $item;
+        }
+
+        $canManageMap = drive_manage_access_map($user, $visibleRows);
+        $items = [];
+        foreach ($visibleRows as $item) {
             $targets = $shareTargetsMap[(int)$item['id']] ?? ['departments' => [], 'users' => []];
             $item['shared_departments'] = $targets['departments'];
             $item['shared_users'] = $targets['users'];
-            $item['can_manage'] = drive_user_can_manage_item($user, $item);
+            $item['can_manage'] = $canManageMap[(int)$item['id']] ?? false;
             $items[] = $item;
         }
 

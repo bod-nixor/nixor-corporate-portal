@@ -207,12 +207,13 @@ function split_alter_table_operations(string $operations): array {
 }
 
 function migration_database_name(PDO $pdo): string {
-    static $databaseName = null;
-    if ($databaseName !== null) {
-        return $databaseName;
+    static $databaseNames = [];
+    $connectionKey = spl_object_hash($pdo);
+    if (array_key_exists($connectionKey, $databaseNames)) {
+        return $databaseNames[$connectionKey];
     }
-    $databaseName = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
-    return $databaseName;
+    $databaseNames[$connectionKey] = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
+    return $databaseNames[$connectionKey];
 }
 
 function migration_column_exists(PDO $pdo, string $table, string $column): bool {
@@ -244,10 +245,11 @@ function execute_migration_statement(PDO $pdo, string $statement): void {
 
     $table = $matches[1];
     $operations = split_alter_table_operations($matches[2]);
+    $pendingOperations = [];
     foreach ($operations as $operation) {
         if (preg_match('/^ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s+(.+)$/is', $operation, $columnMatch)) {
             if (!migration_column_exists($pdo, $table, $columnMatch[1])) {
-                $pdo->exec(sprintf('ALTER TABLE `%s` ADD COLUMN `%s` %s', $table, $columnMatch[1], $columnMatch[2]));
+                $pendingOperations[] = sprintf('ADD COLUMN `%s` %s', $columnMatch[1], $columnMatch[2]);
             }
             continue;
         }
@@ -255,18 +257,21 @@ function execute_migration_statement(PDO $pdo, string $statement): void {
         if (preg_match('/^ADD\s+(UNIQUE\s+)?(?:INDEX|KEY)\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s*(.+)$/is', $operation, $indexMatch)) {
             $indexModifier = trim((string)($indexMatch[1] ?? ''));
             if (!migration_index_exists($pdo, $table, $indexMatch[2])) {
-                $pdo->exec(sprintf(
-                    'ALTER TABLE `%s` ADD %sINDEX `%s` %s',
-                    $table,
+                $pendingOperations[] = sprintf(
+                    'ADD %sINDEX `%s` %s',
                     $indexModifier !== '' ? $indexModifier . ' ' : '',
                     $indexMatch[2],
                     $indexMatch[3]
-                ));
+                );
             }
             continue;
         }
 
-        $pdo->exec(sprintf('ALTER TABLE `%s` %s', $table, $operation));
+        $pendingOperations[] = $operation;
+    }
+
+    if ($pendingOperations) {
+        $pdo->exec(sprintf('ALTER TABLE `%s` %s', $table, implode(', ', $pendingOperations)));
     }
 }
 

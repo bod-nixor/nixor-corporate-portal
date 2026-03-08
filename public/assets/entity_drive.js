@@ -26,7 +26,10 @@ const state = {
   itemModalMode: null,
   itemModalItemId: null,
   deleteTargetIds: [],
-  mobileInspectorOpen: false
+  mobileInspectorOpen: false,
+  isSavingShare: false,
+  isSubmittingItem: false,
+  isDeletingItem: false
 };
 
 const el = {
@@ -243,6 +246,29 @@ function getItemById(id) {
 function setNodeHidden(node, hidden) {
   node.hidden = hidden;
   node.classList.toggle('hidden', hidden);
+}
+
+function setShareSavingState(isSaving) {
+  state.isSavingShare = isSaving;
+  el.shareSave.disabled = isSaving;
+}
+
+function setItemSubmittingState(isSubmitting) {
+  state.isSubmittingItem = isSubmitting;
+  el.itemSubmit.disabled = isSubmitting;
+}
+
+function setDeleteSubmittingState(isDeleting) {
+  state.isDeletingItem = isDeleting;
+  el.deleteConfirm.disabled = isDeleting;
+}
+
+function resetInspectorState() {
+  state.activeId = null;
+  state.activeItem = null;
+  state.activePreview = null;
+  setInspectorVisible(false);
+  renderInspector();
 }
 
 function renderLocation() {
@@ -672,7 +698,7 @@ async function openInspector(item) {
   renderItems();
   renderInspector();
   if (!item) {
-    return;
+    return null;
   }
 
   const activeId = item.id;
@@ -690,12 +716,14 @@ async function openInspector(item) {
     };
     state.activePreview = previewResponse?.data || null;
     renderInspector();
+    return state.activePreview;
   } catch (error) {
     if (state.activeId !== activeId) {
-      return;
+      return null;
     }
     state.activePreview = { error: normalizeError(error) };
     renderInspector();
+    return state.activePreview;
   }
 }
 
@@ -707,12 +735,9 @@ function navigateToFolder(itemOrId) {
     state.parentId = folderId;
   }
   state.selection.clear();
-  state.activeId = null;
-  state.activeItem = null;
-  state.activePreview = null;
   closeActionMenu();
   closeNewMenu();
-  setInspectorVisible(false);
+  resetInspectorState();
   loadItems({ preserveSelection: false, preserveActive: false }).catch((error) => {
     toast(normalizeError(error), 'error');
   });
@@ -819,6 +844,7 @@ async function openShareModal(item) {
 
     el.shareItemName.textContent = item.name;
     el.shareUserSearch.value = '';
+    setShareSavingState(false);
     renderShareTargets();
     el.shareModal.classList.remove('hidden');
     el.shareModal.classList.add('flex');
@@ -834,7 +860,7 @@ function closeShareModal() {
 }
 
 async function saveShare() {
-  if (!state.shareDraft) return;
+  if (!state.shareDraft || state.isSavingShare) return;
   const payload = {
     id: state.shareDraft.itemId,
     sharing_scope: state.shareDraft.scope
@@ -850,18 +876,24 @@ async function saveShare() {
       .filter(Boolean);
     payload.users = [...userIds, ...extraEmails];
   }
-  await apiFetch('/drive/share', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-  toast('Sharing updated');
-  closeShareModal();
-  await loadItems({ preserveSelection: true, preserveActive: true });
+  setShareSavingState(true);
+  try {
+    await apiFetch('/drive/share', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    toast('Sharing updated');
+    closeShareModal();
+    await loadItems({ preserveSelection: true, preserveActive: true });
+  } finally {
+    setShareSavingState(false);
+  }
 }
 
 function openItemModal(mode, item = null) {
   state.itemModalMode = mode;
   state.itemModalItemId = item?.id ?? null;
+  setItemSubmittingState(false);
 
   if (mode === 'create-folder') {
     el.itemModalTitle.textContent = 'New folder';
@@ -901,54 +933,60 @@ async function submitItemModal(event) {
   const name = el.itemName.value.trim();
   const url = el.itemUrl.value.trim();
   const mode = state.itemModalMode;
-  if (!mode) return;
+  if (!mode || state.isSubmittingItem) return;
 
-  if (mode === 'create-folder') {
-    await apiFetch('/drive/folder', {
+  setItemSubmittingState(true);
+  try {
+    if (mode === 'create-folder') {
+      await apiFetch('/drive/folder', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity_id: state.entityId,
+          parent_id: state.parentId,
+          name
+        })
+      });
+      toast('Folder created');
+      closeItemModal();
+      await loadItems({ preserveSelection: false, preserveActive: false });
+      return;
+    }
+
+    if (mode === 'create-link') {
+      await apiFetch('/drive/link', {
+        method: 'POST',
+        body: JSON.stringify({
+          entity_id: state.entityId,
+          parent_id: state.parentId,
+          name,
+          url
+        })
+      });
+      toast('Link created');
+      closeItemModal();
+      await loadItems({ preserveSelection: false, preserveActive: false });
+      return;
+    }
+
+    await apiFetch('/drive/rename', {
       method: 'POST',
       body: JSON.stringify({
-        entity_id: state.entityId,
-        parent_id: state.parentId,
+        id: state.itemModalItemId,
         name
       })
     });
-    toast('Folder created');
+    toast('Name updated');
     closeItemModal();
-    await loadItems({ preserveSelection: false, preserveActive: false });
-    return;
+    await loadItems({ preserveSelection: true, preserveActive: true });
+  } finally {
+    setItemSubmittingState(false);
   }
-
-  if (mode === 'create-link') {
-    await apiFetch('/drive/link', {
-      method: 'POST',
-      body: JSON.stringify({
-        entity_id: state.entityId,
-        parent_id: state.parentId,
-        name,
-        url
-      })
-    });
-    toast('Link created');
-    closeItemModal();
-    await loadItems({ preserveSelection: false, preserveActive: false });
-    return;
-  }
-
-  await apiFetch('/drive/rename', {
-    method: 'POST',
-    body: JSON.stringify({
-      id: state.itemModalItemId,
-      name
-    })
-  });
-  toast('Name updated');
-  closeItemModal();
-  await loadItems({ preserveSelection: true, preserveActive: true });
 }
 
 function openDeleteModal(items) {
   const targets = items.filter(Boolean);
   if (!targets.length) return;
+  setDeleteSubmittingState(false);
   state.deleteTargetIds = targets.map((item) => Number(item.id));
 
   if (targets.length === 1) {
@@ -970,53 +1008,59 @@ function closeDeleteModal() {
 }
 
 async function confirmDelete() {
+  if (state.isDeletingItem) {
+    return;
+  }
   const targets = [...state.deleteTargetIds];
   if (!targets.length) {
     closeDeleteModal();
     return;
   }
 
-  const results = await Promise.allSettled(targets.map((id) => apiFetch('/drive/delete', {
-    method: 'POST',
-    body: JSON.stringify({ id })
-  })));
+  setDeleteSubmittingState(true);
+  try {
+    const results = await Promise.allSettled(targets.map((id) => apiFetch('/drive/delete', {
+      method: 'POST',
+      body: JSON.stringify({ id })
+    })));
 
-  let successCount = 0;
-  let failedCount = 0;
-  const deletedIds = new Set();
+    let successCount = 0;
+    let failedCount = 0;
+    const deletedIds = new Set();
 
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      successCount += 1;
-      const deleted = result.value?.data?.deleted_ids || [targets[index]];
-      deleted.forEach((deletedId) => {
-        deletedIds.add(normalizeId(deletedId));
-      });
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        successCount += 1;
+        const deleted = result.value?.data?.deleted_ids || [targets[index]];
+        deleted.forEach((deletedId) => {
+          deletedIds.add(normalizeId(deletedId));
+        });
+        return;
+      }
+      failedCount += 1;
+    });
+
+    closeDeleteModal();
+    state.selection.clear();
+    if (state.activeId && deletedIds.has(normalizeId(state.activeId))) {
+      resetInspectorState();
+    }
+    await loadItems({ preserveSelection: false, preserveActive: true });
+
+    if (failedCount === 0) {
+      toast(successCount === 1 ? 'Item deleted' : 'Items deleted');
       return;
     }
-    failedCount += 1;
-  });
 
-  closeDeleteModal();
-  state.selection.clear();
-  if (state.activeId && deletedIds.has(normalizeId(state.activeId))) {
-    state.activeId = null;
-    state.activeItem = null;
-    state.activePreview = null;
+    if (successCount === 0) {
+      toast('No items were deleted.', 'error');
+      return;
+    }
+
+    toast(`Deleted ${successCount} item${successCount === 1 ? '' : 's'}; ${failedCount} failed.`, 'error');
+  } finally {
+    setDeleteSubmittingState(false);
   }
-  await loadItems({ preserveSelection: false, preserveActive: true });
-
-  if (failedCount === 0) {
-    toast(successCount === 1 ? 'Item deleted' : 'Items deleted');
-    return;
-  }
-
-  if (successCount === 0) {
-    toast('No items were deleted.', 'error');
-    return;
-  }
-
-  toast(`Deleted ${successCount} item${successCount === 1 ? '' : 's'}; ${failedCount} failed.`, 'error');
 }
 
 function openActionMenuFor(item, anchorRect) {
@@ -1056,9 +1100,9 @@ async function runAction(action, item) {
       navigateToFolder(item);
       return;
     }
-    await openInspector(item);
+    const preview = await openInspector(item);
     if (item.item_type === 'link' && item.url) {
-      window.open(item.url, '_blank', 'noopener,noreferrer');
+      window.open(preview?.open_url || item.url, '_blank', 'noopener,noreferrer');
     }
     return;
   }
@@ -1258,11 +1302,8 @@ function bind() {
     state.parentId = null;
     state.query = '';
     state.selection.clear();
-    state.activeId = null;
-    state.activeItem = null;
-    state.activePreview = null;
     el.search.value = '';
-    setInspectorVisible(false);
+    resetInspectorState();
     loadItems({ preserveSelection: false, preserveActive: false }).catch((error) => {
       toast(normalizeError(error), 'error');
     });
@@ -1271,10 +1312,7 @@ function bind() {
   el.up.addEventListener('click', () => {
     state.parentId = currentFolderParentId();
     state.selection.clear();
-    state.activeId = null;
-    state.activeItem = null;
-    state.activePreview = null;
-    setInspectorVisible(false);
+    resetInspectorState();
     loadItems({ preserveSelection: false, preserveActive: false }).catch((error) => {
       toast(normalizeError(error), 'error');
     });
@@ -1286,10 +1324,7 @@ function bind() {
     const parentId = button.dataset.parentId ? Number(button.dataset.parentId) : null;
     state.parentId = parentId;
     state.selection.clear();
-    state.activeId = null;
-    state.activeItem = null;
-    state.activePreview = null;
-    setInspectorVisible(false);
+    resetInspectorState();
     loadItems({ preserveSelection: false, preserveActive: false }).catch((error) => {
       toast(normalizeError(error), 'error');
     });
