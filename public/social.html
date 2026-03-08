@@ -11,18 +11,7 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
       <header>
         <h1 class="text-2xl font-semibold">Social Feed</h1>
@@ -54,6 +43,9 @@
   </div>
   <script type="module">
     import { apiFetch } from '/assets/app.js';
+    import { renderSidebar } from '/assets/sidebar.js';
+
+    document.getElementById('sidebar-container').outerHTML = renderSidebar('social');
     const entitySelect = document.getElementById('social-entity');
     const postsEl = document.getElementById('social-posts');
     const emptyEl = document.getElementById('social-empty');

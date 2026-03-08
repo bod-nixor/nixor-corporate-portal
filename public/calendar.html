@@ -11,18 +11,7 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div class="flex">
-    <aside class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-300">Nixor Portal</div>
-      <nav class="mt-8 space-y-2 text-sm">
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/dashboard.html">Entity Dashboard</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_endeavours.html">Entity Endeavours</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/entity_drive.html">Entity Drive</a>
-        <a class="block px-3 py-2 rounded-xl bg-slate-900 text-white" href="/calendar.html">Calendar</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/social.html">Social</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/endeavours.html">Volunteering</a>
-        <a class="block px-3 py-2 rounded-xl hover:bg-slate-800" href="/admin.html">Settings</a>
-      </nav>
-    </aside>
+    <div id="sidebar-container"></div>
     <main class="flex-1 p-6 md:p-10">
       <header>
         <h1 class="text-2xl font-semibold">Calendar</h1>
@@ -41,13 +30,17 @@
         <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
           <h2 class="text-lg font-semibold">Add Event</h2>
           <form id="calendar-form" class="mt-4 space-y-3 text-sm">
-            <input name="title" required placeholder="Event title"
+            <label for="calendar-title" class="sr-only">Event title</label>
+            <input id="calendar-title" name="title" required placeholder="Event title"
               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <input name="event_date" type="datetime-local" required
+            <label for="calendar-event-date" class="sr-only">Event date and time</label>
+            <input id="calendar-event-date" name="event_date" type="datetime-local" required
               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <input name="location" placeholder="Location"
+            <label for="calendar-location" class="sr-only">Location</label>
+            <input id="calendar-location" name="location" placeholder="Location"
               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
-            <textarea name="description" rows="3" placeholder="Description"
+            <label for="calendar-description" class="sr-only">Description</label>
+            <textarea id="calendar-description" name="description" rows="3" placeholder="Description"
               class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
             <div id="calendar-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
             <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Create
@@ -59,6 +52,9 @@
   </div>
   <script type="module">
     import { apiFetch } from '/assets/app.js';
+    import { renderSidebar } from '/assets/sidebar.js';
+
+    document.getElementById('sidebar-container').outerHTML = renderSidebar('calendar');
     const entitySelect = document.getElementById('calendar-entity');
     const list = document.getElementById('calendar-list');
     const emptyState = document.getElementById('calendar-empty');

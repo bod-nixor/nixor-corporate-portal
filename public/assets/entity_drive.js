@@ -294,6 +294,7 @@ async function loadItems() {
 }
 
 async function createFolder() {
+  el.newMenu.classList.add('hidden');
   const name = window.prompt('Folder name');
   if (!name) return;
   await apiFetch('/drive/folder', { method: 'POST', body: JSON.stringify({ entity_id: state.entityId, parent_id: state.parentId, name }) });
@@ -302,6 +303,7 @@ async function createFolder() {
 }
 
 async function createLink() {
+  el.newMenu.classList.add('hidden');
   const name = window.prompt('Link name/title');
   if (!name) return;
   const url = window.prompt('URL (http/https)');
