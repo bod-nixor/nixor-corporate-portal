@@ -41,6 +41,7 @@ This file is the repo-specific contract for future agents and maintainers.
 - Do not introduce one-off sidebars or nav layouts for authenticated pages unless there is a strong product reason.
 - Keep shared fetch logic inside `public/assets/app.js`.
 - Reuse shared CSS tokens and component classes from `public/assets/global.css` / `public/assets/app.css`.
+- `public/entity_drive.html` keeps the portal sidebar plus a Drive-specific left rail and inspector. Preserve that layered layout instead of replacing it with a standalone shell.
 - Prefer explicit labels, keyboard-safe controls, and sane autocomplete attributes.
 - Modals must be closable, must not trap the user under stale overlays, and should close after a successful create/update action unless the product clearly benefits from staying open.
 - Avoid raw `prompt` / `confirm` / `alert` for polished flows when a real in-page control or modal is practical.
@@ -74,14 +75,24 @@ For user-facing work, browser QA is required when feasible. Cover:
 - Calendar and social pages.
 - Mobile width behavior, especially nav/sidebar access.
 
+For Entity Drive specifically, verify:
+- folder open plus Up/breadcrumb navigation
+- rename for both folders and files
+- delete for both folders and files
+- share modal scopes and target selection
+- list/grid toggle, search, and entity switching
+- inspector behavior on mobile and desktop
+
 Use `QA_CHECKLIST.md` as the baseline.
 
 ## Common Pitfalls In This Repo
 - Assuming there is a SPA framework. There is not.
 - Forgetting that `public/assets/app.js` owns CSRF header behavior.
 - Duplicating sidebars instead of using `public/assets/sidebar.js`.
+- On the Drive page, keep the explicit hidden-state sync in `public/assets/entity_drive.js` for inspector controls, action menus, and the mobile backdrop.
+- Drive create/upload/link actions now require manage access to the parent folder, not just entity membership.
 - Shipping flows that succeed but leave blocking overlays or stale dropdowns open.
-- Treating browser prompt/confirm flows as “finished” UX.
+- Treating browser prompt/confirm flows as "finished" UX.
 - Editing applied migration files and causing checksum mismatches later.
 - Forgetting to test on a fresh DB after migration changes.
 - Relying on spoofable forwarded headers for security-sensitive logic.

@@ -23,6 +23,7 @@ Nixor Corporate Portal is a PHP 8.1+ and static-JS internal portal for entity op
 - `public/assets/app.js`: shared fetch wrapper, CSRF bootstrap, config loading, websocket/polling helpers, and error normalization.
 - `public/assets/sidebar.js`: shared authenticated shell/sidebar renderer.
 - `public/assets/*.js`: module/page behavior.
+- `public/entity_drive.html` + `public/assets/entity_drive.js`: Google-Drive-inspired entity document browser with breadcrumbs, inspector, sharing modal, and list/grid controls.
 - `public/assets/global.css` -> `public/assets/app.css`: shared design tokens and generated Tailwind output.
 
 ### Database
@@ -145,6 +146,7 @@ npm run build:css
 - Make page-specific UI changes in `public/*.html` and `public/assets/*.js`.
 - Keep shared layout/navigation behavior in `public/assets/sidebar.js`.
 - Keep shared fetch/auth/CSRF behavior in `public/assets/app.js`.
+- Keep Drive-specific navigation, inspector, and action-state behavior in `public/assets/entity_drive.js`; do not duplicate it into other modules.
 - Add schema changes only through new files in `sql/migrations/`.
 - Run targeted browser QA after every user-facing change.
 - Run PHP linting and whatever tests are available in your environment.
@@ -208,9 +210,13 @@ Make sure you ran the current `sql/dev/seed_sample_data.sql`; the seeded sample 
 ### Mobile pages lose navigation
 Authenticated pages should render the shared shell from `public/assets/sidebar.js`. Avoid standalone sidebars that disappear on small screens.
 
+### Entity Drive actions appear hidden or an overlay blocks clicks
+`public/assets/entity_drive.js` now manages the Drive inspector and action-menu visibility with explicit hidden-state toggles. If you change those controls, verify both desktop and mobile widths in the browser.
+
 ## Related Docs
 - [agents.md](agents.md)
 - [DEPLOYMENT.md](DEPLOYMENT.md)
+- [ENTITY_DRIVE_NOTES.md](ENTITY_DRIVE_NOTES.md)
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
 - [QA_CHECKLIST.md](QA_CHECKLIST.md)
 - [PRODUCTION_READINESS_REPORT.md](PRODUCTION_READINESS_REPORT.md)

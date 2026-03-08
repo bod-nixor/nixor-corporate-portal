@@ -217,6 +217,12 @@ function drive_assert_can_view_item(array $user, array $item): void {
     }
 }
 
+function drive_assert_can_manage_item(array $user, array $item, string $message = 'Forbidden'): void {
+    if (!drive_user_can_manage_item($user, $item)) {
+        respond(['ok' => false, 'error' => $message], 403);
+    }
+}
+
 function drive_assert_entity_context_access(array $user, int $entityId): void {
     if (drive_is_global_role($user)) {
         return;
