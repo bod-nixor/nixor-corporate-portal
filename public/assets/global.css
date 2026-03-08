@@ -14,13 +14,18 @@
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
 
   /* Brand/Status Colors */
-  --color-primary: #6366f1;
-  --color-primary-hover: #4f46e5;
-  --color-primary-ghost: rgba(99, 102, 241, 0.1);
+  --color-primary: #3b82f6;
+  /* Blue 500 */
+  --color-primary-hover: #2563eb;
+  /* Blue 600 */
+  --color-primary-ghost: rgba(59, 130, 246, 0.1);
   --color-success: #10b981;
   --color-success-bg: rgba(16, 185, 129, 0.1);
   --color-warning: #f59e0b;
@@ -28,22 +33,132 @@
   --color-danger: #ef4444;
   --color-danger-bg: rgba(239, 68, 68, 0.1);
 
-  /* Surfaces */
-  --bg-base: #020617;
-  /* slate-950 */
-  --bg-surface: #0f172a;
-  /* slate-900 */
-  --bg-surface-hover: #1e293b;
-  /* slate-800 */
-  --border-subtle: #1e293b;
+  /* Surfaces - Rich Dark Mode */
+  --bg-base: #09090b;
+  /* Zinc 950 */
+  --bg-surface: #18181b;
+  /* Zinc 900 */
+  --bg-surface-hover: #27272a;
+  /* Zinc 800 */
+
+  /* Borders */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  /* Replaces slate-800 */
+  --border-strong: rgba(255, 255, 255, 0.12);
+  /* Replaces slate-700 */
 
   /* Typography */
+  --text-primary: #fafafa;
+  /* Zinc 50 */
+  --text-secondary: #a1a1aa;
+  /* Zinc 400 */
+  --text-tertiary: #71717a;
+  /* Zinc 500 */
+}
+
+/* --- Theme Variants --- */
+/* Theme Light */
+:root.theme-light {
+  --bg-base: #f4f4f5;
+  /* Zinc 100 */
+  --bg-surface: #ffffff;
+  /* White */
+  --bg-surface-hover: #f4f4f5;
+  /* Zinc 100 */
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
+  --text-primary: #09090b;
+  /* Zinc 950 */
+  --text-secondary: #52525b;
+  /* Zinc 600 */
+  --text-tertiary: #71717a;
+  /* Zinc 500 */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+}
+
+/* Theme Midnight (Deep Navy) */
+:root.theme-midnight {
+  --bg-base: #020617;
+  /* Slate 950 */
+  --bg-surface: #0f172a;
+  /* Slate 900 */
+  --bg-surface-hover: #1e293b;
+  /* Slate 800 */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.12);
   --text-primary: #f8fafc;
-  /* slate-50 */
+  /* Slate 50 */
   --text-secondary: #94a3b8;
-  /* slate-400 */
+  /* Slate 400 */
   --text-tertiary: #64748b;
-  /* slate-500 */
+  /* Slate 500 */
+  --color-primary: #3b82f6;
+  /* Blue 500 */
+  --color-primary-hover: #2563eb;
+}
+
+/* Theme Graphite (Charcoal/Neutral) */
+:root.theme-graphite {
+  --bg-base: #111111;
+  --bg-surface: #1e1e1e;
+  --bg-surface-hover: #2d2d2d;
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text-primary: #f5f5f5;
+  --text-secondary: #a3a3a3;
+  /* Neutral 400 */
+  --text-tertiary: #737373;
+  /* Neutral 500 */
+  --color-primary: #e5e5e5;
+  /* Very subtle primary */
+  --color-primary-hover: #ffffff;
+}
+
+/* Theme Indigo (Rich dark purple/blue) */
+:root.theme-indigo {
+  --bg-base: #0f0e17;
+  /* Very dark purple-ish tint */
+  --bg-surface: #1e1b4b;
+  /* Indigo 950 */
+  --bg-surface-hover: #312e81;
+  /* Indigo 900 */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(165, 180, 252, 0.2);
+  /* Indigo tint border */
+  --text-primary: #e0e7ff;
+  /* Indigo 100 */
+  --text-secondary: #a5b4fc;
+  /* Indigo 300 */
+  --text-tertiary: #6366f1;
+  /* Indigo 500 */
+  --color-primary: #818cf8;
+  /* Indigo 400 */
+  --color-primary-hover: #6366f1;
+  /* Indigo 500 */
+}
+
+/* Theme Emerald (Dark Green tint) */
+:root.theme-emerald {
+  --bg-base: #022c22;
+  /* Emerald 950 */
+  --bg-surface: #064e3b;
+  /* Emerald 900 */
+  --bg-surface-hover: #065f46;
+  /* Emerald 800 */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(110, 231, 183, 0.2);
+  /* Emerald tint border */
+  --text-primary: #ecfdf5;
+  /* Emerald 50 */
+  --text-secondary: #6ee7b7;
+  /* Emerald 300 */
+  --text-tertiary: #34d399;
+  /* Emerald 400 */
+  --color-primary: #10b981;
+  /* Emerald 500 */
+  --color-primary-hover: #059669;
+  /* Emerald 600 */
 }
 
 body {
@@ -51,10 +166,11 @@ body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* --- Reusable Component Classes --- */
-/* To avoid relying on @apply with CDN Tailwind, we combine standard CSS properties that mirror Tailwind, or augment existing HTML elements */
+/* Legacy selectors preserved for rollout. Refined to Apple-level polish. */
 
 /* Buttons */
 .btn {
@@ -65,38 +181,49 @@ body {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  border-radius: 0.75rem;
-  transition: all 0.2s ease-in-out;
+  border-radius: 0.5rem;
+  /* rounded-lg */
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
   border: 1px solid transparent;
+  user-select: none;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--color-primary);
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none !important;
 }
 
 .btn-primary {
-  background-color: var(--color-primary);
-  color: white;
+  background-color: var(--text-primary);
+  color: var(--bg-base);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .btn-primary:not(:disabled):hover {
-  background-color: var(--color-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+  background-color: #e4e4e7;
+  /* Zinc 200 */
+  transform: scale(0.98);
 }
 
 .btn-secondary {
   background-color: var(--bg-surface-hover);
   color: var(--text-primary);
   border-color: var(--border-subtle);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 
 .btn-secondary:not(:disabled):hover {
-  background-color: #334155;
-  /* slate-700 */
+  background-color: #3f3f46;
+  /* Zinc 700 */
+  border-color: var(--border-strong);
 }
 
 .btn-ghost {
@@ -105,17 +232,19 @@ body {
 }
 
 .btn-ghost:not(:disabled):hover {
-  background-color: var(--bg-surface-hover);
+  background-color: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
 
 .btn-danger {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: var(--color-danger-bg);
   color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
 .btn-danger:not(:disabled):hover {
-  background-color: rgba(239, 68, 68, 0.2);
+  background-color: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 /* Cards */
@@ -123,22 +252,23 @@ body {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 1rem;
+  /* rounded-2xl */
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s;
 }
 
 .card-hoverable:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  border-color: #334155;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-color: var(--border-strong);
 }
 
 /* Badges */
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.625rem;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
@@ -147,49 +277,65 @@ body {
 
 .badge-success {
   background-color: var(--color-success-bg);
-  color: #6ee7b7;
+  color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .badge-warning {
   background-color: var(--color-warning-bg);
-  color: #fcd34d;
+  color: #fbbf24;
   border: 1px solid rgba(245, 158, 11, 0.2);
 }
 
 .badge-danger {
   background-color: var(--color-danger-bg);
-  color: #fca5a5;
+  color: #f87171;
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .badge-info {
   background-color: var(--color-primary-ghost);
-  color: #a5b4fc;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.2);
 }
 
 /* Forms */
 .input-field {
   width: 100%;
-  background-color: var(--bg-base);
+  background-color: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border-subtle);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
   color: var(--text-primary);
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
   outline: none;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.input-field::placeholder {
+  color: var(--text-tertiary);
 }
 
 .input-field:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+  border-color: var(--text-secondary);
+  background-color: rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--text-secondary);
 }
 
 .input-field:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  background-color: var(--bg-surface-hover);
+}
+
+/* Base list row transitions */
+tbody tr {
+  transition: background-color 0.2s;
+}
+
+tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
 }
 
 /* Stepper */
@@ -227,7 +373,6 @@ body {
   content: '';
   position: absolute;
   top: 1rem;
-  /* center of dot */
   left: 50%;
   right: -50%;
   height: 2px;
@@ -259,15 +404,15 @@ body {
 }
 
 .step-item.completed .step-dot {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+  color: var(--bg-base);
 }
 
 .step-item.current .step-dot {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 4px rgba(250, 250, 250, 0.05);
 }
 
 .step-label {
@@ -286,7 +431,7 @@ body {
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(5px);
+    transform: translateY(4px);
   }
 
   to {
@@ -296,14 +441,14 @@ body {
 }
 
 .animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
+  animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-surface-hover) 25%, #334155 50%, var(--bg-surface-hover) 75%);
+  background: linear-gradient(90deg, var(--bg-surface-hover) 25%, #3f3f46 50%, var(--bg-surface-hover) 75%);
   background-size: 200% 100%;
   animation: loading 1.5s infinite;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
 }
 
 @keyframes loading {

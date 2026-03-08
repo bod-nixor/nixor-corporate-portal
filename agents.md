@@ -37,6 +37,7 @@ This file is the repo-specific contract for future agents and maintainers.
 - Do not expose raw stack traces or sensitive internals in API responses.
 
 ## Frontend Conventions
+- Design Guidelines: Read and follow `DESIGN_GUIDELINES.md` for all visual and UX work. The portal requires Apple-level polish and a strict dark-mode corporate aesthetic.
 - Authenticated pages should use the shared shell from `public/assets/sidebar.js`.
 - Do not introduce one-off sidebars or nav layouts for authenticated pages unless there is a strong product reason.
 - Keep shared fetch logic inside `public/assets/app.js`.

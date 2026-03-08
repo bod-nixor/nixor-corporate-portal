@@ -2,93 +2,135 @@
 <html lang="en">
 
 <head>
+  <!-- Theme Init Script to prevent FOUC -->
+  <script>
+    (function() {
+      try {
+        const theme = localStorage.getItem('nixor_theme') || 'theme-default';
+        if (theme !== 'theme-default') {
+          document.documentElement.classList.add(theme);
+        }
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Endeavours</title>
-
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex">
-    <div id="sidebar-container"></div>
-    <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+<body
+  class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
+  <div class="flex w-full min-h-screen">
+    <div id="sidebar-container" class="shrink-0"></div>
+    <main class="flex-1 p-5 md:p-8 lg:p-10 min-w-0 max-w-7xl mx-auto">
+      <header
+        class="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-10 pb-6 border-b border-[var(--border-subtle)]">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Entity Endeavours</h1>
-          <p class="text-slate-400 mt-1 text-sm">Create endeavours, attach plans, and manage lifecycle phases.</p>
+          <h1 class="text-3xl font-bold tracking-tight">Entity Endeavours</h1>
+          <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Create endeavours, attach plans, and manage
+            lifecycle phases.</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex gap-3 shrink-0">
           <label for="entity-select" class="sr-only">Select entity</label>
-          <select id="entity-select" class="input-field max-w-xs"></select>
+          <select id="entity-select" class="input-field min-w-[200px]"></select>
         </div>
       </header>
 
-      <section class="card mb-10 animate-fade-in shadow-md">
-        <h2 class="text-lg font-semibold tracking-tight">Create Endeavour</h2>
-        <form id="create-form" class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-          <div class="space-y-1">
-            <label for="endeavour_name" class="text-xs font-medium text-slate-400">Title</label>
-            <input id="endeavour_name" name="name" required placeholder="Endeavour Title" class="input-field" />
-          </div>
-          <div class="space-y-1">
-            <label for="endeavour_description" class="text-xs font-medium text-slate-400">Description</label>
-            <input id="endeavour_description" name="description" placeholder="Short description" class="input-field" />
-          </div>
-          <div class="space-y-1">
-            <label for="event_start_at" class="text-xs font-medium text-slate-400">Event Start</label>
-            <input id="event_start_at" name="event_start_at" type="datetime-local" class="input-field" />
-          </div>
-          <div class="space-y-1">
-            <label for="event_end_at" class="text-xs font-medium text-slate-400">Event End</label>
-            <input id="event_end_at" name="event_end_at" type="datetime-local" class="input-field" />
-          </div>
-          <div class="space-y-1">
-            <label for="volunteer_registration_deadline" class="text-xs font-medium text-slate-400">Volunteering
-              Deadline</label>
-            <input id="volunteer_registration_deadline" name="volunteer_registration_deadline" type="datetime-local"
-              class="input-field" />
-          </div>
-          <div class="space-y-1">
-            <label for="pre_financial_deadline" class="text-xs font-medium text-slate-400">Pre-Financial
-              Deadline</label>
-            <input id="pre_financial_deadline" name="pre_financial_deadline" type="datetime-local"
-              class="input-field" />
-          </div>
-          <div class="space-y-1">
-            <label for="post_financial_deadline" class="text-xs font-medium text-slate-400">Post-Financial
-              Deadline</label>
-            <input id="post_financial_deadline" name="post_financial_deadline" type="datetime-local"
-              class="input-field" />
+      <section class="card mb-12 animate-fade-in !p-0 overflow-hidden border-[var(--border-strong)]">
+        <div class="bg-[rgba(255,255,255,0.02)] px-6 py-4 border-b border-[var(--border-subtle)]">
+          <h2 class="text-lg font-bold tracking-tight">Create Endeavour</h2>
+        </div>
+        <form id="create-form" class="p-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+            <div class="space-y-1.5">
+              <label for="endeavour_name"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Title</label>
+              <input id="endeavour_name" name="name" required placeholder="Endeavour Title"
+                class="input-field font-medium" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="endeavour_description"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Description</label>
+              <input id="endeavour_description" name="description" placeholder="Short description"
+                class="input-field" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="event_start_at"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Start
+                (Optional)</label>
+              <input id="event_start_at" name="event_start_at" type="datetime-local" class="input-field" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="event_end_at"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event End
+                (Optional)</label>
+              <input id="event_end_at" name="event_end_at" type="datetime-local" class="input-field" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="volunteer_registration_deadline"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Volunteering
+                Deadline</label>
+              <input id="volunteer_registration_deadline" name="volunteer_registration_deadline" type="datetime-local"
+                class="input-field" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="pre_financial_deadline"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Pre-Fin Deadline</label>
+              <input id="pre_financial_deadline" name="pre_financial_deadline" type="datetime-local"
+                class="input-field" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="post_financial_deadline"
+                class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Post-Fin
+                Deadline</label>
+              <input id="post_financial_deadline" name="post_financial_deadline" type="datetime-local"
+                class="input-field" />
+            </div>
+
+            <div class="flex flex-col justify-center gap-4 pt-6 md:pl-2">
+              <label for="volunteering_enabled" class="flex items-center gap-3 cursor-pointer group w-max">
+                <input id="volunteering_enabled" type="checkbox" name="volunteering_enabled"
+                  class="w-4 h-4 rounded bg-[rgba(0,0,0,0.3)] border-[var(--border-subtle)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                <span
+                  class="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">Volunteering
+                  enabled</span>
+              </label>
+              <label for="transport_fee_required" class="flex items-center gap-3 cursor-pointer group w-max">
+                <input id="transport_fee_required" type="checkbox" name="transport_fee_required"
+                  class="w-4 h-4 rounded bg-[rgba(0,0,0,0.3)] border-[var(--border-subtle)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
+                <span
+                  class="text-sm font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">Transport
+                  fee required</span>
+              </label>
+            </div>
           </div>
 
-          <div class="flex flex-col justify-center gap-3 pt-4">
-            <label for="volunteering_enabled" class="flex items-center gap-3 cursor-pointer group">
-              <input id="volunteering_enabled" type="checkbox" name="volunteering_enabled"
-                class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-indigo-500 focus:ring-opacity-25" />
-              <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Volunteering
-                enabled</span>
-            </label>
-            <label for="transport_fee_required" class="flex items-center gap-3 cursor-pointer group">
-              <input id="transport_fee_required" type="checkbox" name="transport_fee_required"
-                class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-indigo-500 focus:ring-indigo-500 focus:ring-opacity-25" />
-              <span class="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">Transport fee
-                required</span>
-            </label>
-          </div>
-
-          <div id="create-status" class="hidden text-sm rounded-xl px-4 py-3 md:col-span-2 mt-4"></div>
-          <div class="md:col-span-2 flex justify-end mt-2">
+          <div id="create-status"
+            class="hidden text-sm rounded-lg px-4 py-3 mt-6 font-medium border border-[var(--border-subtle)]"></div>
+          <div class="flex justify-end mt-6 pt-6 border-t border-[var(--border-subtle)]">
             <button type="submit" class="btn btn-primary px-8">Create Endeavour</button>
           </div>
         </form>
       </section>
 
-      <section class="mt-8">
-        <h2 class="text-xl font-semibold tracking-tight mb-6">Active Endeavours</h2>
+      <section class="mt-16">
+        <div class="flex items-center justify-between mb-8 pb-3 border-b border-[var(--border-subtle)]">
+          <h2 class="text-2xl font-bold tracking-tight">Active Workflows</h2>
+        </div>
         <div id="endeavour-list" class="space-y-8"></div>
-        <div id="endeavour-empty" class="hidden text-center py-16 card border-dashed border-slate-700">
-          <p class="text-slate-400">No active endeavours yet. Create one above.</p>
+        <div id="endeavour-empty"
+          class="hidden text-center py-16 card border-dashed border-[var(--border-strong)] bg-[rgba(255,255,255,0.01)] shadow-none">
+          <div
+            class="w-12 h-12 mx-auto rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-tertiary)] mb-4">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+              </path>
+            </svg>
+          </div>
+          <p class="text-[var(--text-secondary)] font-medium">No active endeavours yet. Create one above to begin the
+            workflow.</p>
         </div>
       </section>
     </main>

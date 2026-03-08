@@ -23,6 +23,24 @@ export function getCsrfToken() {
   return csrfToken;
 }
 
+export function setTheme(themeName) {
+  try {
+    const docEl = document.documentElement;
+    const currentTheme = Array.from(docEl.classList).find(c => c.startsWith('theme-') && c !== 'theme-default');
+    if (currentTheme) {
+      docEl.classList.remove(currentTheme);
+    }
+    if (themeName !== 'theme-default') {
+      docEl.classList.add(themeName);
+    }
+    localStorage.setItem('nixor_theme', themeName);
+    return true;
+  } catch (err) {
+    console.warn('Failed to set theme:', err);
+    return false;
+  }
+}
+
 function resolveFallbackBase(base) {
   const trimmed = base.replace(/\/+$/, '');
   if (trimmed.endsWith('/api')) {

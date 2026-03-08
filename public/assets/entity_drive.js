@@ -160,13 +160,13 @@ function isDesktopInspector() {
 function makeBadge(label, tone = 'slate') {
   const span = document.createElement('span');
   const toneClasses = {
-    slate: 'border-slate-700 bg-slate-900 text-slate-200',
-    indigo: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-200',
-    amber: 'border-amber-500/30 bg-amber-500/10 text-amber-200',
-    red: 'border-red-500/30 bg-red-500/10 text-red-200',
-    sky: 'border-sky-500/30 bg-sky-500/10 text-sky-200'
+    slate: 'border border-[var(--border-subtle)] bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]',
+    indigo: 'border border-[rgba(59,130,246,0.2)] bg-[rgba(59,130,246,0.1)] text-[#93c5fd]',
+    amber: 'border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.1)] text-[#fcd34d]',
+    red: 'border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.1)] text-[#fca5a5]',
+    sky: 'border border-[rgba(14,165,233,0.2)] bg-[rgba(14,165,233,0.1)] text-[#7dd3fc]'
   };
-  span.className = `inline-flex items-center rounded-full border px-2.5 py-1 text-xs ${toneClasses[tone] || toneClasses.slate}`;
+  span.className = `inline-flex flex-shrink-0 items-center rounded-md px-2 py-0.5 text-[11px] font-bold tracking-wide ${toneClasses[tone] || toneClasses.slate}`;
   span.textContent = label;
   return span;
 }
@@ -289,8 +289,8 @@ function renderBreadcrumbs() {
     const isLast = index === crumbs.length - 1;
     const button = document.createElement(isLast ? 'span' : 'button');
     button.className = isLast
-      ? 'inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200'
-      : 'inline-flex items-center rounded-full border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-600 hover:text-white';
+      ? 'inline-flex items-center rounded-md px-2.5 py-1 text-sm font-bold text-[var(--text-primary)] cursor-default bg-[var(--bg-surface-hover)] border border-[var(--border-strong)] shadow-inner'
+      : 'inline-flex items-center rounded-md px-2.5 py-1 text-sm font-semibold text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text-primary)] transition-colors';
     button.textContent = crumb.name;
     if (!isLast) {
       button.type = 'button';
@@ -299,7 +299,7 @@ function renderBreadcrumbs() {
     el.breadcrumbs.appendChild(button);
     if (!isLast) {
       const divider = document.createElement('span');
-      divider.className = 'text-slate-600 text-xs';
+      divider.className = 'text-[var(--text-tertiary)] text-xs font-bold';
       divider.textContent = '/';
       el.breadcrumbs.appendChild(divider);
     }
@@ -320,20 +320,17 @@ function renderSummary() {
     ['Selected', selected, 'indigo']
   ].forEach(([label, value, tone]) => {
     const card = document.createElement('div');
-    card.className = 'rounded-2xl border border-slate-800 bg-slate-950/70 p-4';
+    card.className = 'rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 shadow-sm';
 
     const labelEl = document.createElement('p');
-    labelEl.className = 'text-xs uppercase tracking-[0.2em] text-slate-500';
+    labelEl.className = 'text-[10px] uppercase tracking-[0.1em] font-bold text-[var(--text-tertiary)]';
     labelEl.textContent = label;
 
     const valueEl = document.createElement('h3');
-    valueEl.className = 'text-2xl font-semibold mt-2';
+    valueEl.className = 'text-lg font-bold text-[var(--text-primary)] mt-1.5';
     valueEl.textContent = String(value);
 
-    const badge = makeBadge(value === 0 ? 'Idle' : 'Active', tone);
-    badge.classList.add('mt-3');
-
-    card.append(labelEl, valueEl, badge);
+    card.append(labelEl, valueEl);
     el.summary.appendChild(card);
   });
 }
@@ -372,7 +369,7 @@ function renderBulkToolbar(items) {
 
 function createIconContainer(itemType) {
   const icon = document.createElement('span');
-  icon.className = 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-800 bg-slate-900';
+  icon.className = 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface-hover)] shadow-inner text-[var(--text-secondary)]';
   icon.innerHTML = iconMarkup(itemType);
   return icon;
 }
@@ -394,7 +391,7 @@ function createSharingCell(item) {
 function createActionButton(item) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-600 hover:text-white';
+  button.className = 'inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text-primary)] transition-colors focus:ring-2 focus:ring-[var(--color-primary)] outline-none';
   button.dataset.rowMenu = String(item.id);
   button.setAttribute('aria-label', `More actions for ${item.name}`);
   button.innerHTML = '<svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 6a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" /></svg>';
@@ -404,60 +401,54 @@ function createActionButton(item) {
 function rowTemplate(item) {
   const row = document.createElement('tr');
   const active = state.activeId === item.id;
-  row.className = `transition-colors ${active ? 'bg-indigo-500/10' : 'hover:bg-slate-900/70'}`;
+  row.className = `transition-colors group ${active ? 'bg-[rgba(59,130,246,0.1)]' : 'hover:bg-[rgba(255,255,255,0.02)]'}`;
   row.dataset.id = String(item.id);
 
   const checkCell = document.createElement('td');
-  checkCell.className = 'px-4 py-3 align-top';
+  checkCell.className = 'px-4 py-2.5 align-middle';
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.className = 'drive-check mt-1';
+  checkbox.className = 'drive-check rounded border-[var(--border-strong)] bg-transparent text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer mt-0.5';
   checkbox.dataset.id = String(item.id);
   checkbox.checked = state.selection.has(normalizeId(item.id));
   checkbox.setAttribute('aria-label', `Select ${item.name}`);
   checkCell.appendChild(checkbox);
 
   const nameCell = document.createElement('td');
-  nameCell.className = 'px-4 py-3';
+  nameCell.className = 'px-4 py-2.5 align-middle w-1/3';
   const nameWrapper = document.createElement('div');
-  nameWrapper.className = 'flex items-start gap-3 min-w-0';
+  nameWrapper.className = 'flex items-center gap-3 min-w-0';
   nameWrapper.appendChild(createIconContainer(item.item_type));
 
   const nameMeta = document.createElement('div');
-  nameMeta.className = 'min-w-0 flex-1';
+  nameMeta.className = 'min-w-0 flex-1 truncate';
   const nameButton = document.createElement('button');
   nameButton.type = 'button';
-  nameButton.className = 'block max-w-full text-left text-sm font-medium text-slate-100 hover:text-white';
+  nameButton.className = 'block max-w-full text-left font-semibold text-[var(--text-primary)] hover:text-white truncate pb-0.5';
   nameButton.dataset.selectId = String(item.id);
   if (item.item_type === 'folder') {
     nameButton.dataset.openFolder = String(item.id);
   }
   nameButton.textContent = item.name;
-  const subline = document.createElement('p');
-  subline.className = 'mt-1 text-xs text-slate-500';
-  subline.textContent = item.item_type === 'folder'
-    ? 'Open folder'
-    : item.item_type === 'link'
-      ? 'Open in inspector or external tab'
-      : 'Open in inspector to preview or download';
-  nameMeta.append(nameButton, subline);
+
+  nameMeta.append(nameButton);
   nameWrapper.appendChild(nameMeta);
   nameCell.appendChild(nameWrapper);
 
   const sharingCell = document.createElement('td');
-  sharingCell.className = 'px-4 py-3 align-top';
+  sharingCell.className = 'px-4 py-2.5 align-middle';
   sharingCell.appendChild(createSharingCell(item));
 
   const sizeCell = document.createElement('td');
-  sizeCell.className = 'px-4 py-3 text-slate-300 align-top';
+  sizeCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle';
   sizeCell.textContent = formatSize(item);
 
   const modifiedCell = document.createElement('td');
-  modifiedCell.className = 'px-4 py-3 text-slate-300 align-top whitespace-nowrap';
+  modifiedCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle whitespace-nowrap';
   modifiedCell.textContent = formatDate(item.updated_at || item.created_at);
 
   const actionCell = document.createElement('td');
-  actionCell.className = 'px-4 py-3 text-right align-top';
+  actionCell.className = 'px-4 py-2.5 text-right align-middle opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100';
   actionCell.appendChild(createActionButton(item));
 
   row.append(checkCell, nameCell, sharingCell, sizeCell, modifiedCell, actionCell);
@@ -467,27 +458,27 @@ function rowTemplate(item) {
 function cardTemplate(item) {
   const card = document.createElement('article');
   const active = state.activeId === item.id;
-  card.className = `rounded-2xl border p-4 transition-colors ${active ? 'border-indigo-500/40 bg-indigo-500/10' : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'}`;
+  card.className = `rounded-xl border p-4 transition-colors shadow-sm relative ${active ? 'border-[var(--color-primary)] bg-[var(--color-primary-ghost)]' : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-strong)]'}`;
   card.dataset.id = String(item.id);
 
   const top = document.createElement('div');
-  top.className = 'flex items-start justify-between gap-3';
+  top.className = 'flex items-start justify-between gap-3 relative z-10';
 
   const selector = document.createElement('label');
-  selector.className = 'inline-flex items-center gap-2 text-xs text-slate-400';
+  selector.className = 'inline-flex items-center gap-2 text-xs font-semibold text-[var(--text-tertiary)] cursor-pointer';
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
-  checkbox.className = 'drive-check';
+  checkbox.className = 'drive-check rounded border-[var(--border-strong)] bg-[rgba(255,255,255,0.1)] text-[var(--color-primary)] focus:ring-[var(--color-primary)]';
   checkbox.dataset.id = String(item.id);
   checkbox.checked = state.selection.has(normalizeId(item.id));
   checkbox.setAttribute('aria-label', `Select ${item.name}`);
-  selector.append(checkbox, document.createTextNode('Select'));
+  selector.append(checkbox);
 
   top.append(selector, createActionButton(item));
 
   const body = document.createElement('button');
   body.type = 'button';
-  body.className = 'mt-4 w-full text-left';
+  body.className = 'mt-3 w-full text-left relative z-0 focus:outline-none';
   if (item.item_type === 'folder') {
     body.dataset.openFolder = String(item.id);
   } else {
@@ -495,16 +486,23 @@ function cardTemplate(item) {
   }
 
   const icon = createIconContainer(item.item_type);
-  icon.classList.add('h-12', 'w-12');
+  icon.classList.add('h-10', 'w-10');
   const title = document.createElement('h3');
-  title.className = 'mt-4 text-base font-semibold break-words';
+  title.className = 'mt-3 text-sm font-bold tracking-tight text-[var(--text-primary)] break-words leading-snug truncate';
   title.textContent = item.name;
-  const meta = document.createElement('p');
-  meta.className = 'mt-2 text-sm text-slate-400';
-  meta.textContent = `${scopeLabel(item.sharing_scope)} / ${formatSize(item)}`;
+
+  const meta = document.createElement('div');
+  meta.className = 'mt-2 flex gap-1 items-center flex-wrap';
+  meta.appendChild(makeBadge(scopeLabel(item.sharing_scope), item.sharing_scope === 'private' ? 'red' : 'indigo'));
+
+  const size = document.createElement('span');
+  size.className = 'text-[11px] font-medium text-[var(--text-tertiary)] ml-1';
+  size.textContent = formatSize(item);
+  meta.appendChild(size);
+
   const updated = document.createElement('p');
-  updated.className = 'mt-1 text-xs text-slate-500';
-  updated.textContent = `Updated ${formatDate(item.updated_at || item.created_at)}`;
+  updated.className = 'mt-1.5 text-[10px] uppercase font-bold text-[var(--text-tertiary)] tracking-wider';
+  updated.textContent = formatDate(item.updated_at || item.created_at);
 
   body.append(icon, title, meta, updated);
   card.append(top, body);
@@ -637,38 +635,38 @@ function renderInspector() {
   } else if (preview.kind === 'folder') {
     el.inspectorPreview.innerHTML = '';
     const wrapper = document.createElement('div');
-    wrapper.className = 'w-full rounded-2xl border border-slate-800 bg-slate-900/60 p-5 text-left';
+    wrapper.className = 'w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)] p-5 text-left shadow-inner h-full flex flex-col justify-center';
     const title = document.createElement('p');
-    title.className = 'text-xs uppercase tracking-[0.2em] text-slate-400';
+    title.className = 'text-[10px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]';
     title.textContent = 'Folder';
     const body = document.createElement('h3');
-    body.className = 'text-lg font-semibold mt-3';
+    body.className = 'text-sm font-bold text-[var(--text-primary)] mt-2 tracking-tight';
     body.textContent = 'Open this folder to browse its contents.';
     const copy = document.createElement('p');
-    copy.className = 'mt-2 text-sm text-slate-400';
-    copy.textContent = 'Use the breadcrumbs and the Up button to move back through the current path.';
+    copy.className = 'mt-1 text-xs font-medium text-[var(--text-secondary)]';
+    copy.textContent = 'Use the breadcrumbs or Up button to move back.';
     wrapper.append(title, body, copy);
     el.inspectorPreview.replaceChildren(wrapper);
   } else if (preview.kind === 'pdf' || preview.kind === 'pdf_link') {
     const frame = document.createElement('iframe');
-    frame.className = 'w-full h-72 rounded-2xl border border-slate-800 bg-slate-950';
+    frame.className = 'w-full h-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]';
     frame.src = preview.preview_url;
     el.inspectorPreview.replaceChildren(frame);
   } else if (preview.kind === 'youtube') {
     const frame = document.createElement('iframe');
-    frame.className = 'w-full h-72 rounded-2xl border border-slate-800 bg-slate-950';
+    frame.className = 'w-full h-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]';
     frame.src = preview.preview_url;
     frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
     frame.allowFullscreen = true;
     el.inspectorPreview.replaceChildren(frame);
   } else if (preview.kind === 'link') {
     const wrapper = document.createElement('div');
-    wrapper.className = 'w-full rounded-2xl border border-slate-800 bg-slate-900/60 p-5 text-left';
+    wrapper.className = 'w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)] p-5 text-left shadow-inner h-full flex flex-col justify-center';
     const label = document.createElement('p');
-    label.className = 'text-xs uppercase tracking-[0.2em] text-slate-400';
+    label.className = 'text-[10px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]';
     label.textContent = 'External link';
     const anchor = document.createElement('a');
-    anchor.className = 'mt-3 inline-block break-all text-sm text-indigo-300 underline';
+    anchor.className = 'mt-3 inline-block break-all text-sm font-semibold text-[var(--color-primary)] hover:text-white transition-colors';
     anchor.href = preview.open_url;
     anchor.target = '_blank';
     anchor.rel = 'noopener noreferrer';
