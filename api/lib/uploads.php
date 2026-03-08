@@ -25,7 +25,7 @@ function validate_upload_mime(string $filePath): string {
 }
 
 function validate_upload_tmp_file(array $file): void {
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         respond(['ok' => false, 'error' => 'Upload failed'], 400);
     }
 }

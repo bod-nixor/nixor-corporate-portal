@@ -164,7 +164,11 @@ function split_alter_table_operations(string $operations): array {
                 $i++;
                 continue;
             }
-            $escaped = $i > 0 && $operations[$i - 1] === '\\';
+            $backslashes = 0;
+            for ($j = $i - 1; $j >= 0 && $operations[$j] === '\\'; $j--) {
+                $backslashes++;
+            }
+            $escaped = $backslashes % 2 === 1;
             if (!$escaped) {
                 $inSingle = !$inSingle;
             }
@@ -174,7 +178,11 @@ function split_alter_table_operations(string $operations): array {
                 $i++;
                 continue;
             }
-            $escaped = $i > 0 && $operations[$i - 1] === '\\';
+            $backslashes = 0;
+            for ($j = $i - 1; $j >= 0 && $operations[$j] === '\\'; $j--) {
+                $backslashes++;
+            }
+            $escaped = $backslashes % 2 === 1;
             if (!$escaped) {
                 $inDouble = !$inDouble;
             }
