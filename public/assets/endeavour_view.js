@@ -92,7 +92,7 @@ const initEndeavourView = () => {
         const meta = document.createElement('p');
         meta.className = 'text-[11px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-1';
         const who = entry.full_name ? `by ${entry.full_name}` : 'system';
-        meta.textContent = `${who} \u00B7 ${new Date(entry.created_at).toLocaleString()}`;
+        meta.textContent = `${who} \u00B7 ${new Date(entry.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`;
 
         content.appendChild(title);
         content.appendChild(meta);
@@ -313,7 +313,7 @@ const initEndeavourView = () => {
         const meta = document.createElement('p');
         meta.className = 'text-[10px] uppercase font-bold tracking-widest text-[var(--text-tertiary)] mt-1.5';
         const who = entry.full_name ? `by ${entry.full_name}` : 'system';
-        meta.textContent = `${who} · ${new Date(entry.created_at).toLocaleString()}`;
+        meta.textContent = `${who} · ${new Date(entry.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`;
         wrapper.appendChild(line);
         wrapper.appendChild(meta);
         activityList.appendChild(wrapper);

@@ -26,7 +26,7 @@
           <div class="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
             <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Upcoming Events</h2>
             <label for="calendar-entity" class="sr-only">Select entity</label>
-            <select id="calendar-entity" aria-labelledby="calendar-heading"
+            <select id="calendar-entity" aria-describedby="calendar-heading"
               class="input-field max-w-[200px] py-1.5 text-sm font-medium bg-[var(--bg-surface)]"></select>
           </div>
           <div class="p-6">
@@ -78,7 +78,7 @@
                 class="input-field font-medium w-full resize-y"></textarea>
             </div>
 
-            <div id="calendar-status"
+            <div id="calendar-status" role="status" aria-live="polite" aria-atomic="true"
               class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
 
             <div class="pt-2">
@@ -111,7 +111,7 @@
 
     const setStatus = (message, ok) => {
       statusEl.textContent = message;
-      statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
+      statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 border ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
       statusEl.classList.remove('hidden');
     };
 

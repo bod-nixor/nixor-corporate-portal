@@ -58,6 +58,7 @@ export function renderSidebar(activeId) {
 }
 
 if (typeof document !== 'undefined') {
+  let backdropTimer = 0;
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#mobile-menu-btn');
     const sidebar = document.getElementById('sidebar');
@@ -84,13 +85,15 @@ if (typeof document !== 'undefined') {
         if (isClosed) {
           sidebar.classList.remove('-translate-x-full');
           backdrop.classList.remove('hidden');
+          clearTimeout(backdropTimer);
           // Allow display block to apply
-          setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+          backdropTimer = setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
           btn.setAttribute('aria-expanded', 'true');
         } else {
           sidebar.classList.add('-translate-x-full');
           backdrop.classList.add('opacity-0');
-          setTimeout(() => backdrop.classList.add('hidden'), 300);
+          clearTimeout(backdropTimer);
+          backdropTimer = setTimeout(() => backdrop.classList.add('hidden'), 300);
           btn.setAttribute('aria-expanded', 'false');
         }
       }
@@ -100,7 +103,8 @@ if (typeof document !== 'undefined') {
         sidebar.classList.add('-translate-x-full');
         if (backdrop) {
           backdrop.classList.add('opacity-0');
-          setTimeout(() => backdrop.classList.add('hidden'), 300);
+          clearTimeout(backdropTimer);
+          backdropTimer = setTimeout(() => backdrop.classList.add('hidden'), 300);
         }
         const menuBtn = document.getElementById('mobile-menu-btn');
         if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
