@@ -23,7 +23,6 @@ const initEndeavourView = () => {
   const pipelineConsent = document.getElementById('pipeline-consent');
   const postsList = document.getElementById('posts-list');
   const applicationsList = document.getElementById('applications-list');
-  const applicationsEmpty = document.getElementById('applications-empty');
   const activityList = document.getElementById('activity-list');
   const approvalForm = document.getElementById('approval-form');
   const documentForm = document.getElementById('document-form');
@@ -39,6 +38,7 @@ const initEndeavourView = () => {
   };
 
   const setStatus = (el, message, ok) => {
+    if (!el) return;
     el.textContent = message;
     el.className = `text-sm font-semibold rounded-lg px-4 py-3 ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
     el.classList.remove('hidden');
@@ -56,13 +56,16 @@ const initEndeavourView = () => {
       const { data } = await apiFetch(`/endeavours/${id}`);
       const endeavour = data?.endeavour;
       if (!endeavour) {
+        console.error('Endeavour data not found for id:', id);
+        nameEl.textContent = 'Endeavour not found';
         if (loadingEl) loadingEl.classList.add('hidden');
         return;
       }
-      statusEl.textContent = (endeavour.status || '').replace(/_/g, ' ');
+      statusEl.textContent = (endeavour.status || '').replaceAll('_', ' ');
       nameEl.textContent = endeavour.name || 'Endeavour';
       const dates = [endeavour.start_date, endeavour.end_date].filter(Boolean).join(' - ');
-      metaEl.textContent = `Entity: ${endeavour.entity_name || 'Nixor Entity'}${dates ? ` \u00B7 ${dates}` : ''}`;
+      const dateSuffix = dates ? ` \u00B7 ${dates}` : '';
+      metaEl.textContent = `Entity: ${endeavour.entity_name || 'Nixor Entity'}${dateSuffix}`;
 
       timelineList.innerHTML = '';
       const timelineItems = (data.activity || []).slice(0, 6);
@@ -77,7 +80,6 @@ const initEndeavourView = () => {
         item.className = 'flex items-start gap-4 relative';
 
         const dot = document.createElement('div');
-        // dot styling mimicking a timeline node
         dot.className = 'w-2.5 h-2.5 rounded-full bg-[var(--color-primary)] mt-1.5 flex-shrink-0 shadow-[0_0_0_3px_rgba(59,130,246,0.2)]';
 
         const content = document.createElement('div');
@@ -85,7 +87,7 @@ const initEndeavourView = () => {
 
         const title = document.createElement('p');
         title.className = 'text-sm font-bold text-[var(--text-primary)] capitalize';
-        title.textContent = entry.action.replace(/_/g, ' ');
+        title.textContent = entry.action.replaceAll('_', ' ');
 
         const meta = document.createElement('p');
         meta.className = 'text-[11px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-1';
@@ -112,8 +114,8 @@ const initEndeavourView = () => {
           left.textContent = doc.original_name || doc.doc_type;
 
           const right = document.createElement('a');
-          const params = new URLSearchParams({ type: 'endeavour_document', id: String(doc.id) });
-          right.href = `/api/files/download?${params.toString()}`;
+          const dlParams = new URLSearchParams({ type: 'endeavour_document', id: String(doc.id) });
+          right.href = `/api/files/download?${dlParams.toString()}`;
           right.className = 'text-[11px] font-bold uppercase tracking-widest text-[#7dd3fc] px-3 py-1 rounded-md bg-[rgba(14,165,233,0.1)] border border-[rgba(14,165,233,0.2)] hover:bg-[rgba(14,165,233,0.2)] transition-colors transform shrink-0';
           right.textContent = 'Download';
 
@@ -181,9 +183,9 @@ const initEndeavourView = () => {
 
       applicationsList.innerHTML = '';
       if (!apps.length) {
-        document.getElementById('applications-empty').classList.remove('hidden');
+        document.getElementById('applications-empty')?.classList.remove('hidden');
       } else {
-        document.getElementById('applications-empty').classList.add('hidden');
+        document.getElementById('applications-empty')?.classList.add('hidden');
         apps.forEach((app) => {
           const row = document.createElement('tr');
           row.className = 'hover:bg-[rgba(255,255,255,0.02)] transition-colors';
@@ -194,7 +196,10 @@ const initEndeavourView = () => {
 
           const statusCell = document.createElement('td');
           statusCell.className = 'px-6 py-3';
-          statusCell.innerHTML = `<span class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">${app.status}</span>`;
+          const statusBadge = document.createElement('span');
+          statusBadge.className = 'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-secondary)]';
+          statusBadge.textContent = app.status;
+          statusCell.appendChild(statusBadge);
 
           const actionCell = document.createElement('td');
           actionCell.className = 'px-6 py-3';
@@ -243,7 +248,7 @@ const initEndeavourView = () => {
           paymentBtn.textContent = 'Mark Paid';
           paymentBtn.addEventListener('click', async () => {
             const receiptRef = window.prompt('Enter receipt reference');
-            if (!receiptRef || !receiptRef.trim()) {
+            if (!receiptRef?.trim()) {
               setStatus(actionStatus, 'Receipt reference is required.', false);
               return;
             }
@@ -304,7 +309,7 @@ const initEndeavourView = () => {
         wrapper.className = 'py-2 border-b border-[rgba(255,255,255,0.03)] last:border-0';
         const line = document.createElement('p');
         line.className = 'text-[13px] font-bold text-[var(--text-primary)] leading-snug';
-        line.textContent = entry.notes || entry.action.replace(/_/g, ' ');
+        line.textContent = entry.notes || entry.action.replaceAll('_', ' ');
         const meta = document.createElement('p');
         meta.className = 'text-[10px] uppercase font-bold tracking-widest text-[var(--text-tertiary)] mt-1.5';
         const who = entry.full_name ? `by ${entry.full_name}` : 'system';
@@ -321,64 +326,88 @@ const initEndeavourView = () => {
     }
   };
 
-  document.getElementById('upload-shortcut').addEventListener('click', () => {
-    document.getElementById('upload-doc-section').scrollIntoView({ behavior: 'smooth' });
-  });
+  const uploadShortcut = document.getElementById('upload-shortcut');
+  if (uploadShortcut) {
+    uploadShortcut.addEventListener('click', () => {
+      document.getElementById('upload-doc-section')?.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
 
-  approvalForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    try {
-      await apiFetch(`/endeavours/${id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ decision: approvalForm.decision.value, notes: approvalForm.notes.value }) });
-      setStatus(approvalStatus, 'Decision recorded successfully.', true);
-      loadEndeavour();
-    } catch (err) {
-      setStatus(approvalStatus, normalizeError(err), false);
-    }
-  });
+  if (approvalForm) {
+    approvalForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      try {
+        await apiFetch(`/endeavours/${id}/approve`, {
+          method: 'POST',
+          body: JSON.stringify({
+            decision: approvalForm.decision.value,
+            notes: approvalForm.notes.value
+          })
+        });
+        setStatus(approvalStatus, 'Decision recorded successfully.', true);
+        loadEndeavour();
+      } catch (err) {
+        setStatus(approvalStatus, normalizeError(err), false);
+      }
+    });
+  }
 
-  documentForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const formData = new FormData(documentForm);
-    const docType = formData.get('doc_type');
-    if (!docType) {
-      setStatus(documentStatus, 'Document type is required.', false);
-      return;
-    }
-    const allowedTypes = ['operational_plan', 'budget_plan', 'mou', 'pre_financial', 'post_financial', 'epilogue'];
-    if (!allowedTypes.includes(docType)) {
-      setStatus(documentStatus, 'Invalid document type.', false);
-      return;
-    }
-    try {
-      await apiFetch(`/endeavours/${id}/doc_approvals`, {
-        method: 'POST',
-        body: formData
-      });
-      setStatus(documentStatus, 'Document uploaded successfully.', true);
-      documentForm.reset();
-      loadEndeavour();
-    } catch (err) {
-      setStatus(documentStatus, normalizeError(err), false);
-    }
-  });
+  const docTypeEndpointMap = {
+    operational_plan: 'submit_operational_plan',
+    budget_plan: 'submit_budget_plan',
+    mou: 'submit_mou',
+    pre_financial: 'submit_pre_financial',
+    post_financial: 'submit_post_financial',
+    epilogue: 'submit_epilogue'
+  };
 
-  postForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const payload = Object.fromEntries(new FormData(postForm).entries());
-    try {
-      await apiFetch(`/endeavours/${id}/request_post_to_feed`, { method: 'POST', body: JSON.stringify(payload) });
-      setStatus(postStatus, 'Volunteer post requested.', true);
-      postForm.reset();
-      loadEndeavour();
-    } catch (err) {
-      setStatus(postStatus, normalizeError(err), false);
-    }
-  });
+  if (documentForm) {
+    documentForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(documentForm);
+      const docType = formData.get('doc_type');
+      if (!docType) {
+        setStatus(documentStatus, 'Document type is required.', false);
+        return;
+      }
+      const endpoint = docTypeEndpointMap[docType];
+      if (!endpoint) {
+        setStatus(documentStatus, 'Invalid document type.', false);
+        return;
+      }
+      try {
+        await apiFetch(`/endeavours/${id}/${endpoint}`, {
+          method: 'POST',
+          body: formData
+        });
+        setStatus(documentStatus, 'Document uploaded successfully.', true);
+        documentForm.reset();
+        loadEndeavour();
+      } catch (err) {
+        setStatus(documentStatus, normalizeError(err), false);
+      }
+    });
+  }
+
+  if (postForm) {
+    postForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const payload = Object.fromEntries(new FormData(postForm).entries());
+      try {
+        await apiFetch(`/endeavours/${id}/request_post_to_feed`, { method: 'POST', body: JSON.stringify(payload) });
+        setStatus(postStatus, 'Volunteer post requested.', true);
+        postForm.reset();
+        loadEndeavour();
+      } catch (err) {
+        setStatus(postStatus, normalizeError(err), false);
+      }
+    });
+  }
 
   const openApproval = document.getElementById('open-approval');
-  if (openApproval) openApproval.addEventListener('click', () => approvalForm.scrollIntoView({ behavior: 'smooth' }));
+  if (openApproval) openApproval.addEventListener('click', () => approvalForm?.scrollIntoView({ behavior: 'smooth' }));
   const openUpload = document.getElementById('open-upload');
-  if (openUpload) openUpload.addEventListener('click', () => document.getElementById('upload-doc-section').scrollIntoView({ behavior: 'smooth' }));
+  if (openUpload) openUpload.addEventListener('click', () => document.getElementById('upload-doc-section')?.scrollIntoView({ behavior: 'smooth' }));
 
   loadEndeavour();
 };

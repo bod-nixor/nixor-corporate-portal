@@ -16,7 +16,7 @@
     <div id="sidebar-container" class="shrink-0"></div>
     <main class="flex-1 p-5 md:p-8 lg:p-10 min-w-0 max-w-7xl mx-auto">
       <header class="mb-10 pb-6 border-b border-[var(--border-subtle)]">
-        <h1 class="text-3xl font-bold tracking-tight">Calendar</h1>
+        <h1 id="calendar-heading" class="text-3xl font-bold tracking-tight">Calendar</h1>
         <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Meetings, deadlines, RSVPs, and minutes.</p>
       </header>
 
@@ -25,7 +25,8 @@
           class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] xl:min-h-[500px]">
           <div class="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between">
             <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Upcoming Events</h2>
-            <select id="calendar-entity"
+            <label for="calendar-entity" class="sr-only">Select entity</label>
+            <select id="calendar-entity" aria-labelledby="calendar-heading"
               class="input-field max-w-[200px] py-1.5 text-sm font-medium bg-[var(--bg-surface)]"></select>
           </div>
           <div class="p-6">
@@ -99,6 +100,10 @@
     const form = document.getElementById('calendar-form');
     const statusEl = document.getElementById('calendar-status');
 
+    // Store default empty-state text so it can be restored after errors
+    const defaultEmptyHeading = emptyState.querySelector('[data-empty-heading]')?.textContent || 'No events scheduled.';
+    const defaultEmptySubtext = emptyState.querySelector('[data-empty-subtext]')?.textContent || 'Select a different entity or create a new event.';
+
     const normalizeError = (err) => {
       const message = err?.message || '';
       return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
@@ -118,6 +123,9 @@
         const events = response?.data || [];
         list.innerHTML = '';
         if (!events.length) {
+          // Restore default text (in case a previous error overwrote it)
+          emptyState.querySelector('[data-empty-heading]').textContent = defaultEmptyHeading;
+          emptyState.querySelector('[data-empty-subtext]').textContent = defaultEmptySubtext;
           emptyState.classList.remove('hidden');
           return;
         }
@@ -189,15 +197,22 @@
         }
         console.error('Failed to load entities:', err);
         entitySelect.innerHTML = '';
+        entitySelect.disabled = true;
         emptyState.querySelector('[data-empty-heading]').textContent = 'Unable to load calendar without access.';
         emptyState.querySelector('[data-empty-subtext]').textContent = '';
         emptyState.classList.remove('hidden');
+        // Disable form when no entities are accessible
+        form.querySelectorAll('input, textarea, select, button').forEach(el => { el.disabled = true; });
       });
 
     entitySelect.addEventListener('change', loadEvents);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (form.dataset.submitting) return;
+      if (!entitySelect.value) {
+        setStatus('No entity selected.', false);
+        return;
+      }
       form.dataset.submitting = 'true';
       const submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.disabled = true;

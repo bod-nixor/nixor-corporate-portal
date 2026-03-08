@@ -18,7 +18,9 @@
         <p class="text-xs text-[var(--color-primary)] uppercase tracking-[0.3em]">Entity Projects & Events</p>
         <h1 class="text-2xl font-semibold mt-1">Volunteer Opportunities</h1>
       </div>
-      <a href="/login.html" class="text-sm bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors px-4 py-2 rounded-xl">Volunteer Login</a>
+      <a href="/login.html"
+        class="text-sm bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors px-4 py-2 rounded-xl">Volunteer
+        Login</a>
     </div>
   </header>
   <main class="max-w-6xl mx-auto px-6 py-10">
@@ -26,23 +28,39 @@
       <section class="lg:col-span-2">
         <h2 class="text-lg font-semibold">Open Volunteer Posts</h2>
         <div id="posts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div>
-        <p id="posts-empty" class="hidden text-[var(--text-secondary)] text-sm mt-4">No volunteer posts are live right now. Check back
+        <p id="posts-empty" class="hidden text-[var(--text-secondary)] text-sm mt-4">No volunteer posts are live right
+          now. Check back
           soon.</p>
       </section>
       <aside class="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6">
         <h2 class="text-lg font-semibold">Register Interest</h2>
-        <p class="text-sm text-[var(--text-secondary)] mt-2">Let the team know you’re interested and we’ll follow up.</p>
+        <p class="text-sm text-[var(--text-secondary)] mt-2">Let the team know you’re interested and we’ll follow up.
+        </p>
         <form id="interest-form" class="space-y-4 mt-4">
-          <input name="name" required placeholder="Full name"
-            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
-          <input name="email" type="email" required placeholder="Email address"
-            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
-          <input name="phone" placeholder="Phone (optional)"
-            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
-          <textarea name="message" rows="3" placeholder="Tell us what you’re interested in"
-            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm"></textarea>
+          <div>
+            <label for="interest-name" class="sr-only">Full name</label>
+            <input id="interest-name" name="name" required placeholder="Full name"
+              class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
+          </div>
+          <div>
+            <label for="interest-email" class="sr-only">Email address</label>
+            <input id="interest-email" name="email" type="email" required placeholder="Email address"
+              class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
+          </div>
+          <div>
+            <label for="interest-phone" class="sr-only">Phone (optional)</label>
+            <input id="interest-phone" name="phone" placeholder="Phone (optional)"
+              class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
+          </div>
+          <div>
+            <label for="interest-message" class="sr-only">Tell us what you’re interested in</label>
+            <textarea id="interest-message" name="message" rows="3" placeholder="Tell us what you’re interested in"
+              class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm"></textarea>
+          </div>
           <div id="interest-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-          <button class="w-full bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors rounded-xl px-4 py-3 font-medium" type="submit">Submit Interest</button>
+          <button
+            class="w-full bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors rounded-xl px-4 py-3 font-medium"
+            type="submit">Submit Interest</button>
         </form>
       </aside>
     </div>

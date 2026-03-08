@@ -100,19 +100,32 @@
                 <h3 class="text-sm font-bold text-[var(--text-primary)]">Request Volunteer Posting</h3>
                 <form id="post-form" class="space-y-4 mt-4">
                   <div class="space-y-1.5">
-                    <label class="sr-only">Description</label>
-                    <textarea name="description" rows="3" required
+                    <label for="post-description"
+                      class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Description</label>
+                    <textarea id="post-description" name="description" rows="3" required
                       class="input-field font-medium w-full resize-y bg-[var(--bg-surface)]"
                       placeholder="Detailed volunteer role description..."></textarea>
                   </div>
                   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input name="venue" class="input-field font-medium bg-[var(--bg-surface)]"
-                      placeholder="Venue Location" />
-                    <input name="schedule" class="input-field font-medium bg-[var(--bg-surface)]"
-                      placeholder="Schedule (e.g. 10 AM - 2 PM)" />
-                    <input name="transport_payment" type="number" min="0" step="0.01"
-                      class="input-field font-medium bg-[var(--bg-surface)]"
-                      placeholder="Transport compensation (PKR)" />
+                    <div class="space-y-1.5">
+                      <label for="post-venue"
+                        class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Venue</label>
+                      <input id="post-venue" name="venue" class="input-field font-medium bg-[var(--bg-surface)]"
+                        placeholder="Venue Location" />
+                    </div>
+                    <div class="space-y-1.5">
+                      <label for="post-schedule"
+                        class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Schedule</label>
+                      <input id="post-schedule" name="schedule" class="input-field font-medium bg-[var(--bg-surface)]"
+                        placeholder="e.g. 10 AM - 2 PM" />
+                    </div>
+                    <div class="space-y-1.5">
+                      <label for="post-transport"
+                        class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Transport
+                        (PKR)</label>
+                      <input id="post-transport" name="transport_payment" type="number" min="0" step="0.01"
+                        class="input-field font-medium bg-[var(--bg-surface)]" placeholder="0.00" />
+                    </div>
                   </div>
                   <div id="post-status"
                     class="hidden text-sm rounded-lg px-4 py-3 font-semibold border border-[var(--border-subtle)]">
@@ -158,17 +171,17 @@
             </div>
             <form id="approval-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
               <div class="space-y-1.5">
-                <label
+                <label for="approval-decision"
                   class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Decision</label>
-                <select name="decision" class="input-field font-medium w-full">
+                <select id="approval-decision" name="decision" class="input-field font-medium w-full">
                   <option value="approved">Approve</option>
                   <option value="rejected">Reject</option>
                 </select>
               </div>
               <div class="space-y-1.5">
-                <label
+                <label for="approval-notes"
                   class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Notes</label>
-                <textarea name="notes" rows="3" class="input-field font-medium w-full resize-y"
+                <textarea id="approval-notes" name="notes" rows="3" class="input-field font-medium w-full resize-y"
                   placeholder="Optional rationale..."></textarea>
               </div>
               <div id="approval-status"
@@ -184,9 +197,10 @@
             </div>
             <form id="document-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
               <div class="space-y-1.5">
-                <label class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Document
+                <label for="doc-type-select"
+                  class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Document
                   Type</label>
-                <select name="doc_type" class="input-field font-medium w-full">
+                <select id="doc-type-select" name="doc_type" class="input-field font-medium w-full">
                   <option value="operational_plan">Operational Plan</option>
                   <option value="budget_plan">Budget Plan</option>
                   <option value="mou">MoU</option>
@@ -196,9 +210,10 @@
                 </select>
               </div>
               <div class="space-y-1.5">
-                <label
+                <label for="doc-file-input"
                   class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">File</label>
-                <input name="document" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                <input id="doc-file-input" name="document" type="file" required
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
                   class="w-full text-[13px] font-medium text-[var(--text-primary)] file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-[13px] file:font-semibold file:bg-[var(--color-primary)] file:text-white hover:file:bg-indigo-600 transition-colors" />
               </div>
               <div id="document-status"

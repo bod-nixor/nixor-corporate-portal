@@ -1,3 +1,5 @@
+import { apiFetch } from '/assets/app.js';
+
 export function renderSidebar(activeId) {
   const links = [
     { id: 'dashboard', href: '/dashboard.html', text: 'Entity Dashboard' },
@@ -47,7 +49,7 @@ export function renderSidebar(activeId) {
           </div>
           <div class="text-sm min-w-0">
             <p class="font-medium text-[var(--text-primary)] truncate" id="sidebar-user-name">User Profile</p>
-            <p id="sidebar-signout" class="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5" >Sign out</p>
+            <button type="button" id="sidebar-signout" class="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5">Sign out</button>
           </div>
         </div>
       </div>
@@ -60,6 +62,20 @@ if (typeof document !== 'undefined') {
     const btn = e.target.closest('#mobile-menu-btn');
     const sidebar = document.getElementById('sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
+
+    // Handle sign-out via event delegation (works even if sidebar is injected after DOMContentLoaded)
+    if (e.target.closest('#sidebar-signout')) {
+      e.preventDefault();
+      (async () => {
+        try {
+          await apiFetch('/auth/logout', { method: 'POST' });
+          window.location.href = '/login.html';
+        } catch (err) {
+          console.error('Logout failed:', err);
+        }
+      })();
+      return;
+    }
 
     if (btn) {
       if (sidebar && backdrop) {
@@ -89,25 +105,6 @@ if (typeof document !== 'undefined') {
         const menuBtn = document.getElementById('mobile-menu-btn');
         if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
       }
-    }
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const signoutBtn = document.getElementById('sidebar-signout');
-    if (signoutBtn) {
-      signoutBtn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        try {
-          const res = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-          if (res.ok) {
-            window.location.href = '/login.html';
-          } else {
-            console.error('Logout failed with status:', res.status);
-          }
-        } catch (err) {
-          console.error('Logout network error:', err);
-        }
-      });
     }
   });
 }
