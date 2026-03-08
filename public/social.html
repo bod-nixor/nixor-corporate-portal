@@ -2,41 +2,68 @@
 <html lang="en">
 
 <head>
+  <!-- Theme Init Script to prevent FOUC -->
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Social Feed</title>
-
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex">
-    <div id="sidebar-container"></div>
-    <main class="flex-1 p-6 md:p-10">
-      <header>
-        <h1 class="text-2xl font-semibold">Social Feed</h1>
-        <p class="text-slate-400">Professional updates limited to involved members.</p>
+<body
+  class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
+  <div class="flex w-full min-h-screen">
+    <div id="sidebar-container" class="shrink-0"></div>
+    <main class="flex-1 p-5 md:p-8 lg:p-10 min-w-0 max-w-7xl mx-auto">
+      <header class="mb-10 pb-6 border-b border-[var(--border-subtle)]">
+        <h1 class="text-3xl font-bold tracking-tight">Social Feed</h1>
+        <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Professional updates limited to involved
+          members.</p>
       </header>
-      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-6">
-        <div>
-          <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Posts</h2>
-            <select id="social-entity"
-              class="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-sm"></select>
+
+      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-8 animate-fade-in">
+        <div class="order-2 xl:order-1">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h2 class="text-lg font-bold tracking-tight">Recent Posts</h2>
+            <select id="social-entity" class="input-field max-w-[240px] py-1.5 text-sm font-medium"></select>
           </div>
-          <div id="social-posts" class="space-y-4"></div>
-          <p id="social-empty" class="hidden text-sm text-slate-500 mt-4">No posts yet.</p>
+          <div id="social-posts" class="space-y-6"></div>
+          <div id="social-empty"
+            class="hidden text-center py-16 border border-dashed border-[var(--border-strong)] rounded-2xl bg-[rgba(255,255,255,0.01)] mt-4">
+            <span
+              class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-tertiary)] mb-4">
+              <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                </path>
+              </svg>
+            </span>
+            <p class="text-sm font-semibold text-[var(--text-secondary)]">No posts found.</p>
+            <p class="text-xs text-[var(--text-tertiary)] mt-1">Be the first to share an update with this entity.</p>
+          </div>
         </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-          <h2 class="text-lg font-semibold">New Post</h2>
-          <form id="social-form" class="mt-4 space-y-3 text-sm">
-            <textarea name="content" rows="4" required
-              class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"
-              placeholder="Share an update"></textarea>
-            <div id="social-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-            <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 text-sm font-medium" type="submit">Post
-              Update</button>
-          </form>
+
+        <div class="order-1 xl:order-2">
+          <div
+            class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] sticky top-6">
+            <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+              <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">New Post</h2>
+            </div>
+            <form id="social-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+              <div class="space-y-1.5">
+                <label for="social-content" class="sr-only">Post Content</label>
+                <textarea id="social-content" name="content" rows="4" required placeholder="What's happening?"
+                  class="input-field font-medium w-full resize-y bg-[var(--bg-base)]"></textarea>
+              </div>
+
+              <div id="social-status"
+                class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
+
+              <div class="pt-2">
+                <button class="btn btn-primary w-full shadow-sm" type="submit">Publish Update</button>
+              </div>
+            </form>
+          </div>
         </div>
       </section>
     </main>
@@ -59,7 +86,7 @@
 
     const setStatus = (message, ok) => {
       statusEl.textContent = message;
-      statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+      statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
       statusEl.classList.remove('hidden');
     };
 
@@ -77,60 +104,113 @@
         }
         emptyEl.classList.add('hidden');
         posts.forEach((post) => {
-          const card = document.createElement('div');
-          card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6';
-          const header = document.createElement('p');
-          header.className = 'text-sm text-indigo-300';
-          header.textContent = post.full_name;
+          const card = document.createElement('article');
+          card.className = 'bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6 hover:border-[var(--border-strong)] transition-colors shadow-sm relative';
+
+          const headerWrap = document.createElement('div');
+          headerWrap.className = 'flex items-center gap-3 mb-4';
+
+          const avatar = document.createElement('div');
+          // Intentionally generate an abstract beautiful gradient avatar fallback
+          const hue = ((post.full_name || '').length * 10) % 360;
+          avatar.className = 'w-10 h-10 rounded-full shadow-inner flex-shrink-0';
+          avatar.style.background = `linear-gradient(135deg, hsl(${hue}, 80%, 60%), hsl(${(hue + 40) % 360}, 80%, 40%))`;
+
+          const headerName = document.createElement('p');
+          headerName.className = 'font-bold text-[var(--text-primary)] text-sm';
+          headerName.textContent = post.full_name;
+
+          const metaTime = document.createElement('p');
+          metaTime.className = 'text-[10px] font-bold text-[var(--text-tertiary)] tracking-widest uppercase mt-0.5';
+          metaTime.textContent = new Date(post.created_at).toLocaleString();
+
+          const nameMetaGroup = document.createElement('div');
+          nameMetaGroup.appendChild(headerName);
+          nameMetaGroup.appendChild(metaTime);
+
+          headerWrap.appendChild(avatar);
+          headerWrap.appendChild(nameMetaGroup);
+
           const content = document.createElement('p');
-          content.className = 'text-base mt-2';
+          content.className = 'text-[15px] font-medium text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap';
           content.textContent = post.content;
-          const meta = document.createElement('p');
-          meta.className = 'text-xs text-slate-500 mt-3';
-          meta.textContent = new Date(post.created_at).toLocaleString();
+
           const commentList = document.createElement('div');
-          commentList.className = 'mt-4 space-y-2 text-sm text-slate-400';
-          comments.filter((c) => c.post_id === post.id).forEach((comment) => {
-            const line = document.createElement('p');
-            line.textContent = `${comment.full_name}: ${comment.comment}`;
-            commentList.appendChild(line);
-          });
+          const postComments = comments.filter((c) => c.post_id === post.id);
+
+          if (postComments.length > 0) {
+            commentList.className = 'mt-6 space-y-3.5 border-t border-[var(--border-subtle)] pt-4';
+            postComments.forEach((comment) => {
+              const line = document.createElement('div');
+              line.className = 'flex items-start gap-2.5';
+
+              const cHue = ((comment.full_name || '').length * 15) % 360;
+              const cAvatar = document.createElement('div');
+              cAvatar.className = 'w-6 h-6 rounded-full flex-shrink-0 mt-0.5';
+              cAvatar.style.background = `linear-gradient(135deg, hsl(${cHue}, 60%, 50%), hsl(${(cHue + 40) % 360}, 60%, 30%))`;
+
+              const cContent = document.createElement('div');
+              cContent.className = 'bg-[var(--bg-base)] rounded-xl px-3 py-2 text-[13px] border border-[var(--border-strong)] flex items-start flex-wrap content-start';
+
+              const nameSpan = document.createElement('span');
+              nameSpan.className = 'font-bold text-[var(--text-primary)] mr-2';
+              nameSpan.textContent = comment.full_name;
+
+              const commentSpan = document.createElement('span');
+              commentSpan.className = 'text-[var(--text-secondary)] font-medium leading-snug break-all sm:break-normal';
+              commentSpan.textContent = comment.comment;
+
+              cContent.appendChild(nameSpan);
+              cContent.appendChild(commentSpan);
+
+              line.appendChild(cAvatar);
+              line.appendChild(cContent);
+              commentList.appendChild(line);
+            });
+          }
+
           const commentForm = document.createElement('form');
-          commentForm.className = 'mt-4 flex gap-2';
+          commentForm.className = `flex gap-2 relative ${postComments.length === 0 ? 'mt-6 pt-4 border-t border-[var(--border-subtle)]' : 'mt-4'}`;
+
           const commentInput = document.createElement('input');
-          commentInput.className = 'flex-1 rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm';
-          commentInput.placeholder = 'Write a comment';
+          commentInput.className = 'input-field font-medium py-2 px-4 shadow-inner text-sm flex-1 bg-[var(--bg-base)]';
+          commentInput.placeholder = 'Write a reply...';
+
           const commentButton = document.createElement('button');
-          commentButton.className = 'bg-slate-800 px-3 py-2 rounded-xl text-xs';
-          commentButton.textContent = 'Send';
+          commentButton.className = 'btn btn-secondary px-4 py-2 shadow-sm text-sm';
+          commentButton.textContent = 'Reply';
+
           commentForm.appendChild(commentInput);
           commentForm.appendChild(commentButton);
+
           commentForm.addEventListener('submit', async (event) => {
             event.preventDefault();
-            if (!commentInput.value.trim()) return;
+            const val = commentInput.value.trim();
+            if (!val) return;
             try {
-              await apiFetch(`/social/${post.id}/comments`, { method: 'POST', body: JSON.stringify({ comment: commentInput.value }) });
+              commentButton.disabled = true;
+              await apiFetch(`/social/${post.id}/comments`, { method: 'POST', body: JSON.stringify({ comment: val }) });
               commentInput.value = '';
               loadPosts();
             } catch (err) {
               setStatus(normalizeError(err) || 'Comment failed', false);
+            } finally {
+              commentButton.disabled = false;
             }
           });
-          card.appendChild(header);
+
+          card.appendChild(headerWrap);
           card.appendChild(content);
-          card.appendChild(meta);
-          if (commentList.children.length) {
-            card.appendChild(commentList);
-          }
+          if (commentList.children.length) card.appendChild(commentList);
           card.appendChild(commentForm);
           postsEl.appendChild(card);
         });
       } catch (err) {
         console.error('Failed to load social posts:', err);
         postsEl.innerHTML = '';
-        emptyEl.textContent = 'Failed to load posts. Please try again.';
+        emptyEl.querySelector('p.font-semibold').textContent = 'Failed to load posts.';
+        emptyEl.querySelector('p.text-xs').textContent = 'Please try again later.';
         emptyEl.classList.remove('hidden');
-        setStatus('Unable to load posts.', false);
       }
     };
 
@@ -156,7 +236,8 @@
         }
         console.error('Failed to load entities:', err);
         entitySelect.innerHTML = '';
-        emptyEl.textContent = 'Unable to load posts without access.';
+        emptyEl.querySelector('p.font-semibold').textContent = 'Unable to load posts without access.';
+        emptyEl.querySelector('p.text-xs').textContent = '';
         emptyEl.classList.remove('hidden');
       });
 
@@ -167,7 +248,12 @@
       if (submitBtn) submitBtn.disabled = true;
       try {
         await apiFetch('/social', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, content: form.content.value }) });
-        setStatus('Post published.', true);
+
+        statusEl.textContent = 'Post published successfully.';
+        statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]`;
+        statusEl.classList.remove('hidden');
+        setTimeout(() => statusEl.classList.add('hidden'), 3000);
+
         form.reset();
         loadPosts();
       } catch (err) {

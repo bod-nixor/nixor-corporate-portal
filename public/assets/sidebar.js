@@ -1,3 +1,5 @@
+import { apiFetch } from '/assets/app.js';
+
 export function renderSidebar(activeId) {
   const links = [
     { id: 'dashboard', href: '/dashboard.html', text: 'Entity Dashboard' },
@@ -6,51 +8,106 @@ export function renderSidebar(activeId) {
     { id: 'calendar', href: '/calendar.html', text: 'Calendar' },
     { id: 'social', href: '/social.html', text: 'Social' },
     { id: 'endeavours', href: '/endeavours.html', text: 'Volunteering' },
-    { id: 'admin', href: '/admin.html', text: 'Settings' }
+    { id: 'settings', href: '/settings.html', text: 'Settings' },
+    { id: 'admin', href: '/admin.html', text: 'Admin Panel' }
   ];
 
   const navHtml = links.map(link => {
     const isActive = link.id === activeId;
     const classes = isActive
-      ? 'block px-4 py-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 cursor-default'
-      : 'block px-4 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors';
+      ? 'block px-4 py-2.5 rounded-xl bg-[var(--text-primary)] text-[var(--bg-base)] font-semibold cursor-default shadow-sm'
+      : 'block px-4 py-2.5 rounded-xl text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text-primary)] transition-colors font-medium';
     const aria = isActive ? ' aria-current="page"' : '';
     return `<a class="${classes}" href="${link.href}"${aria}>${link.text}</a>`;
   }).join('\n        ');
 
   return `
-    <button id="mobile-menu-btn" class="block md:hidden absolute top-6 right-6 z-50 p-2 bg-slate-800 text-slate-200 rounded-md" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
-      <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <button id="mobile-menu-btn" class="block md:hidden fixed top-5 right-5 z-50 p-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-xl shadow-lg" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
       </svg>
     </button>
-    <aside id="sidebar" class="w-64 min-h-screen bg-slate-900 border-r border-slate-800 p-6 hidden md:block shrink-0 absolute md:static z-40">
-      <div class="text-xs uppercase tracking-[0.3em] text-indigo-400 font-semibold mb-8">Nixor Portal</div>
-      <nav class="space-y-1 text-sm font-medium">
+    
+    <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden md:hidden transition-opacity duration-300 opacity-0"></div>
+
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 md:w-64 min-h-screen bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] p-6 transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300 ease-in-out flex flex-col">
+      <div class="flex items-center gap-3 mb-8 px-2">
+        <div class="w-8 h-8 rounded-lg bg-[var(--text-primary)] flex items-center justify-center">
+          <svg class="w-5 h-5 text-[var(--bg-base)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <span class="text-sm uppercase tracking-widest text-[var(--text-primary)] font-bold">Nixor Portal</span>
+      </div>
+      <nav class="space-y-1.5 flex-1">
         ${navHtml}
       </nav>
+      <div class="mt-auto pt-6 border-t border-[var(--border-subtle)] px-2">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-strong)] flex items-center justify-center text-sm font-medium text-[var(--text-secondary)]">
+            U
+          </div>
+          <div class="text-sm min-w-0">
+            <p class="font-medium text-[var(--text-primary)] truncate" id="sidebar-user-name">User Profile</p>
+            <button type="button" id="sidebar-signout" class="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5">Sign out</button>
+          </div>
+        </div>
+      </div>
     </aside>
   `;
 }
 
 if (typeof document !== 'undefined') {
+  let backdropTimer = 0;
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#mobile-menu-btn');
     const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    // Handle sign-out via event delegation (works even if sidebar is injected after DOMContentLoaded)
+    if (e.target.closest('#sidebar-signout')) {
+      e.preventDefault();
+      (async () => {
+        try {
+          await apiFetch('/auth/logout', { method: 'POST' });
+          window.location.href = '/login.html';
+        } catch (err) {
+          console.error('Logout failed:', err);
+        }
+      })();
+      return;
+    }
 
     if (btn) {
-      if (sidebar) {
-        sidebar.classList.toggle('hidden');
-        const isHidden = sidebar.classList.contains('hidden');
-        btn.setAttribute('aria-expanded', !isHidden);
-      }
-    } else if (sidebar && !sidebar.classList.contains('hidden')) {
-      if (!e.target.closest('#sidebar')) {
-        sidebar.classList.add('hidden');
-        const menuBtn = document.getElementById('mobile-menu-btn');
-        if (menuBtn) {
-          menuBtn.setAttribute('aria-expanded', 'false');
+      if (sidebar && backdrop) {
+        const isClosed = sidebar.classList.contains('-translate-x-full');
+
+        if (isClosed) {
+          sidebar.classList.remove('-translate-x-full');
+          backdrop.classList.remove('hidden');
+          clearTimeout(backdropTimer);
+          // Allow display block to apply
+          backdropTimer = setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+          btn.setAttribute('aria-expanded', 'true');
+        } else {
+          sidebar.classList.add('-translate-x-full');
+          backdrop.classList.add('opacity-0');
+          clearTimeout(backdropTimer);
+          backdropTimer = setTimeout(() => backdrop.classList.add('hidden'), 300);
+          btn.setAttribute('aria-expanded', 'false');
         }
+      }
+    } else if (sidebar && !sidebar.classList.contains('-translate-x-full') && window.innerWidth < 768) {
+      // Clicked outside on mobile
+      if (!e.target.closest('#sidebar')) {
+        sidebar.classList.add('-translate-x-full');
+        if (backdrop) {
+          backdrop.classList.add('opacity-0');
+          clearTimeout(backdropTimer);
+          backdropTimer = setTimeout(() => backdrop.classList.add('hidden'), 300);
+        }
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
       }
     }
   });

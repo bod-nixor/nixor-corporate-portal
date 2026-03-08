@@ -2,102 +2,158 @@
 <html lang="en">
 
 <head>
+  <!-- Theme Init Script to prevent FOUC -->
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Super Panel</title>
-
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex">
-    <div id="sidebar-container"></div>
-    <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+<body
+  class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
+  <div class="flex w-full min-h-screen">
+    <div id="sidebar-container" class="shrink-0"></div>
+    <main class="flex-1 p-5 md:p-8 lg:p-10 min-w-0 max-w-7xl mx-auto">
+      <header
+        class="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-10 pb-6 border-b border-[var(--border-subtle)]">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Admin Super Panel</h1>
-          <p class="text-slate-400 mt-1 text-sm">Manage users, entities, and compliance across the portal.</p>
+          <h1 class="text-3xl font-bold tracking-tight">Admin Super Panel</h1>
+          <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Manage users, entities, and compliance
+            across the portal.</p>
         </div>
-        <button id="open-entity-form" class="btn btn-primary px-5 shadow-sm">New Entity</button>
+        <button id="open-entity-form" class="btn btn-primary px-5 shrink-0">New Entity</button>
       </header>
 
-      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
-        <div class="card p-6 flex flex-col justify-between border-slate-700">
-          <p class="text-sm font-medium text-slate-400 uppercase tracking-wider">Missing Docs</p>
-          <div class="mt-4 flex items-end gap-3">
-            <p id="metric-missing" class="text-4xl font-bold tracking-tight text-white animate-pulse">0</p>
+      <section class="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+        <div
+          class="card p-6 flex flex-col justify-between border-[var(--border-strong)] bg-[rgba(255,255,255,0.01)] hover:border-[var(--color-primary)] transition-colors group">
+          <div class="flex items-center justify-between">
+            <p class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Missing Docs</p>
+            <div class="w-8 h-8 rounded-full bg-[rgba(239,68,68,0.1)] text-[#ef4444] flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                </path>
+              </svg>
+            </div>
           </div>
-          <p class="text-xs text-slate-500 mt-3">Endeavours waiting on documentation approvals.</p>
+          <div class="mt-4">
+            <p id="metric-missing" class="text-4xl font-bold tracking-tight text-[var(--text-primary)]">0</p>
+            <p class="text-xs font-medium text-[var(--text-secondary)] mt-2">Endeavours missing required documents.</p>
+          </div>
         </div>
-        <div class="card p-6 flex flex-col justify-between border-slate-700">
-          <p class="text-sm font-medium text-slate-400 uppercase tracking-wider">Unpaid Transport</p>
-          <div class="mt-4 flex items-end gap-3">
-            <p id="metric-unpaid" class="text-4xl font-bold tracking-tight text-white animate-pulse">0</p>
+
+        <div
+          class="card p-6 flex flex-col justify-between border-[var(--border-strong)] bg-[rgba(255,255,255,0.01)] hover:border-[var(--color-primary)] transition-colors">
+          <div class="flex items-center justify-between">
+            <p class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Unpaid Transport</p>
+            <div class="w-8 h-8 rounded-full bg-[rgba(245,158,11,0.1)] text-[#f59e0b] flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+                </path>
+              </svg>
+            </div>
           </div>
-          <p class="text-xs text-slate-500 mt-3">Payments awaiting admin marking.</p>
+          <div class="mt-4">
+            <p id="metric-unpaid" class="text-4xl font-bold tracking-tight text-[var(--text-primary)]">0</p>
+            <p class="text-xs font-medium text-[var(--text-secondary)] mt-2">Payments awaiting admin marking.</p>
+          </div>
         </div>
-        <div class="card p-6 flex flex-col justify-between border-slate-700">
-          <p class="text-sm font-medium text-slate-400 uppercase tracking-wider">Consent Pending</p>
-          <div class="mt-4 flex items-end gap-3">
-            <p id="metric-consent" class="text-4xl font-bold tracking-tight text-white animate-pulse">0</p>
+
+        <div
+          class="card p-6 flex flex-col justify-between border-[var(--border-strong)] bg-[rgba(255,255,255,0.01)] hover:border-[var(--color-primary)] transition-colors">
+          <div class="flex items-center justify-between">
+            <p class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-[0.2em]">Consent Pending</p>
+            <div class="w-8 h-8 rounded-full bg-[rgba(14,165,233,0.1)] text-[#0ea5e9] flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                </path>
+              </svg>
+            </div>
           </div>
-          <p class="text-xs text-slate-500 mt-3">Parent consent for shortlisted volunteers.</p>
+          <div class="mt-4">
+            <p id="metric-consent" class="text-4xl font-bold tracking-tight text-[var(--text-primary)]">0</p>
+            <p class="text-xs font-medium text-[var(--text-secondary)] mt-2">Parental consent forms missing.</p>
+          </div>
         </div>
       </section>
 
-      <section class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 animate-fade-in" style="animation-delay: 100ms;">
-        <div class="card p-6 border-slate-700">
-          <h2 class="text-lg font-bold tracking-tight mb-4">Entities</h2>
+      <section class="mt-10 grid grid-cols-1 xl:grid-cols-2 gap-8 animate-fade-in" style="animation-delay: 100ms;">
+        <div class="card p-0 overflow-hidden border-[var(--border-strong)] shadow-sm">
+          <div class="px-6 py-5 border-b border-[var(--border-subtle)] bg-[rgba(255,255,255,0.015)]">
+            <h2 class="text-lg font-bold tracking-tight">Active Entities</h2>
+          </div>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-800">
+            <table class="w-full text-sm text-left whitespace-nowrap">
+              <thead
+                class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
                 <tr>
-                  <th class="pb-3 font-semibold">Name</th>
-                  <th class="pb-3 font-semibold w-1/2">Description</th>
+                  <th class="px-6 py-3">Name</th>
+                  <th class="px-6 py-3 w-1/2">Description</th>
                 </tr>
               </thead>
-              <tbody id="entities-list" class="divide-y divide-slate-800/50"></tbody>
+              <tbody id="entities-list"
+                class="divide-y divide-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] font-medium"></tbody>
             </table>
           </div>
         </div>
-        <div class="card p-6 border-slate-700">
-          <h2 class="text-lg font-bold tracking-tight mb-4">Users</h2>
+
+        <div class="card p-0 overflow-hidden border-[var(--border-strong)] shadow-sm">
+          <div class="px-6 py-5 border-b border-[var(--border-subtle)] bg-[rgba(255,255,255,0.015)]">
+            <h2 class="text-lg font-bold tracking-tight">Registered Users</h2>
+          </div>
           <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-800">
+            <table class="w-full text-sm text-left whitespace-nowrap">
+              <thead
+                class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
                 <tr>
-                  <th class="pb-3 font-semibold">Name</th>
-                  <th class="pb-3 font-semibold">Email</th>
-                  <th class="pb-3 font-semibold">Role</th>
+                  <th class="px-6 py-3">Name</th>
+                  <th class="px-6 py-3">Email</th>
+                  <th class="px-6 py-3">Role</th>
                 </tr>
               </thead>
-              <tbody id="users-list" class="divide-y divide-slate-800/50"></tbody>
+              <tbody id="users-list"
+                class="divide-y divide-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] font-medium"></tbody>
             </table>
           </div>
         </div>
       </section>
 
-      <section class="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 animate-fade-in" style="animation-delay: 200ms;">
-        <div class="card p-6 border-slate-700">
-          <h2 class="text-lg font-bold tracking-tight mb-4 text-white">Add User</h2>
-          <form id="user-form" class="space-y-4">
-            <div class="space-y-1">
-              <label for="user-full_name" class="text-xs font-medium text-slate-400">Full Name</label>
-              <input id="user-full_name" name="full_name" required autocomplete="name" placeholder="User's full name" class="input-field" />
+      <section class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in" style="animation-delay: 200ms;">
+        <div class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)]">
+          <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+            <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Add User</h2>
+            <p class="text-xs font-medium text-[var(--text-tertiary)] mt-1">Create a new global user account.</p>
+          </div>
+          <form id="user-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+            <div class="space-y-1.5">
+              <label for="user-full_name"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Full Name</label>
+              <input id="user-full_name" name="full_name" required autocomplete="name" placeholder="User's full name"
+                class="input-field font-medium" />
             </div>
-            <div class="space-y-1">
-              <label for="user-email" class="text-xs font-medium text-slate-400">Email Address</label>
-              <input id="user-email" name="email" type="email" autocomplete="email" required placeholder="user@nixor.edu.pk"
-                class="input-field" />
+            <div class="space-y-1.5">
+              <label for="user-email"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Email
+                Address</label>
+              <input id="user-email" name="email" type="email" autocomplete="email" required
+                placeholder="user@nixor.edu.pk" class="input-field font-medium" />
             </div>
-            <div class="space-y-1">
-              <label for="user-password" class="text-xs font-medium text-slate-400">Temporary Password</label>
-              <input id="user-password" name="password" type="password" autocomplete="new-password" required placeholder="Generate password"
-                class="input-field" />
+            <div class="space-y-1.5">
+              <label for="user-password"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Temporary
+                Password</label>
+              <input id="user-password" name="password" type="password" autocomplete="new-password" required
+                placeholder="Generate password" class="input-field font-medium" />
             </div>
-            <div class="space-y-1">
-              <label for="user-global_role" class="text-xs font-medium text-slate-400">Global Role</label>
-              <select id="user-global_role" name="global_role" class="input-field">
+            <div class="space-y-1.5">
+              <label for="user-global_role"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Global
+                Role</label>
+              <select id="user-global_role" name="global_role" class="input-field font-medium">
                 <option value="admin">Admin</option>
                 <option value="board">Board</option>
                 <option value="ceo">CEO</option>
@@ -105,24 +161,34 @@
                 <option value="volunteer" selected>Volunteer</option>
               </select>
             </div>
-            <div id="user-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-            <button class="btn btn-primary w-full mt-2" type="submit">Create User</button>
+            <div id="user-status"
+              class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
+            <div class="pt-2">
+              <button class="btn btn-primary w-full shadow-sm" type="submit">Create User</button>
+            </div>
           </form>
         </div>
-        <div class="card p-6 border-slate-700">
-          <h2 class="text-lg font-bold tracking-tight mb-4 text-white">Assign Membership</h2>
-          <form id="membership-form" class="space-y-4">
-            <div class="space-y-1">
-              <label for="membership_entity_id" class="text-xs font-medium text-slate-400">Entity</label>
-              <select id="membership_entity_id" name="entity_id" class="input-field"></select>
+
+        <div class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)]">
+          <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+            <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Assign Membership</h2>
+            <p class="text-xs font-medium text-[var(--text-tertiary)] mt-1">Bind a user to an entity and department.</p>
+          </div>
+          <form id="membership-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+            <div class="space-y-1.5">
+              <label for="membership_entity_id"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Entity</label>
+              <select id="membership_entity_id" name="entity_id" class="input-field font-medium"></select>
             </div>
-            <div class="space-y-1">
-              <label for="membership_user_id" class="text-xs font-medium text-slate-400">User</label>
-              <select id="membership_user_id" name="user_id" class="input-field"></select>
+            <div class="space-y-1.5">
+              <label for="membership_user_id"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">User</label>
+              <select id="membership_user_id" name="user_id" class="input-field font-medium"></select>
             </div>
-            <div class="space-y-1">
-              <label for="membership_department" class="text-xs font-medium text-slate-400">Department</label>
-              <select id="membership_department" name="department" class="input-field">
+            <div class="space-y-1.5">
+              <label for="membership_department"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Department</label>
+              <select id="membership_department" name="department" class="input-field font-medium">
                 <option value="operations">Operations</option>
                 <option value="finance">Finance</option>
                 <option value="hr">HR</option>
@@ -131,49 +197,59 @@
                 <option value="other">Other</option>
               </select>
             </div>
-            <div class="space-y-1">
-              <label for="membership_role" class="text-xs font-medium text-slate-400">Role level</label>
-              <select id="membership_role" name="role" class="input-field">
+            <div class="space-y-1.5">
+              <label for="membership_role"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Role level</label>
+              <select id="membership_role" name="role" class="input-field font-medium">
                 <option value="member" selected>Member</option>
                 <option value="manager">Manager</option>
                 <option value="executive">Executive</option>
                 <option value="volunteer">Volunteer</option>
               </select>
             </div>
-            <div id="membership-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-            <button class="btn btn-primary w-full mt-2" type="submit">Assign Membership</button>
+            <div id="membership-status"
+              class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
+            <div class="pt-2">
+              <button class="btn btn-secondary w-full shadow-sm" type="submit">Assign Membership</button>
+            </div>
           </form>
         </div>
       </section>
     </main>
   </div>
+
   <div id="entity-modal" role="dialog" aria-modal="true" aria-labelledby="entity-modal-title"
-    class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-    <div class="card p-6 w-full max-w-lg shadow-2xl relative animate-fade-in border-slate-700">
-      <div class="flex items-center justify-between mb-5">
+    class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-6 z-50">
+    <div
+      class="card p-0 w-full max-w-lg shadow-2xl relative animate-fade-in border-[var(--border-strong)] overflow-hidden">
+      <div
+        class="flex items-center justify-between px-6 py-5 border-b border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)]">
         <h3 id="entity-modal-title" class="text-xl font-bold tracking-tight">New Entity</h3>
         <button id="entity-close" aria-label="Close entity dialog"
-          class="text-slate-400 hover:text-white transition-colors bg-slate-800/50 hover:bg-slate-700/50 p-2 rounded-full">
+          class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
         </button>
       </div>
-      <form id="entity-form" class="space-y-4">
-        <div class="space-y-1">
-          <label for="modal-entity-name" class="text-xs font-medium text-slate-400">Entity Name</label>
-          <input id="modal-entity-name" name="name" required placeholder="Name of Entity" class="input-field" />
+      <form id="entity-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+        <div class="space-y-1.5">
+          <label for="modal-entity-name" class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Entity
+            Name</label>
+          <input id="modal-entity-name" name="name" required placeholder="Name of Entity"
+            class="input-field font-medium" />
         </div>
-        <div class="space-y-1">
-          <label for="modal-entity-description" class="text-xs font-medium text-slate-400">Description</label>
+        <div class="space-y-1.5">
+          <label for="modal-entity-description"
+            class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Description</label>
           <textarea id="modal-entity-description" name="description" rows="3"
-            placeholder="Description of the entity goals and function" class="input-field py-3"></textarea>
+            placeholder="Description of the entity goals and function" class="input-field resize-y"></textarea>
         </div>
-        <div id="entity-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-        <div class="flex justify-end pt-2 gap-3">
-          <button type="button" class="btn btn-ghost"
-            onclick="document.getElementById('entity-close').click()">Cancel</button>
-          <button type="submit" class="btn btn-primary px-6">Create Entity</button>
+        <div id="entity-status"
+          class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
+        <div class="flex justify-end pt-4 border-t border-[var(--border-subtle)] gap-3 mt-6">
+          <button id="entity-cancel" type="button" class="btn btn-ghost px-5">Cancel</button>
+          <button type="submit" class="btn btn-primary px-8">Create Entity</button>
         </div>
       </form>
     </div>

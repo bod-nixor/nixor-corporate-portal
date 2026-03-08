@@ -2,57 +2,65 @@
 <html lang="en">
 
 <head>
+  <!-- Theme Init Script to prevent FOUC -->
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Volunteering</title>
-  
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex">
-    <div id="sidebar-container"></div>
-    <main class="flex-1 p-6 md:p-10">
-      <header class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
+<body
+  class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
+  <div class="flex w-full min-h-screen">
+    <div id="sidebar-container" class="shrink-0"></div>
+    <main class="flex-1 p-5 md:p-8 lg:p-10 min-w-0 max-w-7xl mx-auto">
+      <header
+        class="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10 pb-6 border-b border-[var(--border-subtle)]">
         <div>
           <div class="flex items-center gap-3">
-            <h1 class="text-2xl font-bold tracking-tight">Volunteering Opportunities</h1>
+            <h1 class="text-3xl font-bold tracking-tight">Volunteering Opportunities</h1>
             <span id="notification-badge" aria-live="polite" aria-atomic="true"
-              class="hidden text-xs px-2 py-1 rounded border bg-amber-500/10 border-amber-500/20 text-amber-400 font-medium"></span>
+              class="hidden text-[11px] px-2 py-0.5 rounded-md border border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.1)] text-[#fcd34d] font-bold tracking-wide"></span>
           </div>
-          <p class="text-slate-400 mt-1 text-sm">Find and register for endeavours across entities.</p>
+          <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Find and register for endeavours across
+            entities.</p>
         </div>
         <div class="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
           <div class="relative flex-1 sm:w-72">
-            <svg class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" fill="none" viewBox="0 0 24 24"
-              stroke="currentColor" aria-hidden="true">
+            <svg class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" fill="none"
+              viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
             <label for="search-input" class="sr-only">Search events</label>
-            <input id="search-input" type="search" placeholder="Search events..." class="input-field pl-10" />
+            <input id="search-input" type="search" placeholder="Search events..."
+              class="input-field pl-10 font-medium bg-[var(--bg-surface)]" />
           </div>
           <div class="relative">
             <label for="entity-filter" class="sr-only">Filter by Entity</label>
-            <select id="entity-filter" class="input-field sm:w-48">
+            <select id="entity-filter" class="input-field sm:w-48 font-medium bg-[var(--bg-surface)]">
               <option value="">All Entities</option>
             </select>
           </div>
         </div>
       </header>
+
       <section id="endeavour-grid" aria-label="Endeavours"
-        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
-      </section>
+        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in"></section>
+
       <div id="endeavour-empty"
-        class="hidden flex flex-col items-center justify-center py-16 text-center card border-dashed border-slate-700 mt-8">
-        <svg class="w-12 h-12 text-slate-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-          aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
-        <h3 class="text-lg font-medium text-slate-300">No opportunities found</h3>
-        <p class="text-sm text-slate-500 mt-1 max-w-sm">No volunteering opportunities align with your search. Try
-          changing the filters above.</p>
+        class="hidden flex-col items-center justify-center py-20 text-center border border-dashed border-[var(--border-strong)] rounded-2xl bg-[rgba(255,255,255,0.01)] mt-8">
+        <span
+          class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-tertiary)] mb-4">
+          <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </span>
+        <h3 class="text-sm font-bold text-[var(--text-primary)]">No opportunities found</h3>
+        <p class="text-[13px] font-medium text-[var(--text-secondary)] mt-1 max-w-sm">No volunteering opportunities
+          align with your search. Try changing the filters above.</p>
       </div>
     </main>
   </div>

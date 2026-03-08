@@ -16,12 +16,11 @@ const setStatus = (el, message, ok) => {
     if (!el._originalClass) el._originalClass = el.className;
     el.textContent = message;
 
-    // Add status styles but keep base structure
     const baseClasses = el._originalClass.split(/\s+/).filter(c => c !== 'hidden').join(' ');
-    el.className = `${baseClasses} text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
+    el.className = `${baseClasses} text-sm rounded-lg px-4 py-3 font-medium border ${ok ? 'bg-[var(--color-success-bg)] text-[var(--color-success)] border-[rgba(16,185,129,0.2)]' : 'bg-[var(--color-danger-bg)] text-[var(--color-danger)] border-[rgba(239,68,68,0.2)]'}`;
 
     if (el.id === 'create-status') {
-        el.classList.add('md:col-span-2', 'mt-4');
+        el.classList.add('md:col-span-2', 'mt-6');
     }
 
     el._hideTimer = setTimeout(() => {
@@ -44,42 +43,48 @@ const escapeHtml = (value) => {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/\"/g, '&quot;')
+        .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 };
 
 const fileOptions = (selectedId, driveFiles) => {
-    const options = ['<option value=\"\">Select file</option>'];
+    const options = ['<option value="">Select file...</option>'];
     driveFiles.forEach((file) => {
         const selected = selectedId && Number(selectedId) === Number(file.id) ? 'selected' : '';
         const safeName = escapeHtml(file.name);
-        options.push(`<option value=\"${file.id}\" ${selected}>${safeName}</option>`);
+        options.push(`<option value="${file.id}" ${selected}>${safeName}</option>`);
     });
     return options.join('');
 };
 
 const renderRegistrations = async (container, endeavourId, phase) => {
-    container.innerHTML = '<p class=\"text-xs text-slate-500\">Loading registrations...</p>';
+    container.innerHTML = '<p class="text-xs text-[var(--text-tertiary)] font-medium">Loading registrations...</p>';
     try {
         const response = await apiFetch(`/endeavours/${endeavourId}/registrations`);
         const registrations = response?.data || [];
         if (!registrations.length) {
-            container.innerHTML = '<p class=\"text-xs text-slate-500\">No registrations yet.</p>';
+            container.innerHTML = '<p class="text-xs text-[var(--text-tertiary)] font-medium">No registrations yet.</p>';
             return;
         }
         container.innerHTML = '';
         registrations.forEach((reg) => {
             const row = document.createElement('div');
-            row.className = 'flex flex-wrap items-center justify-between gap-3 text-xs text-slate-300 border border-slate-800 rounded-xl p-3';
-            const name = document.createElement('span');
-            name.textContent = `${reg.full_name} (${reg.status})`;
-            row.appendChild(name);
+            row.className = 'flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--text-primary)] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] rounded-lg p-3 shadow-sm transition-all hover:bg-[rgba(255,255,255,0.04)]';
+
+            const nameContent = document.createElement('div');
+            nameContent.className = 'flex flex-col min-w-[120px]';
+            const nameStr = `<span class="font-semibold">${escapeHtml(reg.full_name)}</span>`;
+            const statusStr = `<span class="text-xs text-[var(--text-tertiary)] uppercase tracking-wide mt-0.5">${escapeHtml(reg.status)}</span>`;
+            nameContent.innerHTML = nameStr + statusStr;
+
+            row.appendChild(nameContent);
             const actions = document.createElement('div');
             actions.className = 'flex gap-2';
+
             if (phase === 'VOLUNTEER_SHORTLISTING') {
                 if (reg.status !== 'SHORTLISTED') {
                     const shortlist = document.createElement('button');
-                    shortlist.className = 'btn btn-secondary text-xs py-1 px-3 bg-emerald-500/10 text-emerald-400 border-none hover:bg-emerald-500/20';
+                    shortlist.className = 'btn text-xs py-1.5 px-3 bg-[#10b9811a] text-[#10b981] border border-[#10b98133] hover:bg-[#10b98133] font-semibold';
                     shortlist.textContent = 'Shortlist';
                     shortlist.addEventListener('click', async () => {
                         shortlist.disabled = true;
@@ -98,7 +103,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
 
                 if (reg.status !== 'REJECTED') {
                     const reject = document.createElement('button');
-                    reject.className = 'btn btn-secondary text-xs py-1 px-3 bg-red-500/10 text-red-400 border-none hover:bg-red-500/20';
+                    reject.className = 'btn text-xs py-1.5 px-3 bg-[#ef44441a] text-[#ef4444] border border-[#ef444433] hover:bg-[#ef444433] font-semibold';
                     reject.textContent = 'Reject';
                     reject.addEventListener('click', async () => {
                         reject.disabled = true;
@@ -118,7 +123,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
             if (phase === 'ON_DAY') {
                 if (reg.attendance_status !== 'present') {
                     const present = document.createElement('button');
-                    present.className = 'btn btn-secondary text-xs py-1 px-3 bg-indigo-500/10 text-indigo-400 border-none hover:bg-indigo-500/20';
+                    present.className = 'btn text-xs py-1.5 px-3 bg-[#3b82f61a] text-[#3b82f6] border border-[#3b82f633] hover:bg-[#3b82f633] font-semibold';
                     present.textContent = 'Present';
                     present.addEventListener('click', async () => {
                         present.disabled = true;
@@ -137,7 +142,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
 
                 if (reg.transport_fee_status !== 'paid' && !reg.has_paid_transport) {
                     const paid = document.createElement('button');
-                    paid.className = 'btn btn-secondary text-xs py-1 px-3 bg-amber-500/10 text-amber-400 border-none hover:bg-amber-500/20';
+                    paid.className = 'btn text-xs py-1.5 px-3 bg-[#f59e0b1a] text-[#f59e0b] border border-[#f59e0b33] hover:bg-[#f59e0b33] font-semibold';
                     paid.textContent = 'Paid Fee';
                     paid.addEventListener('click', async () => {
                         paid.disabled = true;
@@ -158,27 +163,29 @@ const renderRegistrations = async (container, endeavourId, phase) => {
             container.appendChild(row);
         });
     } catch (err) {
-        container.innerHTML = '<p class=\"text-xs text-red-300\">Failed to load registrations.</p>';
+        container.innerHTML = '<p class="text-xs text-[var(--color-danger)] font-medium">Failed to load registrations.</p>';
     }
 };
 
 const buildPlansCard = (row, driveFiles) => {
     const plansCard = document.createElement('div');
-    plansCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+    plansCard.className = 'p-5 bg-[rgba(255,255,255,0.015)] border border-[var(--border-strong)] rounded-2xl flex flex-col h-full shadow-sm';
     plansCard.innerHTML = `
-      <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Planning</h4>
-      <div class="flex flex-col sm:flex-row gap-3">
-        <div class="flex-1 space-y-1">
-          <label for="ops-select-${row.id}" class="text-xs text-slate-400">Operational Plan</label>
-          <select id="ops-select-${row.id}" class="input-field py-2 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id, driveFiles)}</select>
+      <div class="flex items-center gap-2 mb-5 pb-3 border-b border-[var(--border-subtle)]">
+        <h4 class="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Planning Phase</h4>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-4 mb-5">
+        <div class="flex-1 space-y-1.5">
+          <label for="ops-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Operational Plan</label>
+          <select id="ops-select-${row.id}" class="input-field py-2.5 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id, driveFiles)}</select>
         </div>
-        <div class="flex-1 space-y-1">
-          <label for="budget-select-${row.id}" class="text-xs text-slate-400">Budget Plan</label>
-          <select id="budget-select-${row.id}" class="input-field py-2 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id, driveFiles)}</select>
+        <div class="flex-1 space-y-1.5">
+          <label for="budget-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Budget Plan</label>
+          <select id="budget-select-${row.id}" class="input-field py-2.5 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id, driveFiles)}</select>
         </div>
       </div>
-      <div data-role="status" class="hidden"></div>
-      <button class="btn btn-primary mt-4 w-full sm:w-auto" data-action="attach-plans">Save Plans</button>
+      <div data-role="status" class="hidden mb-4"></div>
+      <button class="btn btn-secondary mt-auto w-full sm:w-auto self-start" data-action="attach-plans">Save Plans</button>
     `;
     const plansStatusEl = plansCard.querySelector('[data-role="status"]');
     const attachBtn = plansCard.querySelector('[data-action="attach-plans"]');
@@ -201,33 +208,35 @@ const buildPlansCard = (row, driveFiles) => {
 
 const buildFinCard = (row, driveFiles) => {
     const finCard = document.createElement('div');
-    finCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+    finCard.className = 'p-5 bg-[rgba(255,255,255,0.015)] border border-[var(--border-strong)] rounded-2xl flex flex-col h-full shadow-sm';
     finCard.innerHTML = `
-      <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4">Financials & Epilogue</h4>
-      <div class="space-y-4">
-        <div class="flex flex-col sm:flex-row gap-2 items-end">
-          <div class="flex-1 w-full space-y-1">
-             <label for="pre-select-${row.id}" class="text-xs text-slate-400">Pre-Financial</label>
+      <div class="flex items-center gap-2 mb-5 pb-3 border-b border-[var(--border-subtle)]">
+        <h4 class="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Financials & Epilogue</h4>
+      </div>
+      <div class="space-y-4 mb-5">
+        <div class="flex flex-col sm:flex-row gap-3 items-end">
+          <div class="flex-1 w-full space-y-1.5">
+             <label for="pre-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Pre-Financial</label>
              <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id, driveFiles)}</select>
           </div>
-          <button class="btn btn-secondary w-full sm:w-auto" data-action="pre">Submit Pre-Fin</button>
+          <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="pre">Submit</button>
         </div>
-        <div class="flex flex-col sm:flex-row gap-2 items-end">
-          <div class="flex-1 w-full space-y-1">
-             <label for="post-select-${row.id}" class="text-xs text-slate-400">Post-Financial</label>
+        <div class="flex flex-col sm:flex-row gap-3 items-end">
+          <div class="flex-1 w-full space-y-1.5">
+             <label for="post-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Post-Financial</label>
              <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id, driveFiles)}</select>
           </div>
-          <button class="btn btn-secondary w-full sm:w-auto" data-action="post">Submit Post-Fin</button>
+          <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="post">Submit</button>
         </div>
-        <div class="flex flex-col sm:flex-row gap-2 items-end">
-          <div class="flex-1 w-full space-y-1">
-             <label for="epi-select-${row.id}" class="text-xs text-slate-400">Epilogue</label>
+        <div class="flex flex-col sm:flex-row gap-3 items-end">
+          <div class="flex-1 w-full space-y-1.5">
+             <label for="epi-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Epilogue</label>
              <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id, driveFiles)}</select>
           </div>
-          <button class="btn btn-secondary w-full sm:w-auto" data-action="epilogue">Submit Epilogue</button>
+          <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="epilogue">Submit</button>
         </div>
       </div>
-      <div data-role="status" class="hidden"></div>
+      <div data-role="status" class="hidden mt-auto"></div>
     `;
     const finStatusEl = finCard.querySelector('[data-role="status"]');
     const preBtn = finCard.querySelector('[data-action="pre"]');
@@ -275,21 +284,21 @@ const buildFinCard = (row, driveFiles) => {
 
 const buildVolCard = (row, currentUser) => {
     const volCard = document.createElement('div');
-    volCard.className = 'p-5 bg-slate-800/30 border border-slate-700/50 rounded-xl';
+    volCard.className = 'p-5 bg-[rgba(255,255,255,0.015)] border border-[var(--border-strong)] rounded-2xl flex flex-col h-full shadow-sm';
 
     const volHeader = document.createElement('div');
-    volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-4';
-    volHeader.innerHTML = `<h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Volunteer Management</h4>`;
+    volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-[var(--border-subtle)]';
+    volHeader.innerHTML = `<h4 class="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Volunteer Management</h4>`;
 
     const volControls = document.createElement('div');
     volControls.className = 'flex gap-2';
 
     const volStatusEl = document.createElement('div');
-    volStatusEl.className = 'hidden';
+    volStatusEl.className = 'hidden mb-4';
 
     if (row.phase === 'VOLUNTEER_REGISTRATION') {
         const startShortlisting = document.createElement('button');
-        startShortlisting.className = 'btn btn-primary px-3 py-1.5 text-xs';
+        startShortlisting.className = 'btn btn-primary px-4 py-1.5 text-xs';
         startShortlisting.textContent = 'Start Shortlisting';
         startShortlisting.addEventListener('click', async () => {
             if (startShortlisting.disabled) return;
@@ -306,7 +315,7 @@ const buildVolCard = (row, currentUser) => {
     }
     if (row.phase === 'VOLUNTEER_SHORTLISTING') {
         const closeShortlisting = document.createElement('button');
-        closeShortlisting.className = 'btn btn-primary bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs border-none';
+        closeShortlisting.className = 'btn px-4 py-1.5 text-xs bg-[var(--text-primary)] text-[var(--bg-base)] border border-transparent font-bold hover:opacity-90 transition-opacity';
         closeShortlisting.textContent = 'Close Shortlisting / Finalize';
         closeShortlisting.addEventListener('click', async () => {
             if (closeShortlisting.disabled) return;
@@ -322,19 +331,27 @@ const buildVolCard = (row, currentUser) => {
         volControls.appendChild(closeShortlisting);
     }
 
-    volHeader.appendChild(volControls);
+    if (volControls.children.length > 0) {
+        volHeader.appendChild(volControls);
+    }
+
     volCard.appendChild(volHeader);
     volCard.appendChild(volStatusEl);
 
     const regContainer = document.createElement('div');
-    regContainer.className = 'space-y-2 mt-3';
+    regContainer.className = 'space-y-3 mt-1';
+
     const loadRegs = document.createElement('button');
-    loadRegs.className = 'btn btn-ghost btn-sm text-xs w-full border border-dashed border-slate-600';
-    loadRegs.textContent = 'Load Volunteer Registrations';
+    loadRegs.className = 'btn btn-ghost w-full py-4 border border-dashed border-[var(--border-strong)] text-[var(--text-secondary)] font-medium text-sm hover:border-[var(--text-tertiary)]';
+    loadRegs.innerHTML = `
+      <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+      Load Registrations
+    `;
     loadRegs.addEventListener('click', async () => {
         loadRegs.classList.add('hidden');
         await renderRegistrations(regContainer, row.id, row.phase);
     });
+
     volCard.appendChild(loadRegs);
     volCard.appendChild(regContainer);
     return volCard;
@@ -342,27 +359,38 @@ const buildVolCard = (row, currentUser) => {
 
 const buildAdminCard = (row) => {
     const adminCard = document.createElement('div');
-    adminCard.className = 'p-5 bg-indigo-950/20 border border-indigo-500/20 rounded-xl';
+    adminCard.className = 'p-5 bg-[rgba(59,130,246,0.05)] border border-[rgba(59,130,246,0.15)] rounded-2xl flex flex-col h-full shadow-sm relative overflow-hidden';
+
     adminCard.innerHTML = `
-      <h4 class="text-sm font-semibold text-indigo-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-        Admin Approvals
-      </h4>
-      <div class="flex flex-col sm:flex-row gap-2">
-        <select id="admin-doc-${row.id}" class="input-field py-2 text-sm flex-1" data-role="doc" aria-label="Select Document">
-          <option value="operational_plan">Operational Plan</option>
-          <option value="budget_plan">Budget Plan</option>
-          <option value="pre_financial">Pre-Financial</option>
-          <option value="post_financial">Post-Financial</option>
-          <option value="epilogue">Epilogue</option>
-        </select>
-        <select id="admin-dec-${row.id}" class="input-field py-2 text-sm flex-1" data-role="decision" aria-label="Select Decision">
-          <option value="approved">Approve</option>
-          <option value="rejected">Reject</option>
-        </select>
+      <div class="absolute top-0 right-0 p-4 opacity-10">
+        <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
-      <div data-role="status" class="hidden"></div>
-      <button class="btn bg-indigo-600 hover:bg-indigo-500 text-white mt-3 w-full sm:w-auto" data-action="approve">Submit Decision</button>
+      <div class="flex items-center gap-2 mb-5 pb-3 border-b border-[rgba(59,130,246,0.15)] relative z-10">
+        <h4 class="text-sm font-bold text-[var(--color-primary)] uppercase tracking-wider flex items-center gap-2">
+          Admin Approvals
+        </h4>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3 mb-5 relative z-10">
+        <div class="flex-1 space-y-1.5">
+          <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Document</label>
+          <select id="admin-doc-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="doc" aria-label="Select Document">
+            <option value="operational_plan">Operational Plan</option>
+            <option value="budget_plan">Budget Plan</option>
+            <option value="pre_financial">Pre-Financial</option>
+            <option value="post_financial">Post-Financial</option>
+            <option value="epilogue">Epilogue</option>
+          </select>
+        </div>
+        <div class="flex-1 space-y-1.5">
+          <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Decision</label>
+          <select id="admin-dec-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="decision" aria-label="Select Decision">
+            <option value="approved">Approve</option>
+            <option value="rejected">Reject</option>
+          </select>
+        </div>
+      </div>
+      <div data-role="status" class="hidden mb-4 relative z-10"></div>
+      <button class="btn btn-primary w-full sm:w-auto self-start relative z-10 bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] border-transparent" data-action="approve">Submit Decision</button>
     `;
     const adminStatusEl = adminCard.querySelector('[data-role="status"]');
     const approveBtn = adminCard.querySelector('[data-action="approve"]');
@@ -407,20 +435,20 @@ const renderEndeavours = (rows, driveFiles) => {
         const currentIndex = Math.max(0, PHASES.indexOf(p));
 
         const container = document.createElement('div');
-        container.className = 'stepper-container mt-6 mb-8 px-2';
+        container.className = 'stepper-container md:px-6 py-6 border-b border-[var(--border-subtle)] bg-[rgba(0,0,0,0.1)]';
 
         PHASES.forEach((phase, i) => {
             const stepItem = document.createElement('div');
-            stepItem.className = 'step-item';
+            stepItem.className = 'step-item flex-1 shrink-0 px-2 min-w-[100px]';
             if (i < currentIndex) stepItem.classList.add('completed');
             else if (i === currentIndex) stepItem.classList.add('current');
 
             const stepDot = document.createElement('div');
-            stepDot.className = 'step-dot';
+            stepDot.className = 'step-dot shadow-sm';
             stepDot.textContent = i < currentIndex ? '✓' : i + 1;
 
             const stepLabel = document.createElement('div');
-            stepLabel.className = 'step-label hidden md:block mt-2';
+            stepLabel.className = 'step-label hidden sm:block mt-2 font-medium tracking-wide';
             stepLabel.textContent = phaseLabels[phase];
 
             stepItem.appendChild(stepDot);
@@ -433,31 +461,46 @@ const renderEndeavours = (rows, driveFiles) => {
 
     rows.forEach((row) => {
         const card = document.createElement('div');
-        card.className = 'card animate-fade-in flex flex-col p-6 shadow-md border-slate-700/60';
+        card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-hidden mb-10 transition-transform duration-300 hover:border-[#3b82f640]';
 
         const header = document.createElement('div');
-        header.className = 'flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-4';
+        header.className = 'flex flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)]';
+
+        const titleContent = document.createElement('div');
+        titleContent.className = 'flex items-center gap-4';
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'w-10 h-10 rounded-xl bg-[var(--color-primary-ghost)] text-[var(--color-primary)] flex items-center justify-center shadow-inner';
+        iconDiv.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>`;
+
+        const textDiv = document.createElement('div');
         const title = document.createElement('h3');
-        title.className = 'text-xl font-bold tracking-tight';
+        title.className = 'text-xl font-bold tracking-tight text-[var(--text-primary)] leading-tight';
         title.textContent = row.name;
-        header.appendChild(title);
+
+        const phaseBadge = document.createElement('span');
+        phaseBadge.className = 'badge badge-info mt-1.5';
+        phaseBadge.textContent = phaseLabels[row.phase] || 'Unknown Phase';
+
+        textDiv.appendChild(title);
+        textDiv.appendChild(phaseBadge);
+
+        titleContent.appendChild(iconDiv);
+        titleContent.appendChild(textDiv);
+
+        header.appendChild(titleContent);
         card.appendChild(header);
 
-        // Add Stepper
         card.appendChild(renderStepper(row.phase));
 
-        // Create Content Grid for logical grouping
         const contentGrid = document.createElement('div');
-        contentGrid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4';
+        contentGrid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-6 p-6 md:p-8 bg-[var(--bg-surface)]';
 
-        // --- Column 1: Core Docs ---
         const col1 = document.createElement('div');
         col1.className = 'space-y-6';
         col1.appendChild(buildPlansCard(row, driveFiles));
         col1.appendChild(buildFinCard(row, driveFiles));
         contentGrid.appendChild(col1);
 
-        // --- Column 2: Volunteering & Admin ---
         const col2 = document.createElement('div');
         col2.className = 'space-y-6';
         col2.appendChild(buildVolCard(row, currentUser));

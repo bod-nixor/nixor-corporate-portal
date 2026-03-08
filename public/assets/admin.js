@@ -176,6 +176,10 @@ openEntityForm.addEventListener('click', () => {
 });
 
 closeEntityForm.addEventListener('click', closeEntityModal);
+const entityCancelForm = document.getElementById('entity-cancel');
+if (entityCancelForm) {
+    entityCancelForm.addEventListener('click', closeEntityModal);
+}
 entityModal.addEventListener('click', (e) => {
     if (e.target === entityModal) {
         closeEntityModal();

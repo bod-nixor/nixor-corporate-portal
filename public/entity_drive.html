@@ -1,311 +1,474 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+  <!-- Theme Init Script to prevent FOUC -->
+  <script src="/assets/theme-init.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Entity Drive</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div class="flex min-h-screen">
-    <div id="sidebar-container"></div>
 
-    <main class="flex-1 min-w-0">
-      <div class="p-4 md:p-6 lg:p-8 space-y-6">
-        <header class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+<body
+  class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
+  <div class="flex min-h-screen w-full">
+    <div id="sidebar-container" class="shrink-0"></div>
+
+    <main class="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
+      <!-- Top Portal Header -->
+      <div class="p-5 md:p-8 shrink-0">
+        <header
+          class="flex flex-col md:flex-row md:items-end justify-between gap-5 pb-5 border-b border-[var(--border-subtle)]">
           <div>
-            <p class="text-xs uppercase tracking-[0.25em] text-indigo-300">Entity Workspace</p>
-            <h1 class="text-3xl font-semibold tracking-tight mt-2">Entity Drive</h1>
-            <p class="text-sm text-slate-400 mt-2 max-w-2xl">Browse folders, manage shared files, and control access without leaving the portal shell.</p>
+            <h1 class="text-3xl font-bold tracking-tight">Entity Drive</h1>
+            <p class="text-[var(--text-secondary)] text-sm mt-1.5 font-medium max-w-2xl">Browse folders, manage shared
+              files, and control access centrally.</p>
           </div>
 
-          <div class="flex flex-col sm:flex-row gap-3">
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
             <label for="drive-entity" class="sr-only">Select entity</label>
-            <select id="drive-entity" class="input-field min-w-[220px]"></select>
-            <button id="drive-up" type="button" class="btn btn-secondary">Up one level</button>
+            <select id="drive-entity" class="input-field min-w-[200px]"></select>
+            <button id="drive-up" type="button" class="btn btn-secondary font-medium px-4">
+              <svg class="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
+                </path>
+              </svg>
+              Level Up
+            </button>
           </div>
         </header>
+      </div>
 
-        <section class="card !p-0 overflow-hidden border-slate-800/90">
-          <div class="border-b border-slate-800 px-4 md:px-6 py-4 bg-slate-900/80 backdrop-blur-sm">
+      <!-- Drive Application Shell -->
+      <section class="flex-1 min-h-0 px-5 md:px-8 pb-5 md:pb-8 flex flex-col">
+        <div
+          class="card !p-0 flex-1 flex flex-col overflow-hidden border-[var(--border-strong)] shadow-lg !rounded-2xl">
+
+          <!-- Drive Toolbar -->
+          <div class="border-b border-[var(--border-subtle)] px-4 md:px-6 py-3 bg-[rgba(255,255,255,0.01)] shrink-0">
             <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div class="space-y-2 min-w-0">
-                <div id="drive-breadcrumbs" class="flex items-center gap-2 text-sm text-slate-300 flex-wrap"></div>
-                <div class="flex items-center gap-2 text-xs text-slate-500">
-                  <span id="drive-location-label">Root</span>
-                  <span class="text-slate-700">/</span>
-                  <span id="drive-count">Showing 0 items</span>
+              <!-- Breadcrumbs & Count -->
+              <div class="space-y-1.5 min-w-0">
+                <div id="drive-breadcrumbs"
+                  class="flex items-center gap-2 text-sm text-[var(--text-secondary)] font-medium flex-wrap"></div>
+                <div
+                  class="flex items-center gap-2 text-[11px] font-semibold tracking-wider uppercase text-[var(--text-tertiary)]">
+                  <span id="drive-location-label" class="text-[var(--color-primary)]">Root</span>
+                  <span>&bull;</span>
+                  <span id="drive-count">0 items</span>
                 </div>
               </div>
 
-              <div class="flex flex-wrap items-center gap-2 xl:justify-end">
+              <!-- Action Controls -->
+              <div class="flex flex-wrap items-center gap-2.5 xl:justify-end">
                 <label for="drive-search" class="sr-only">Search current folder</label>
-                <input id="drive-search" type="search" placeholder="Search in current folder" class="input-field min-w-[220px] lg:min-w-[280px]" />
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="w-4 h-4 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24"
+                      stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                  </div>
+                  <input id="drive-search" type="search" placeholder="Search..."
+                    class="input-field pl-9 py-2 min-w-[200px]" />
+                </div>
+
+                <div class="h-6 w-px bg-[var(--border-subtle)] mx-1 hidden sm:block"></div>
 
                 <div class="relative">
-                  <button id="new-menu-btn" type="button" class="btn btn-primary">New</button>
-                  <div id="new-menu" class="hidden absolute right-0 mt-2 w-48 card !p-2 z-30 shadow-2xl">
-                    <button id="new-folder" type="button" class="btn btn-ghost w-full justify-start">New folder</button>
-                    <button id="new-link" type="button" class="btn btn-ghost w-full justify-start">New link</button>
+                  <button id="new-menu-btn" type="button" class="btn btn-primary py-2 shadow-inner font-semibold">
+                    <svg class="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    New
+                  </button>
+                  <div id="new-menu"
+                    class="hidden absolute right-0 mt-2 w-48 card !p-1.5 z-30 shadow-2xl border-[var(--border-strong)] rounded-xl bg-[var(--bg-surface-hover)]">
+                    <button id="new-folder" type="button" class="btn btn-ghost w-full justify-start text-sm py-2">
+                      <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                      </svg>
+                      New folder
+                    </button>
+                    <button id="new-link" type="button" class="btn btn-ghost w-full justify-start text-sm py-2">
+                      <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1">
+                        </path>
+                      </svg>
+                      New link
+                    </button>
                   </div>
                 </div>
 
-                <button id="upload-file" type="button" class="btn btn-secondary">Upload file</button>
+                <button id="upload-file" type="button" class="btn btn-secondary py-2 font-medium">Upload file</button>
+
+                <div class="h-6 w-px bg-[var(--border-subtle)] mx-1 hidden sm:block"></div>
 
                 <label for="drive-sort" class="sr-only">Sort drive items</label>
-                <select id="drive-sort" class="input-field w-auto min-w-[150px]">
+                <select id="drive-sort" class="input-field w-auto min-w-[140px] py-2 font-medium text-sm">
                   <option value="name_asc">Name A-Z</option>
                   <option value="name_desc">Name Z-A</option>
                   <option value="updated_desc">Recently updated</option>
                   <option value="updated_asc">Oldest updated</option>
                 </select>
 
-                <div class="inline-flex rounded-xl border border-slate-700 overflow-hidden">
-                  <button id="view-list" type="button" class="px-3 py-2 text-sm bg-slate-800 text-slate-100">List</button>
-                  <button id="view-grid" type="button" class="px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/70">Grid</button>
+                <div
+                  class="inline-flex rounded-lg border border-[var(--border-subtle)] bg-[rgba(0,0,0,0.2)] overflow-hidden p-0.5">
+                  <button id="view-list" type="button"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-md bg-[var(--text-primary)] text-[var(--bg-base)] shadow-sm">List</button>
+                  <button id="view-grid" type="button"
+                    class="px-3 py-1.5 text-xs font-semibold rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">Grid</button>
                 </div>
 
-                <button id="inspector-toggle" type="button" class="btn btn-secondary xl:hidden">Details</button>
+                <button id="inspector-toggle" type="button" class="btn btn-secondary py-2 xl:hidden"
+                  aria-label="Toggle inspector panel">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_340px] min-h-[720px]">
-            <aside class="border-b xl:border-b-0 xl:border-r border-slate-800 bg-slate-900/40 p-4 md:p-5 space-y-4">
-              <div class="card !p-4 bg-slate-950/50">
-                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Current location</p>
-                <h2 id="drive-location-name" class="text-lg font-semibold mt-2">Root</h2>
-                <p id="drive-location-note" class="text-sm text-slate-400 mt-2">Everything shared to this entity starts here.</p>
+          <!-- Drive Content Area -->
+          <div class="flex-1 min-h-0 flex flex-col xl:flex-row overflow-hidden relative">
+
+            <!-- Context Rail -->
+            <aside aria-label="Workspace navigation"
+              class="hidden lg:block w-[240px] xl:w-[260px] border-r border-[var(--border-subtle)] bg-[rgba(255,255,255,0.01)] p-5 overflow-auto shrink-0">
+              <div class="mb-8">
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-3">Workspace
+                </p>
+                <div
+                  class="flex items-center gap-3 px-3 py-2 bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] rounded-xl shadow-sm">
+                  <div
+                    class="w-8 h-8 rounded-lg bg-[var(--color-primary-ghost)] text-[var(--color-primary)] flex items-center justify-center shrink-0">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4">
+                      </path>
+                    </svg>
+                  </div>
+                  <div class="min-w-0">
+                    <h2 id="drive-location-name" class="text-sm font-bold text-[var(--text-primary)] truncate">Root</h2>
+                    <p id="drive-location-note" class="text-[11px] font-medium text-[var(--text-tertiary)] truncate">
+                      Shared to entity</p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <h2 class="text-sm font-semibold text-slate-300">Quick access</h2>
-                <div id="drive-summary" class="mt-3 grid gap-2"></div>
+              <div class="mb-8">
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-3">Quick
+                  Access</p>
+                <div id="drive-summary" class="grid gap-1.5"></div>
               </div>
 
-              <div class="card !p-4 bg-slate-950/50">
-                <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Tips</p>
-                <ul class="mt-3 space-y-2 text-sm text-slate-400">
-                  <li>Open folders from their name or card.</li>
-                  <li>Select an item to use the inspector.</li>
-                  <li>Sharing, rename, and delete are also available from the actions menu.</li>
-                </ul>
+              <div id="drive-status"
+                class="text-[11px] font-medium text-[var(--text-tertiary)] mt-auto pt-5 border-t border-[var(--border-subtle)]">
               </div>
-
-              <div id="drive-status" class="text-sm text-slate-400"></div>
             </aside>
 
-            <section class="min-w-0 p-4 md:p-5">
-              <div id="bulk-toolbar" class="hidden mb-4 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 flex flex-wrap items-center gap-2">
-                <span id="bulk-count" class="text-sm text-slate-200"></span>
-                <button id="bulk-delete" type="button" class="btn btn-danger">Delete</button>
-                <button id="bulk-share" type="button" class="btn btn-secondary">Share</button>
-                <button id="bulk-clear" type="button" class="btn btn-ghost">Clear</button>
-                <span id="bulk-note" class="text-xs text-slate-500"></span>
+            <!-- Main List/Grid View -->
+            <section class="flex-1 min-w-0 flex flex-col relative bg-[var(--bg-base)]">
+              <!-- Bulk Toolbar overlay -->
+              <div id="bulk-toolbar"
+                class="hidden absolute top-4 left-1/2 -translate-x-1/2 z-20 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-4 py-2.5 flex items-center gap-3 shadow-2xl animate-fade-in">
+                <span id="bulk-count" class="text-xs font-bold text-[var(--text-primary)] w-max"></span>
+                <div class="h-4 w-px bg-[var(--border-subtle)]"></div>
+                <button id="bulk-delete" type="button" class="btn btn-danger text-xs py-1 px-3">Delete</button>
+                <button id="bulk-share" type="button" class="btn btn-secondary text-xs py-1 px-3">Share</button>
+                <button id="bulk-clear" type="button"
+                  class="btn btn-ghost text-xs py-1 px-2 text-[var(--text-tertiary)]">Clear</button>
               </div>
 
-              <div id="list-shell" class="rounded-2xl border border-slate-800 bg-slate-950/70 overflow-hidden">
-                <div id="drive-skeleton" class="hidden p-4 space-y-3">
-                  <div class="h-12 rounded-xl bg-slate-800 animate-pulse"></div>
-                  <div class="h-12 rounded-xl bg-slate-800 animate-pulse"></div>
-                  <div class="h-12 rounded-xl bg-slate-800 animate-pulse"></div>
+              <div id="list-shell" class="flex-1 overflow-auto h-full w-full">
+                <!-- Skeleton Loading -->
+                <div id="drive-skeleton" class="hidden p-5 space-y-2">
+                  <div class="h-10 rounded-lg bg-[var(--bg-surface-hover)] animate-pulse"></div>
+                  <div class="h-10 rounded-lg bg-[var(--bg-surface-hover)] animate-pulse"></div>
+                  <div class="h-10 rounded-lg bg-[var(--bg-surface-hover)] animate-pulse"></div>
+                  <div class="h-10 rounded-lg bg-[var(--bg-surface-hover)] animate-pulse"></div>
                 </div>
 
-                <div id="drive-list-wrapper" class="overflow-x-auto">
-                  <table class="w-full text-sm" id="drive-table">
-                    <thead class="bg-slate-900/90 text-slate-400">
+                <!-- List View (Google Drive style tightly packed) -->
+                <div id="drive-list-wrapper" class="min-w-full">
+                  <table class="w-full text-sm text-left whitespace-nowrap" id="drive-table">
+                    <thead
+                      class="sticky top-0 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] z-10 shadow-sm text-xs text-[var(--text-tertiary)] uppercase tracking-wider font-bold">
                       <tr>
-                        <th class="px-4 py-3 text-left w-10">
-                          <input id="select-all" type="checkbox" aria-label="Select all items" />
+                        <th class="px-4 py-3 w-10">
+                          <input id="select-all" type="checkbox" aria-label="Select all items"
+                            class="rounded border-[var(--border-strong)] bg-transparent text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer" />
                         </th>
-                        <th class="px-4 py-3 text-left">Name</th>
-                        <th class="px-4 py-3 text-left">Sharing</th>
-                        <th class="px-4 py-3 text-left">Size</th>
-                        <th class="px-4 py-3 text-left">Modified</th>
-                        <th class="px-4 py-3 text-right w-24">Actions</th>
+                        <th class="px-4 py-3 font-semibold">Name</th>
+                        <th class="px-4 py-3 font-semibold">Sharing</th>
+                        <th class="px-4 py-3 font-semibold">Size</th>
+                        <th class="px-4 py-3 font-semibold">Modified</th>
+                        <th class="px-4 py-3 text-right w-16"></th>
                       </tr>
                     </thead>
-                    <tbody id="drive-list" class="divide-y divide-slate-800 text-slate-100"></tbody>
+                    <tbody id="drive-list"
+                      class="divide-y divide-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] text-[13px] font-medium cursor-default">
+                    </tbody>
                   </table>
                 </div>
 
-                <div id="drive-grid" class="hidden p-4 grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-4"></div>
+                <!-- Grid View -->
+                <div id="drive-grid" class="hidden p-5 grid-cols-2 md:grid-cols-3 2xl:grid-cols-4 content-start gap-4">
+                </div>
 
-                <div id="drive-empty" class="hidden p-12 text-center">
-                  <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400">
-                    <span class="text-xl font-semibold">D</span>
+                <!-- Empty State -->
+                <div id="drive-empty" class="hidden p-16 flex flex-col items-center justify-center h-full text-center">
+                  <div
+                    class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--bg-surface-hover)] border border-[var(--border-subtle)] text-[var(--text-tertiary)] shadow-inner">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4">
+                      </path>
+                    </svg>
                   </div>
-                  <h2 class="mt-4 text-lg font-semibold">No items in this location</h2>
-                  <p class="mt-2 text-sm text-slate-400 max-w-md mx-auto">Create a folder, upload a file, or adjust your search to see more of this entity drive.</p>
+                  <h2 class="mt-5 text-lg font-bold text-[var(--text-primary)]">This folder is empty</h2>
+                  <p class="mt-2 text-sm text-[var(--text-secondary)] max-w-sm mx-auto font-medium leading-relaxed">Drop
+                    files here, create a new folder, or upload content to get started.</p>
                 </div>
               </div>
             </section>
 
-            <aside id="inspector-panel" class="hidden xl:block border-t xl:border-t-0 xl:border-l border-slate-800 bg-slate-900/35 p-4 md:p-5 xl:sticky xl:top-0 xl:h-[720px] xl:overflow-auto">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Inspector</p>
-                  <h2 id="inspector-name" class="text-xl font-semibold mt-2">Select an item</h2>
+            <!-- Inspector Panel -->
+            <aside id="inspector-panel" aria-label="File inspector"
+              class="hidden xl:flex w-[320px] 2xl:w-[360px] border-l border-[var(--border-subtle)] bg-[rgba(255,255,255,0.01)] flex flex-col shrink-0">
+              <div class="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3 shrink-0">
+                <div class="min-w-0">
+                  <p class="text-[10px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]">Inspector</p>
+                  <h2 id="inspector-name" class="text-sm font-bold text-[var(--text-primary)] mt-1 truncate">Select an
+                    item</h2>
                 </div>
-                <button id="inspector-close" type="button" class="btn btn-ghost xl:hidden">Close</button>
+                <button id="inspector-close" type="button" class="btn btn-ghost px-2 py-1.5 xl:hidden shrink-0">
+                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                    </path>
+                  </svg>
+                </button>
               </div>
 
-              <div id="inspector-preview" class="mt-4 min-h-[220px] rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex items-center justify-center text-sm text-slate-500">Select a file or folder to inspect it.</div>
-              <p id="inspector-meta" class="text-sm text-slate-400 mt-4"></p>
+              <div class="flex-1 overflow-auto p-5">
+                <div id="inspector-preview"
+                  class="h-44 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface-hover)] p-4 flex items-center justify-center text-sm font-medium text-[var(--text-tertiary)] shadow-inner overflow-hidden relative group">
+                  Select a file or folder to preview.
+                </div>
 
-              <div class="mt-4 flex flex-wrap gap-2">
-                <button id="inspector-open-folder" type="button" class="btn btn-secondary hidden" hidden>Open folder</button>
-                <a id="inspector-open" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-secondary hidden" hidden>Open external</a>
-                <a id="inspector-download" href="#" class="btn btn-primary hidden" hidden>Download</a>
+                <p id="inspector-meta" class="text-xs font-semibold text-[var(--text-secondary)] mt-4 text-center"></p>
+
+                <div class="mt-6 flex flex-col gap-2">
+                  <button id="inspector-open-folder" type="button" class="btn btn-secondary w-full hidden" hidden>Open
+                    folder</button>
+                  <a id="inspector-open" href="#" target="_blank" rel="noopener noreferrer"
+                    class="btn btn-secondary w-full hidden justify-center" hidden>Open Link</a>
+                  <a id="inspector-download" href="#"
+                    class="btn btn-primary w-full hidden justify-center shadow-md bg-[var(--text-primary)] text-[var(--bg-base)]"
+                    hidden>Download File</a>
+                </div>
+
+                <div class="mt-3 flex gap-2">
+                  <button id="inspector-rename" type="button" class="btn btn-ghost flex-1 text-xs py-2 hidden"
+                    hidden>Rename</button>
+                  <button id="inspector-share" type="button" class="btn btn-ghost flex-1 text-xs py-2 hidden"
+                    hidden>Share</button>
+                  <button id="inspector-delete" type="button" class="btn btn-danger flex-1 text-xs py-2 hidden"
+                    hidden>Delete</button>
+                </div>
+
+                <div class="mt-8">
+                  <h3
+                    class="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] border-b border-[var(--border-subtle)] pb-2 mb-4">
+                    Properties</h3>
+                  <dl class="space-y-4 text-sm font-medium">
+                    <div class="grid grid-cols-3 gap-2 text-[13px]">
+                      <dt class="text-[var(--text-tertiary)]">Type</dt>
+                      <dd id="inspector-details" class="col-span-2 text-[var(--text-primary)] truncate">-</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-[13px]">
+                      <dt class="text-[var(--text-tertiary)]">Location</dt>
+                      <dd id="inspector-location" class="col-span-2 text-[var(--text-primary)] break-words">-</dd>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 text-[13px]">
+                      <dt class="text-[var(--text-tertiary)]">Access</dt>
+                      <dd id="inspector-sharing" class="col-span-2 text-[var(--text-primary)] truncate">-</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div class="mt-8">
+                  <h3
+                    class="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] border-b border-[var(--border-subtle)] pb-2 mb-3">
+                    People with access</h3>
+                  <ul id="inspector-access-list" class="space-y-1.5 flex flex-col"></ul>
+                </div>
               </div>
-
-              <div class="mt-4 flex flex-wrap gap-2">
-                <button id="inspector-rename" type="button" class="btn btn-ghost hidden" hidden>Rename</button>
-                <button id="inspector-share" type="button" class="btn btn-ghost hidden" hidden>Share</button>
-                <button id="inspector-delete" type="button" class="btn btn-danger hidden" hidden>Delete</button>
-              </div>
-
-              <dl class="mt-6 space-y-4 text-sm">
-                <div>
-                  <dt class="text-slate-500">Location</dt>
-                  <dd id="inspector-location" class="mt-1 text-slate-200">-</dd>
-                </div>
-                <div>
-                  <dt class="text-slate-500">Sharing</dt>
-                  <dd id="inspector-sharing" class="mt-1 text-slate-200">-</dd>
-                </div>
-                <div>
-                  <dt class="text-slate-500">Details</dt>
-                  <dd id="inspector-details" class="mt-1 text-slate-200">-</dd>
-                </div>
-                <div>
-                  <dt class="text-slate-500">People and teams</dt>
-                  <dd id="inspector-access-list" class="mt-2 flex flex-wrap gap-2 text-xs text-slate-300"></dd>
-                </div>
-              </dl>
             </aside>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   </div>
 
-  <div id="toast" class="hidden fixed bottom-4 right-4 z-50 max-w-sm rounded-xl px-4 py-3 text-sm shadow-2xl"></div>
-
-  <div id="inspector-backdrop" class="hidden fixed inset-0 bg-slate-950/70 z-40 xl:hidden" hidden></div>
-
-  <div id="action-menu" class="hidden fixed z-50 w-48 rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl" hidden>
-    <button data-action="open" type="button" class="btn btn-ghost w-full justify-start">Open</button>
-    <button data-action="rename" type="button" class="btn btn-ghost w-full justify-start">Rename</button>
-    <button data-action="share" type="button" class="btn btn-ghost w-full justify-start">Share</button>
-    <button data-action="delete" type="button" class="btn btn-danger w-full justify-start">Delete</button>
+  <div id="toast"
+    class="hidden fixed bottom-6 inset-x-0 mx-auto w-max max-w-sm rounded-[10px] px-5 py-3 text-sm font-semibold shadow-2xl z-50 animate-fade-in text-center border">
   </div>
 
-  <div id="item-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm items-center justify-center p-4">
-    <div class="card w-full max-w-lg shadow-2xl">
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Drive action</p>
-          <h2 id="item-modal-title" class="text-xl font-semibold mt-2">New folder</h2>
-        </div>
-        <button id="item-modal-close" type="button" class="btn btn-ghost">Close</button>
+  <div id="inspector-backdrop"
+    class="hidden fixed inset-0 bg-black/60 z-40 xl:hidden backdrop-blur-sm transition-opacity" hidden></div>
+
+  <!-- Row Context Menu -->
+  <div id="action-menu"
+    class="hidden absolute z-50 w-48 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] p-1.5 shadow-2xl"
+    hidden>
+    <button data-action="open" type="button"
+      class="btn btn-ghost w-full justify-start text-sm py-2 font-medium">Open</button>
+    <div class="h-px bg-[var(--border-subtle)] my-1 mx-2"></div>
+    <button data-action="rename" type="button"
+      class="btn btn-ghost w-full justify-start text-sm py-2 font-medium">Rename</button>
+    <button data-action="share" type="button"
+      class="btn btn-ghost w-full justify-start text-sm py-2 font-medium">Share</button>
+    <div class="h-px bg-[var(--border-subtle)] my-1 mx-2"></div>
+    <button data-action="delete" type="button"
+      class="btn btn-ghost w-full justify-start text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)] text-sm py-2 font-medium">Delete</button>
+  </div>
+
+  <!-- Dialogs -->
+  <div id="item-modal"
+    class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="card w-full max-w-md shadow-2xl animate-fade-in border-[var(--border-strong)]">
+      <div class="flex items-center justify-between mb-5">
+        <h2 id="item-modal-title" class="text-xl font-bold tracking-tight">New folder</h2>
+        <button id="item-modal-close" type="button" class="btn btn-ghost px-2 py-1.5">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
 
-      <form id="item-form" class="mt-6 space-y-4">
+      <form id="item-form" class="space-y-5">
         <div>
-          <label for="item-name" class="text-sm text-slate-300">Name</label>
-          <input id="item-name" name="name" class="input-field mt-2" maxlength="190" required />
+          <label for="item-name" class="block text-sm font-semibold text-[var(--text-secondary)] mb-1.5">Name</label>
+          <input id="item-name" name="name" class="input-field font-medium" maxlength="190" required />
         </div>
-
         <div id="item-url-group" class="hidden">
-          <label for="item-url" class="text-sm text-slate-300">URL</label>
-          <input id="item-url" name="url" type="url" class="input-field mt-2" placeholder="https://example.com/resource" />
+          <label for="item-url" class="block text-sm font-semibold text-[var(--text-secondary)] mb-1.5">URL</label>
+          <input id="item-url" name="url" type="url" class="input-field font-medium" placeholder="https://..." />
         </div>
 
-        <div class="flex justify-end gap-3 pt-2">
-          <button id="item-cancel" type="button" class="btn btn-ghost">Cancel</button>
-          <button id="item-submit" type="submit" class="btn btn-primary">Save</button>
+        <div class="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)] w-full">
+          <button id="item-cancel" type="button" class="btn btn-ghost px-5">Cancel</button>
+          <button id="item-submit" type="submit" class="btn btn-primary px-6">Save</button>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="delete-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm items-center justify-center p-4">
-    <div class="card w-full max-w-md shadow-2xl">
-      <div class="flex items-center justify-between gap-4">
-        <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-red-300">Delete</p>
-          <h2 class="text-xl font-semibold mt-2">Confirm delete</h2>
-        </div>
-        <button id="delete-close" type="button" class="btn btn-ghost">Close</button>
+  <div id="delete-modal"
+    class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="card w-full max-w-sm shadow-2xl border-[var(--color-danger)] border animate-fade-in">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">Confirm delete</h2>
+        <button id="delete-close" aria-label="Close"
+          class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]"><svg
+            class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+          </svg></button>
       </div>
-      <p id="delete-message" class="mt-6 text-sm text-slate-300">Delete selected items?</p>
-      <p class="mt-2 text-xs text-slate-500">Folders remove everything inside them. If a rule blocks deletion, the API message will be shown.</p>
-      <div class="mt-6 flex justify-end gap-3">
-        <button id="delete-cancel" type="button" class="btn btn-ghost">Cancel</button>
-        <button id="delete-confirm" type="button" class="btn btn-danger">Delete</button>
+      <p id="delete-message" class="mt-3 text-sm font-medium text-[var(--text-secondary)]">Move selected items to trash?
+      </p>
+      <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
+        <button id="delete-cancel" type="button" class="btn btn-ghost px-5">Cancel</button>
+        <button id="delete-confirm" type="button"
+          class="btn btn-danger font-semibold px-6 bg-[rgba(239,68,68,0.15)]">Delete</button>
       </div>
     </div>
   </div>
 
-  <div id="share-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm items-center justify-center p-4">
-    <div class="card w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
-      <div class="flex items-center justify-between gap-4">
+  <div id="share-modal"
+    class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 md:p-6">
+    <div
+      class="card w-full max-w-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col border-[var(--border-strong)] animate-fade-in !p-0">
+      <div
+        class="flex items-center justify-between px-6 py-5 border-b border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] shrink-0">
         <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-slate-400">Sharing</p>
-          <h2 class="text-xl font-semibold mt-2">Update access</h2>
-          <p id="share-item-name" class="text-sm text-slate-400 mt-2"></p>
+          <h2 class="text-xl font-bold tracking-tight">Share access</h2>
+          <p id="share-item-name" class="text-sm font-medium text-[var(--text-tertiary)] mt-1"></p>
         </div>
-        <button id="share-close" type="button" class="btn btn-ghost">Close</button>
+        <button id="share-close" type="button" class="btn btn-ghost p-2 rounded-lg bg-[rgba(255,255,255,0.05)]">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
       </div>
 
-      <div class="mt-6 grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-6 overflow-auto">
-        <div class="space-y-4">
-          <div>
-            <label for="share-scope" class="text-sm text-slate-300">Scope</label>
-            <select id="share-scope" class="input-field mt-2">
-              <option value="private">Private</option>
-              <option value="entity">Entity-wide</option>
-              <option value="department">Departments</option>
-              <option value="users">Specific users</option>
-            </select>
+      <div class="flex-1 overflow-auto p-6 md:p-8 bg-[var(--bg-surface)]">
+        <div class="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-8">
+          <div class="space-y-4">
+            <div>
+              <label for="share-scope"
+                class="block text-sm font-bold text-[var(--text-secondary)] mb-2 tracking-wide uppercase">General
+                Access</label>
+              <select id="share-scope" class="input-field font-medium">
+                <option value="private">Private</option>
+                <option value="entity">Entity-wide</option>
+                <option value="department">Restricted Departments</option>
+                <option value="users">Specific Users</option>
+              </select>
+            </div>
+            <p id="share-scope-help"
+              class="text-[13px] font-medium text-[var(--text-tertiary)] p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] leading-relaxed">
+              Only the creator, entity leadership, and admins can manage this item.</p>
           </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-400">
-            <p id="share-scope-help">Only the creator, entity leadership, and admins can manage this item.</p>
+
+          <div class="space-y-6 min-w-0">
+            <section id="share-departments-section" class="hidden animate-fade-in">
+              <h3 class="text-sm font-bold text-[var(--text-primary)] mb-3">Departments</h3>
+              <div id="share-departments-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </section>
+
+            <section id="share-users-section" class="hidden animate-fade-in">
+              <h3 class="text-sm font-bold text-[var(--text-primary)] mb-2">People</h3>
+              <div class="relative mb-4">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg class="w-4 h-4 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                  </svg>
+                </div>
+                <input id="share-user-search" type="search" class="input-field pl-9"
+                  placeholder="Search entity members..." />
+              </div>
+              <div id="share-users-list"
+                class="max-h-56 overflow-auto rounded-xl border border-[var(--border-subtle)] bg-[rgba(0,0,0,0.2)] divide-y divide-[rgba(255,255,255,0.03)] shadow-inner">
+              </div>
+
+              <div class="mt-6 pt-5 border-t border-[var(--border-subtle)]">
+                <label for="share-extra-users" class="block text-sm font-bold text-[var(--text-primary)] mb-2">Invite
+                  external members</label>
+                <input id="share-extra-users" class="input-field font-medium"
+                  placeholder="alice@nixor.io, bob@nixor.io" />
+                <p class="mt-2 text-xs font-medium text-[var(--text-tertiary)]">Add emails of active users not in the
+                  current entity list, separated by commas.</p>
+              </div>
+            </section>
           </div>
-        </div>
-
-        <div class="space-y-5 min-w-0">
-          <section id="share-departments-section" class="hidden">
-            <div class="flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-slate-200">Departments</h3>
-              <span class="text-xs text-slate-500">Choose one or more departments.</span>
-            </div>
-            <div id="share-departments-list" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
-          </section>
-
-          <section id="share-users-section" class="hidden">
-            <div class="flex items-center justify-between gap-3">
-              <h3 class="text-sm font-semibold text-slate-200">People</h3>
-              <span class="text-xs text-slate-500">Entity members appear here for quick selection.</span>
-            </div>
-            <label for="share-user-search" class="sr-only">Search people</label>
-            <input id="share-user-search" type="search" class="input-field mt-3" placeholder="Search people by name or email" />
-            <div id="share-users-list" class="mt-3 max-h-64 overflow-auto rounded-2xl border border-slate-800 bg-slate-950/60 divide-y divide-slate-800"></div>
-
-            <div class="mt-4">
-              <label for="share-extra-users" class="text-sm text-slate-300">Additional emails</label>
-              <input id="share-extra-users" class="input-field mt-2" placeholder="someone@nixor.io, another@nixor.io" />
-              <p class="mt-2 text-xs text-slate-500">Use this for active users who are not listed in the current entity membership.</p>
-            </div>
-          </section>
         </div>
       </div>
 
-      <div class="mt-6 flex justify-end gap-3">
-        <button id="share-cancel" type="button" class="btn btn-ghost">Cancel</button>
-        <button id="share-save" type="button" class="btn btn-primary">Save access</button>
+      <div
+        class="px-6 py-4 border-t border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] flex justify-end gap-3 shrink-0">
+        <button id="share-cancel" type="button" class="btn btn-ghost px-5 font-semibold">Done</button>
+        <button id="share-save" type="button" class="btn btn-primary px-8 shadow-md">Apply Access</button>
       </div>
     </div>
   </div>
@@ -314,4 +477,5 @@
 
   <script type="module" src="/assets/entity_drive.js"></script>
 </body>
+
 </html>

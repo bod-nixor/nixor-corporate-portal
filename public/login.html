@@ -1,43 +1,107 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Nixor Portal Login</title>
-  
+
   <link rel="stylesheet" href="/assets/app.css" />
+  <!-- Theme Init Script to prevent FOUC -->
+  <script src="/assets/theme-init.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center">
-  <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 w-full max-w-md shadow-2xl">
-    <div class="mb-6">
-      <p class="text-xs text-indigo-300 uppercase tracking-[0.25em]">Nixor Corporate Portal</p>
-      <h1 class="text-2xl font-semibold mt-2">Welcome back</h1>
-      <p class="text-sm text-slate-400 mt-1">Secure access to your entity workspace.</p>
-    </div>
-    <form id="login-form" class="space-y-4">
-      <div>
-        <label for="email-input" class="text-sm text-slate-300">Email</label>
-        <input id="email-input" type="email" name="email" autocomplete="email" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="you@nixor.io" required />
+
+<body
+  class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen flex items-center justify-center p-4 selection:bg-[var(--color-primary)] selection:text-white">
+  <div class="card w-full max-w-md p-8 md:p-10 mx-auto">
+    <div class="mb-8 text-center">
+      <div
+        class="w-12 h-12 rounded-xl bg-[var(--text-primary)] flex items-center justify-center mx-auto mb-6 shadow-sm">
+        <svg class="w-6 h-6 text-[var(--bg-base)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
       </div>
-      <div>
-        <label for="password-input" class="text-sm text-slate-300">Password</label>
-        <input id="password-input" type="password" name="password" autocomplete="current-password" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" placeholder="Enter your password" required />
+      <p class="text-[10px] text-[var(--text-tertiary)] uppercase tracking-[0.2em] font-bold mb-3">Nixor Corporate
+        Portal</p>
+      <h1 class="text-2xl font-bold tracking-tight mb-2">Welcome back</h1>
+      <p class="text-sm text-[var(--text-secondary)]">Sign in to securely access your workspace.</p>
+      <form id="login-form" class="space-y-4 text-left">
+        <div class="space-y-1.5">
+          <label for="email-input" class="block text-sm font-medium text-[var(--text-secondary)]">Email address</label>
+          <div class="relative">
+            <input id="email-input" type="email" name="email" autocomplete="email" class="input-field pl-10"
+              placeholder="name@nixor.io" required />
+            <svg
+              class="w-4 h-4 text-[var(--text-tertiary)] absolute top-1/2 left-3.5 -translate-y-1/2 pointer-events-none"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+            </svg>
+          </div>
+        </div>
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between">
+            <label for="password-input" class="block text-sm font-medium text-[var(--text-secondary)]">Password</label>
+            <a href="#"
+              class="text-xs font-medium text-[var(--text-primary)] hover:underline decoration-[var(--border-strong)] underline-offset-4">Forgot?</a>
+          </div>
+          <div class="relative">
+            <input id="password-input" type="password" name="password" autocomplete="current-password"
+              class="input-field pl-10" placeholder="Enter your password" required />
+            <svg
+              class="w-4 h-4 text-[var(--text-tertiary)] absolute top-1/2 left-3.5 -translate-y-1/2 pointer-events-none"
+              fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+        </div>
+        <div id="error-message" role="alert" aria-live="assertive"
+          class="hidden text-sm text-[var(--color-danger)] bg-[var(--color-danger-bg)] border border-[#ef444433] rounded-lg px-4 py-3 pb-3 mt-4 flex items-start gap-2">
+          <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="flex-1 leading-snug"></span>
+        </div>
+        <button type="submit" class="btn btn-primary w-full py-2.5 mt-2">Sign In to Dashboard</button>
+      </form>
+
+      <div class="relative my-6 text-center">
+        <div class="absolute inset-0 flex items-center" aria-hidden="true">
+          <div class="w-full border-t border-[var(--border-subtle)]"></div>
+        </div>
+        <div class="relative z-10 text-xs text-[var(--text-tertiary)] flex justify-center">
+          <span
+            class="bg-[var(--bg-surface)] px-3 py-1 font-medium tracking-wide uppercase text-[10px] rounded-full border border-[var(--border-subtle)]">or
+            continue with</span>
+        </div>
       </div>
-      <div id="error-message" role="alert" aria-live="assertive" class="hidden text-sm text-red-400 bg-red-950/50 border border-red-800 rounded-xl px-4 py-3"></div>
-      <button type="submit" class="w-full rounded-xl bg-indigo-500 hover:bg-indigo-400 transition px-4 py-3 font-medium">Sign In</button>
-    </form>
-    <div class="flex items-center gap-3 my-6">
-      <span class="flex-1 h-px bg-slate-800"></span>
-      <span class="text-xs text-slate-500">or</span>
-      <span class="flex-1 h-px bg-slate-800"></span>
+
+      <div id="google-login"
+        class="w-full rounded-xl border border-[var(--border-strong)] bg-transparent hover:bg-[var(--bg-surface-hover)] transition-colors px-4 py-3 text-sm font-medium flex items-center justify-center gap-2.5 cursor-not-allowed opacity-50"
+        aria-disabled="true">
+        <svg class="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#FFC107"
+            d="M43.6 20.3H42V20H24v8h11.3C33.5 33.5 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C33.5 6.2 28.9 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.7z" />
+          <path fill="#FF3D00"
+            d="M6.3 14.7l6.6 4.8C14.6 16 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C33.5 6.2 28.9 4 24 4c-7.6 0-14.2 4.2-17.7 10.7z" />
+          <path fill="#4CAF50"
+            d="M24 44c4.9 0 9.4-1.9 12.8-5l-6-4.9c-2 1.4-4.5 2.2-6.8 2.2-5.1 0-9.4-3.4-10.9-8l-6.5 5C9.5 39.3 16.2 44 24 44z" />
+          <path fill="#1976D2"
+            d="M43.6 20.3H42V20H24v8h11.3c-1.1 3.1-3.6 5.5-7 6.8l6 4.9c-.4.4 4.7-3.4 6.7-9.7 1.4-4.1.6-9.1-.4-9.7z" />
+        </svg>
+        <span>Google Workspace</span>
+      </div>
+      <div id="google-button" class="hidden flex justify-center"></div>
+
+      <p class="text-[11px] text-[var(--text-tertiary)] text-center mt-8">
+        Protected by Nixor Zero Trust. <a
+          class="hover:text-[var(--text-secondary)] underline decoration-[var(--border-subtle)] underline-offset-4"
+          href="#">Privacy Policy</a>.
+      </p>
     </div>
-    <div id="google-login" class="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 font-medium flex items-center justify-center gap-2 opacity-60 cursor-not-allowed" aria-disabled="true">
-      <svg class="w-5 h-5" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.3H42V20H24v8h11.3C33.5 33.5 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C33.5 6.2 28.9 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.7z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C33.5 6.2 28.9 4 24 4c-7.6 0-14.2 4.2-17.7 10.7z"/><path fill="#4CAF50" d="M24 44c4.9 0 9.4-1.9 12.8-5l-6-4.9c-2 1.4-4.5 2.2-6.8 2.2-5.1 0-9.4-3.4-10.9-8l-6.5 5C9.5 39.3 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.3H42V20H24v8h11.3c-1.1 3.1-3.6 5.5-7 6.8l6 4.9c-.4.4 4.7-3.4 6.7-9.7 1.4-4.1.6-9.1-.4-9.7z"/></svg>
-      <span>Sign in with Google</span>
-    </div>
-    <div id="google-button" class="hidden"></div>
-    <p class="text-xs text-slate-500 mt-6">Nixor Google accounts only. Need access? Contact Admin.</p>
   </div>
   <script type="module">
     import { apiFetch, bootstrapCsrf } from '/assets/app.js';
@@ -49,9 +113,10 @@
     const disableForm = (message) => {
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
       }
-      errorEl.textContent = message;
+      const errText = errorEl.querySelector('span');
+      if (errText) errText.textContent = message;
+      else errorEl.textContent = message;
       errorEl.classList.remove('hidden');
     };
     bootstrapCsrf()
@@ -75,7 +140,8 @@
         client_id: clientId,
         callback: async (response) => {
           if (!response?.credential) {
-            errorEl.textContent = 'Google sign-in failed.';
+            const errText = errorEl.querySelector('span');
+            if (errText) errText.textContent = 'Google sign-in failed.';
             errorEl.classList.remove('hidden');
             return;
           }
@@ -86,7 +152,8 @@
             });
             window.location.href = '/dashboard.html';
           } catch (err) {
-            errorEl.textContent = err.message || 'Google sign-in failed.';
+            const errText = errorEl.querySelector('span');
+            if (errText) errText.textContent = err.message || 'Google sign-in failed.';
             errorEl.classList.remove('hidden');
           }
         }
@@ -130,12 +197,14 @@
         errorEl.classList.add('hidden');
         window.location.href = '/dashboard.html';
       } catch (err) {
-        errorEl.textContent = err.message || 'Login failed';
+        const errText = errorEl.querySelector('span');
+        if (errText) errText.textContent = err.message || 'Login failed';
         errorEl.classList.remove('hidden');
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In';
+        submitBtn.textContent = 'Sign In to Dashboard';
       }
     });
   </script>
 </body>
+
 </html>
