@@ -2,9 +2,9 @@
 <html lang="en">
 
 <head>
+  <meta charset="UTF-8" />
   <!-- Theme Init Script to prevent FOUC -->
   <script src="/assets/theme-init.js"></script>
-  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Endeavour View</title>
   <link rel="stylesheet" href="/assets/app.css" />
@@ -173,7 +173,7 @@
               </div>
               <div id="approval-status"
                 class="hidden text-sm rounded-lg px-4 py-3 font-semibold border border-[var(--border-subtle)]"></div>
-              <button type="submit" class="btn btn-primary w-full shadow-sm pt-2">Submit Decision</button>
+              <button type="submit" class="btn btn-primary w-full shadow-sm mt-2">Submit Decision</button>
             </form>
           </div>
 
@@ -187,7 +187,8 @@
                 <label class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Document
                   Type</label>
                 <select name="doc_type" class="input-field font-medium w-full">
-                  <option value="ops_plan">Operations Plan</option>
+                  <option value="operational_plan">Operational Plan</option>
+                  <option value="budget_plan">Budget Plan</option>
                   <option value="mou">MoU</option>
                   <option value="pre_financial">Pre-Financial</option>
                   <option value="post_financial">Post-Financial</option>
@@ -202,7 +203,7 @@
               </div>
               <div id="document-status"
                 class="hidden text-sm rounded-lg px-4 py-3 font-semibold border border-[var(--border-subtle)]"></div>
-              <button type="submit" class="btn btn-secondary w-full shadow-sm pt-2">Upload File</button>
+              <button type="submit" class="btn btn-secondary w-full shadow-sm mt-2">Upload File</button>
             </form>
           </div>
 

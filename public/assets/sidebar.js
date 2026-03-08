@@ -98,9 +98,15 @@ if (typeof document !== 'undefined') {
       signoutBtn.addEventListener('click', async (e) => {
         e.preventDefault();
         try {
-          await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-        } catch (err) { }
-        window.location.href = '/login.html';
+          const res = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+          if (res.ok) {
+            window.location.href = '/login.html';
+          } else {
+            console.error('Logout failed with status:', res.status);
+          }
+        } catch (err) {
+          console.error('Logout network error:', err);
+        }
       });
     }
   });

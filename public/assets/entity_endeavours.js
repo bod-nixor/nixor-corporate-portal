@@ -461,7 +461,7 @@ const renderEndeavours = (rows, driveFiles) => {
 
     rows.forEach((row) => {
         const card = document.createElement('div');
-        card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] !p-0 overflow-hidden mb-10 transition-transform duration-300 hover:border-[#3b82f640]';
+        card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-hidden mb-10 transition-transform duration-300 hover:border-[#3b82f640]';
 
         const header = document.createElement('div');
         header.className = 'flex flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)]';

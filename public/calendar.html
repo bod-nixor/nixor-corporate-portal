@@ -2,9 +2,9 @@
 <html lang="en">
 
 <head>
+  <meta charset="UTF-8" />
   <!-- Theme Init Script to prevent FOUC -->
   <script src="/assets/theme-init.js"></script>
-  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Calendar</title>
   <link rel="stylesheet" href="/assets/app.css" />
@@ -189,8 +189,8 @@
         }
         console.error('Failed to load entities:', err);
         entitySelect.innerHTML = '';
-        emptyState.querySelector('p.font-semibold').textContent = 'Unable to load calendar without access.';
-        emptyState.querySelector('p.text-xs').textContent = '';
+        emptyState.querySelector('[data-empty-heading]').textContent = 'Unable to load calendar without access.';
+        emptyState.querySelector('[data-empty-subtext]').textContent = '';
         emptyState.classList.remove('hidden');
       });
 

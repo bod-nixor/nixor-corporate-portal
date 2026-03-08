@@ -11,14 +11,14 @@
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-10">
+<body class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen">
+  <header class="border-b border-[var(--border-subtle)] bg-[var(--bg-base)]/80 backdrop-blur sticky top-0 z-10">
     <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
       <div>
-        <p class="text-xs text-indigo-300 uppercase tracking-[0.3em]">Entity Projects & Events</p>
+        <p class="text-xs text-[var(--color-primary)] uppercase tracking-[0.3em]">Entity Projects & Events</p>
         <h1 class="text-2xl font-semibold mt-1">Volunteer Opportunities</h1>
       </div>
-      <a href="/login.html" class="text-sm bg-indigo-500 px-4 py-2 rounded-xl">Volunteer Login</a>
+      <a href="/login.html" class="text-sm bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors px-4 py-2 rounded-xl">Volunteer Login</a>
     </div>
   </header>
   <main class="max-w-6xl mx-auto px-6 py-10">
@@ -26,23 +26,23 @@
       <section class="lg:col-span-2">
         <h2 class="text-lg font-semibold">Open Volunteer Posts</h2>
         <div id="posts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4"></div>
-        <p id="posts-empty" class="hidden text-slate-400 text-sm mt-4">No volunteer posts are live right now. Check back
+        <p id="posts-empty" class="hidden text-[var(--text-secondary)] text-sm mt-4">No volunteer posts are live right now. Check back
           soon.</p>
       </section>
-      <aside class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+      <aside class="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6">
         <h2 class="text-lg font-semibold">Register Interest</h2>
-        <p class="text-sm text-slate-400 mt-2">Let the team know you’re interested and we’ll follow up.</p>
+        <p class="text-sm text-[var(--text-secondary)] mt-2">Let the team know you’re interested and we’ll follow up.</p>
         <form id="interest-form" class="space-y-4 mt-4">
           <input name="name" required placeholder="Full name"
-            class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
           <input name="email" type="email" required placeholder="Email address"
-            class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
           <input name="phone" placeholder="Phone (optional)"
-            class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm" />
+            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm" />
           <textarea name="message" rows="3" placeholder="Tell us what you’re interested in"
-            class="w-full rounded-xl bg-slate-950 border border-slate-800 px-4 py-3 text-sm"></textarea>
+            class="w-full rounded-xl bg-[var(--bg-base)] border border-[var(--border-subtle)] px-4 py-3 text-sm"></textarea>
           <div id="interest-status" class="hidden text-sm rounded-xl px-4 py-3"></div>
-          <button class="w-full bg-indigo-500 rounded-xl px-4 py-3 font-medium" type="submit">Submit Interest</button>
+          <button class="w-full bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors rounded-xl px-4 py-3 font-medium" type="submit">Submit Interest</button>
         </form>
       </aside>
     </div>
@@ -69,15 +69,15 @@
       emptyState.classList.add('hidden');
       posts.forEach((post) => {
         const card = document.createElement('div');
-        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col';
+        card.className = 'bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6 flex flex-col';
         const title = document.createElement('h3');
         title.className = 'text-lg font-semibold';
         title.textContent = post.endeavour_name;
         const desc = document.createElement('p');
-        desc.className = 'text-sm text-slate-400 mt-2';
+        desc.className = 'text-sm text-[var(--text-secondary)] mt-2';
         desc.textContent = post.description || 'Volunteer support needed.';
         const meta = document.createElement('div');
-        meta.className = 'mt-4 text-xs text-slate-500 space-y-1';
+        meta.className = 'mt-4 text-xs text-[var(--text-tertiary)] space-y-1';
         const entityLine = document.createElement('p');
         entityLine.textContent = `Entity: ${post.entity_name}`;
         const venueLine = document.createElement('p');
@@ -92,7 +92,7 @@
         card.appendChild(meta);
         const loginLink = document.createElement('a');
         loginLink.href = '/login.html';
-        loginLink.className = 'mt-6 bg-indigo-500 text-sm px-4 py-2 rounded-xl text-center';
+        loginLink.className = 'mt-6 bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors text-sm px-4 py-2 rounded-xl text-center';
         loginLink.textContent = 'Apply via Volunteer Login';
         card.appendChild(loginLink);
         grid.appendChild(card);
