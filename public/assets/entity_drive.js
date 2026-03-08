@@ -115,6 +115,8 @@ const itemTypeLabel = (itemType) => {
   return 'File';
 };
 
+const normalizeId = (id) => String(id);
+
 const scopeLabel = (scope) => {
   if (scope === 'private') return 'Private';
   if (scope === 'department') return 'Departments';
@@ -194,6 +196,18 @@ function formatSize(item) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isAuthorizationError(error) {
+  const status = Number(error?.status || error?.response?.status || 0);
+  const message = String(error?.message || '').toLowerCase();
+  return status === 401
+    || status === 403
+    || error?.auth === true
+    || error?.code === 'auth'
+    || message === 'unauthorized'
+    || message === 'forbidden'
+    || message.includes('authentication');
 }
 
 function currentFolderName() {
@@ -324,7 +338,7 @@ function renderBulkToolbar(items) {
     el.bulkNote.textContent = 'Share is limited to one selected item at a time.';
   }
 
-  const visibleIds = items.map((item) => item.id);
+  const visibleIds = items.map((item) => normalizeId(item.id));
   const selectedVisible = visibleIds.filter((id) => state.selection.has(id)).length;
   el.selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
   el.selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
@@ -373,7 +387,7 @@ function rowTemplate(item) {
   checkbox.type = 'checkbox';
   checkbox.className = 'drive-check mt-1';
   checkbox.dataset.id = String(item.id);
-  checkbox.checked = state.selection.has(item.id);
+  checkbox.checked = state.selection.has(normalizeId(item.id));
   checkbox.setAttribute('aria-label', `Select ${item.name}`);
   checkCell.appendChild(checkbox);
 
@@ -439,7 +453,7 @@ function cardTemplate(item) {
   checkbox.type = 'checkbox';
   checkbox.className = 'drive-check';
   checkbox.dataset.id = String(item.id);
-  checkbox.checked = state.selection.has(item.id);
+  checkbox.checked = state.selection.has(normalizeId(item.id));
   checkbox.setAttribute('aria-label', `Select ${item.name}`);
   selector.append(checkbox, document.createTextNode('Select'));
 
@@ -525,7 +539,9 @@ function renderInspector() {
     el.inspectorSharing.textContent = '-';
     el.inspectorDetails.textContent = '-';
     el.inspectorAccessList.innerHTML = '';
-    inspectorActionNodes.forEach((node) => setNodeHidden(node, true));
+    inspectorActionNodes.forEach((node) => {
+      setNodeHidden(node, true);
+    });
     if (!isDesktopInspector()) {
       setInspectorVisible(false);
     }
@@ -574,7 +590,9 @@ function renderInspector() {
     el.inspectorAccessList.appendChild(makeBadge('No additional access rules', 'slate'));
   }
 
-  inspectorActionNodes.forEach((node) => setNodeHidden(node, true));
+  inspectorActionNodes.forEach((node) => {
+    setNodeHidden(node, true);
+  });
 
   if (item.item_type === 'folder') {
     setNodeHidden(el.inspectorOpenFolder, false);
@@ -953,21 +971,52 @@ function closeDeleteModal() {
 
 async function confirmDelete() {
   const targets = [...state.deleteTargetIds];
-  for (const id of targets) {
-    await apiFetch('/drive/delete', {
-      method: 'POST',
-      body: JSON.stringify({ id })
-    });
+  if (!targets.length) {
+    closeDeleteModal();
+    return;
   }
-  toast(targets.length === 1 ? 'Item deleted' : 'Items deleted');
+
+  const results = await Promise.allSettled(targets.map((id) => apiFetch('/drive/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  })));
+
+  let successCount = 0;
+  let failedCount = 0;
+  const deletedIds = new Set();
+
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      successCount += 1;
+      const deleted = result.value?.data?.deleted_ids || [targets[index]];
+      deleted.forEach((deletedId) => {
+        deletedIds.add(normalizeId(deletedId));
+      });
+      return;
+    }
+    failedCount += 1;
+  });
+
+  closeDeleteModal();
   state.selection.clear();
-  if (targets.includes(Number(state.activeId))) {
+  if (state.activeId && deletedIds.has(normalizeId(state.activeId))) {
     state.activeId = null;
     state.activeItem = null;
     state.activePreview = null;
   }
-  closeDeleteModal();
   await loadItems({ preserveSelection: false, preserveActive: true });
+
+  if (failedCount === 0) {
+    toast(successCount === 1 ? 'Item deleted' : 'Items deleted');
+    return;
+  }
+
+  if (successCount === 0) {
+    toast('No items were deleted.', 'error');
+    return;
+  }
+
+  toast(`Deleted ${successCount} item${successCount === 1 ? '' : 's'}; ${failedCount} failed.`, 'error');
 }
 
 function openActionMenuFor(item, anchorRect) {
@@ -1067,7 +1116,7 @@ async function loadItems({ preserveSelection = true, preserveActive = true } = {
     state.items = response?.data || [];
     state.breadcrumbs = response?.meta?.breadcrumbs || [];
     state.selection = new Set(
-      [...previousSelection].filter((id) => state.items.some((item) => Number(item.id) === Number(id)))
+      [...previousSelection].filter((id) => state.items.some((item) => normalizeId(item.id) === normalizeId(id)))
     );
     renderBreadcrumbs();
     renderLocation();
@@ -1121,9 +1170,12 @@ function bindListEvents(container) {
 
     const checkbox = event.target.closest('.drive-check');
     if (checkbox) {
-      const id = Number(checkbox.dataset.id);
-      if (checkbox.checked) state.selection.add(id);
-      else state.selection.delete(id);
+      const id = normalizeId(checkbox.dataset.id);
+      if (checkbox.checked) {
+        state.selection.add(id);
+      } else {
+        state.selection.delete(id);
+      }
       renderItems();
       return;
     }
@@ -1194,7 +1246,9 @@ function bind() {
     openItemModal('create-link');
   });
 
-  el.uploadBtn.addEventListener('click', () => el.uploadInput.click());
+  el.uploadBtn.addEventListener('click', () => {
+    el.uploadInput.click();
+  });
   el.uploadInput.addEventListener('change', () => {
     uploadSelectedFile().catch((error) => toast(normalizeError(error), 'error'));
   });
@@ -1264,9 +1318,13 @@ function bind() {
   el.selectAll.addEventListener('change', () => {
     const items = visibleItems();
     if (el.selectAll.checked) {
-      items.forEach((item) => state.selection.add(item.id));
+      items.forEach((item) => {
+        state.selection.add(normalizeId(item.id));
+      });
     } else {
-      items.forEach((item) => state.selection.delete(item.id));
+      items.forEach((item) => {
+        state.selection.delete(normalizeId(item.id));
+      });
     }
     renderItems();
   });
@@ -1303,9 +1361,17 @@ function bind() {
   el.itemForm.addEventListener('submit', (event) => {
     submitItemModal(event).catch((error) => toast(normalizeError(error), 'error'));
   });
-  [el.itemModalClose, el.itemCancel].forEach((button) => button.addEventListener('click', closeItemModal));
+  [el.itemModalClose, el.itemCancel].forEach((button) => {
+    button.addEventListener('click', () => {
+      closeItemModal();
+    });
+  });
 
-  [el.deleteClose, el.deleteCancel].forEach((button) => button.addEventListener('click', closeDeleteModal));
+  [el.deleteClose, el.deleteCancel].forEach((button) => {
+    button.addEventListener('click', () => {
+      closeDeleteModal();
+    });
+  });
   el.deleteConfirm.addEventListener('click', () => {
     confirmDelete().catch((error) => toast(normalizeError(error), 'error'));
   });
@@ -1339,7 +1405,11 @@ function bind() {
     state.shareDraft.extraUsers = el.shareExtraUsers.value;
   });
 
-  [el.shareClose, el.shareCancel].forEach((button) => button.addEventListener('click', closeShareModal));
+  [el.shareClose, el.shareCancel].forEach((button) => {
+    button.addEventListener('click', () => {
+      closeShareModal();
+    });
+  });
   el.shareSave.addEventListener('click', () => {
     saveShare().catch((error) => toast(normalizeError(error), 'error'));
   });
@@ -1351,8 +1421,12 @@ function bind() {
     }
     setInspectorVisible(!state.mobileInspectorOpen);
   });
-  el.inspectorBackdrop.addEventListener('click', () => setInspectorVisible(false));
-  el.inspectorClose.addEventListener('click', () => setInspectorVisible(false));
+  el.inspectorBackdrop.addEventListener('click', () => {
+    setInspectorVisible(false);
+  });
+  el.inspectorClose.addEventListener('click', () => {
+    setInspectorVisible(false);
+  });
   el.inspectorOpenFolder.addEventListener('click', () => {
     if (state.activeItem) {
       navigateToFolder(state.activeItem);
@@ -1423,6 +1497,12 @@ async function boot() {
   await loadItems({ preserveSelection: false, preserveActive: false });
 }
 
-boot().catch(() => {
-  window.location.href = '/login.html';
+boot().catch((error) => {
+  if (isAuthorizationError(error)) {
+    window.location.href = '/login.html';
+    return;
+  }
+  const message = normalizeError(error);
+  setStatus(message, 'error');
+  toast(message, 'error');
 });

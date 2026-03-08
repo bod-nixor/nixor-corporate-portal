@@ -24,6 +24,12 @@ function validate_upload_mime(string $filePath): string {
     return $mime;
 }
 
+function validate_upload_tmp_file(array $file): void {
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name'])) {
+        respond(['ok' => false, 'error' => 'Upload failed'], 400);
+    }
+}
+
 function upload_base_path(): string {
     $base = env_value('UPLOAD_PATH', dirname(__DIR__, 2) . '/uploads');
     if (!is_dir($base)) {
@@ -53,6 +59,7 @@ function save_uploaded_file(string $endeavourId, string $docType, array $file): 
         respond(['ok' => false, 'error' => 'File too large (10MB limit)'], 400);
     }
     validate_upload_extension($basename);
+    validate_upload_tmp_file($file);
     $mime = validate_upload_mime($file['tmp_name']);
     $filename = time() . '_' . bin2hex(random_bytes(4)) . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
     $path = $dir . '/' . $filename;
@@ -85,6 +92,7 @@ function save_drive_file(string $entityId, array $file): array {
         respond(['ok' => false, 'error' => 'File too large (10MB limit)'], 400);
     }
     validate_upload_extension($basename);
+    validate_upload_tmp_file($file);
     $mime = validate_upload_mime($file['tmp_name']);
     $filename = time() . '_' . bin2hex(random_bytes(4)) . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
     $path = $dir . '/' . $filename;

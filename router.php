@@ -2,6 +2,7 @@
 $repoRoot = __DIR__;
 $publicRoot = $repoRoot . '/public';
 $publicReal = realpath($publicRoot) ?: $publicRoot;
+$publicPrefix = rtrim($publicReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 $requestPath = rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
 
 if ($requestPath === '/api' || str_starts_with($requestPath, '/api/')) {
@@ -14,7 +15,7 @@ if ($requestPath === '/') {
 }
 
 $candidate = realpath($publicRoot . $requestPath);
-if ($candidate && is_file($candidate) && str_starts_with($candidate, $publicReal)) {
+if ($candidate && is_file($candidate) && str_starts_with($candidate, $publicPrefix)) {
     $extension = strtolower(pathinfo($candidate, PATHINFO_EXTENSION));
     $mimeTypes = [
         'css' => 'text/css; charset=UTF-8',
@@ -28,6 +29,8 @@ if ($candidate && is_file($candidate) && str_starts_with($candidate, $publicReal
         'png' => 'image/png',
         'svg' => 'image/svg+xml',
         'webp' => 'image/webp',
+        'woff' => 'font/woff',
+        'woff2' => 'font/woff2',
     ];
     header('Content-Type: ' . ($mimeTypes[$extension] ?? 'application/octet-stream'));
     readfile($candidate);

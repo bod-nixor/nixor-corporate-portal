@@ -252,9 +252,16 @@ function execute_migration_statement(PDO $pdo, string $statement): void {
             continue;
         }
 
-        if (preg_match('/^ADD\s+(?:INDEX|KEY)\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s*(.+)$/is', $operation, $indexMatch)) {
-            if (!migration_index_exists($pdo, $table, $indexMatch[1])) {
-                $pdo->exec(sprintf('ALTER TABLE `%s` ADD INDEX `%s` %s', $table, $indexMatch[1], $indexMatch[2]));
+        if (preg_match('/^ADD\s+(UNIQUE\s+)?(?:INDEX|KEY)\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s*(.+)$/is', $operation, $indexMatch)) {
+            $indexModifier = trim((string)($indexMatch[1] ?? ''));
+            if (!migration_index_exists($pdo, $table, $indexMatch[2])) {
+                $pdo->exec(sprintf(
+                    'ALTER TABLE `%s` ADD %sINDEX `%s` %s',
+                    $table,
+                    $indexModifier !== '' ? $indexModifier . ' ' : '',
+                    $indexMatch[2],
+                    $indexMatch[3]
+                ));
             }
             continue;
         }

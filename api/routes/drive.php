@@ -123,14 +123,8 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
 
         $name = drive_validate_name((string)($data['name'] ?? 'New Folder'));
-        $parentId = drive_validate_parent_id(isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
-        if ($parentId) {
-            $parent = drive_get_item_by_id($parentId);
-            if (!$parent) {
-                respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
-            }
-            drive_assert_can_manage_item($user, $parent, 'You cannot add items to this folder');
-        }
+        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
 
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
@@ -155,14 +149,8 @@ function handle_drive(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'File too large'], 400);
         }
 
-        $parentId = drive_validate_parent_id(isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null, $entityId);
-        if ($parentId) {
-            $parent = drive_get_item_by_id($parentId);
-            if (!$parent) {
-                respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
-            }
-            drive_assert_can_manage_item($user, $parent, 'You cannot add items to this folder');
-        }
+        $parent = drive_assert_manageable_parent($user, isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null, $entityId);
+        $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($_POST['sharing_scope'] ?? 'entity'));
 
         $uploaded = save_drive_file((string)$entityId, $_FILES['file']);
@@ -183,14 +171,8 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
         $name = drive_validate_name((string)($data['name'] ?? ''));
         $url = drive_validate_url((string)($data['url'] ?? ''));
-        $parentId = drive_validate_parent_id(isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
-        if ($parentId) {
-            $parent = drive_get_item_by_id($parentId);
-            if (!$parent) {
-                respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
-            }
-            drive_assert_can_manage_item($user, $parent, 'You cannot add items to this folder');
-        }
+        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
         $mimeType = drive_detect_link_mime($url);
 
@@ -210,6 +192,7 @@ function handle_drive(string $method, array $segments): void {
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
         }
+        drive_assert_item_entity_access($user, $item);
         drive_assert_can_manage_item($user, $item);
         $stmt = db()->prepare('UPDATE file_drive_items SET name = ? WHERE id = ?');
         $stmt->execute([$name, $itemId]);
@@ -223,6 +206,7 @@ function handle_drive(string $method, array $segments): void {
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
         }
+        drive_assert_item_entity_access($user, $item);
         drive_assert_can_manage_item($user, $item);
 
         $idsToDelete = $item['item_type'] === 'folder' ? drive_collect_folder_tree_ids($itemId) : [$itemId];
@@ -265,6 +249,7 @@ function handle_drive(string $method, array $segments): void {
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
         }
+        drive_assert_item_entity_access($user, $item);
         drive_assert_can_manage_item($user, $item);
         $stmt = db()->prepare('UPDATE file_drive_items SET sharing_scope = ? WHERE id = ?');
         $stmt->execute([$sharingScope, $itemId]);

@@ -63,7 +63,7 @@ function drive_validate_url(string $rawUrl): string {
     return $url;
 }
 
-function drive_validate_parent_id(?int $parentId, int $entityId): ?int {
+function drive_validate_parent_id(?int $parentId, int $entityId): ?array {
     if (!$parentId) {
         return null;
     }
@@ -73,7 +73,7 @@ function drive_validate_parent_id(?int $parentId, int $entityId): ?int {
     if (!$parent) {
         respond(['ok' => false, 'error' => 'Invalid parent_id'], 400);
     }
-    return $parentId;
+    return $parent;
 }
 
 function drive_validate_sharing_scope(string $scope): string {
@@ -223,6 +223,14 @@ function drive_assert_can_manage_item(array $user, array $item, string $message 
     }
 }
 
+function drive_assert_manageable_parent(array $user, ?int $parentId, int $entityId, string $message = 'You cannot add items to this folder'): ?array {
+    $parent = drive_validate_parent_id($parentId, $entityId);
+    if ($parent) {
+        drive_assert_can_manage_item($user, $parent, $message);
+    }
+    return $parent;
+}
+
 function drive_assert_entity_context_access(array $user, int $entityId): void {
     if (drive_is_global_role($user)) {
         return;
@@ -231,6 +239,10 @@ function drive_assert_entity_context_access(array $user, int $entityId): void {
     if (!$membership) {
         respond(['ok' => false, 'error' => 'Entity access denied'], 403);
     }
+}
+
+function drive_assert_item_entity_access(array $user, array $item): void {
+    drive_assert_entity_context_access($user, (int)$item['entity_id']);
 }
 
 function drive_build_parent_chain(array $user, array $item): array {
