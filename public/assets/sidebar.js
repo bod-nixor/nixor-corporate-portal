@@ -19,7 +19,7 @@ export function renderSidebar(activeId) {
   }).join('\n        ');
 
   return `
-    <button id="mobile-menu-btn" class="block md:hidden absolute top-6 right-6 z-50 p-2 bg-slate-800 text-slate-200 rounded-md" aria-expanded="false" aria-controls="sidebar">
+    <button id="mobile-menu-btn" class="block md:hidden absolute top-6 right-6 z-50 p-2 bg-slate-800 text-slate-200 rounded-md" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
       <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
       </svg>

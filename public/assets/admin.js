@@ -188,8 +188,9 @@ entityForm.addEventListener('submit', async (event) => {
     if (submitBtn) submitBtn.disabled = true;
     try {
         await apiFetch('/entities', { method: 'POST', body: JSON.stringify({ name: entityForm.name.value, description: entityForm.description.value }) });
-        setStatus(entityStatus, 'Entity created.', true);
         entityForm.reset();
+        entityStatus.classList.add('hidden');
+        closeEntityModal();
         loadEntities();
     } catch (err) {
         setStatus(entityStatus, normalizeError(err), false);

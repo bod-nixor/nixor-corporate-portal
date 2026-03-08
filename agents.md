@@ -1,68 +1,105 @@
-# Nixor Corporate Portal — Agent Guidance
+# Nixor Corporate Portal - Agent Guidance
 
-## 1) Project Overview
-- Repository hosts the Nixor Corporate Portal with a PHP 8 API and a static HTML/JS frontend.
-- Backend lives under `/api` and serves the API consumed by the frontend in `/public`.
-- Treat this document as the source of truth for agent behavior and assumptions.
+This file is the repo-specific contract for future agents and maintainers.
 
-## 2) Tech Stack & Deployment Constraints
-- Backend: PHP 8 API located in `/api`.
-  - Routes are defined in `api/routes/*`.
-  - Shared logic lives in `api/lib/*`.
-- Frontend: static HTML/JS under `/public`.
-  - `public/assets/app.js` is responsible for API calls and CSRF headers.
-- Database: MariaDB/MySQL ONLY.
-  - Schema and migrations live in `/sql`.
-- Deployment: cPanel shared hosting.
-  - Environment variables are loaded via `.env` parsing.
-  - Secrets must NEVER be committed.
+## Mandatory first steps
+- Read `README.md`.
+- Read this file.
+- Search for other relevant docs before changing code:
+  - `DEPLOYMENT.md`
+  - `MIGRATION_GUIDE.md`
+  - `QA_CHECKLIST.md`
+  - `PRODUCTION_READINESS_REPORT.md`
+- Build a concrete map of the feature area before proposing or making changes.
 
-## 3) Database Rules
-- Schema and migrations belong in `/sql`.
-- Dev-only seeds are allowed only when explicitly required for development and must be segregated from production migrations.
-- DO NOT auto-seed production data at runtime.
-- DO NOT add mock/sample data to production flows.
-- DO NOT introduce any database other than MariaDB/MySQL.
+## Architecture Summary
+- Backend: PHP API in `api/`.
+- Frontend: static HTML/JS in `public/`.
+- Shared frontend fetch/auth/CSRF logic: `public/assets/app.js`.
+- Shared authenticated shell/navigation: `public/assets/sidebar.js`.
+- Shared backend helpers: `api/lib/*.php`.
+- Routes: `api/routes/*.php`.
+- SQL schema and migrations: `sql/`.
+- Optional websocket broadcaster: `ws/`.
 
-## 4) Security Principles
-- Security is first-class and must be preserved in all changes.
-- Sessions
-  - Use session-based authentication where applicable.
-  - Preserve existing session handling; do not bypass or weaken session checks.
-- CSRF
-  - CSRF is session-based and bootstrapped via `/auth/csrf`.
-  - Frontend must continue to use `public/assets/app.js` to set CSRF headers.
-  - DO NOT remove, disable, or bypass CSRF protections.
-- Authentication & authorization
-  - Enforce least-privilege access rules.
-  - DO NOT add routes or handlers without explicit auth/authorization requirements.
-  - DO NOT leak sensitive data in responses or logs.
+## Non-negotiable constraints
+- MariaDB/MySQL only.
+- Do not introduce runtime schema mutations.
+- Do not weaken sessions, CSRF, or backend RBAC.
+- Do not commit secrets.
+- Do not add dev/sample data to production pathways.
 
-## 5) How Agents Should Investigate Issues
-- Investigation-first rule: read and confirm relevant code paths before proposing changes.
-- Use targeted searches and file reads; avoid broad speculative edits.
-- No speculative fixes: if evidence is missing, continue investigating until grounded.
+## Security Rules
+- Treat session auth as the source of truth.
+- CSRF must continue to be bootstrapped from `GET /api/auth/csrf`.
+- Keep backend authorization checks in routes/helpers, not only in the UI.
+- Only trust forwarded IP headers when the request comes from a trusted proxy.
+- Do not expose raw stack traces or sensitive internals in API responses.
 
-## 6) How Agents Should Make Changes
-- Keep changes small and reviewable.
-- Use clear, descriptive commit messages.
-- Prefer minimal diffs that preserve existing behavior unless explicitly required to change.
-- DO NOT refactor or rename without a verified need and explicit scope.
+## Frontend Conventions
+- Authenticated pages should use the shared shell from `public/assets/sidebar.js`.
+- Do not introduce one-off sidebars or nav layouts for authenticated pages unless there is a strong product reason.
+- Keep shared fetch logic inside `public/assets/app.js`.
+- Reuse shared CSS tokens and component classes from `public/assets/global.css` / `public/assets/app.css`.
+- `public/entity_drive.html` keeps the portal sidebar plus a Drive-specific left rail and inspector. Preserve that layered layout instead of replacing it with a standalone shell.
+- Prefer explicit labels, keyboard-safe controls, and sane autocomplete attributes.
+- Modals must be closable, must not trap the user under stale overlays, and should close after a successful create/update action unless the product clearly benefits from staying open.
+- Avoid raw `prompt` / `confirm` / `alert` for polished flows when a real in-page control or modal is practical.
 
-## 7) Testing Expectations
-- Run relevant tests or checks when feasible.
-- If no tests exist for the change, explain in the final report.
-- DO NOT introduce test data seeding into production pathways.
+## Backend / API Conventions
+- Keep response shapes consistent: `{ ok, data, error, meta }`.
+- If a route enforces permissions, verify the route handler and any helper it delegates to.
+- Keep route changes targeted. Do not refactor unrelated handlers while fixing one flow.
+- Validate request data before writing to the DB or filesystem.
 
-## 8) Common Pitfalls (based on this codebase)
-- Assuming a SPA framework or build step exists (it is static HTML/JS).
-- Adding non-MySQL database dependencies.
-- Bypassing or removing CSRF session flows.
-- Introducing auto-seeding of production data.
-- Committing secrets or relying on non-cPanel deployment assumptions.
+## Database / Migration Rules
+- Add new migration files; do not quietly patch runtime schema.
+- Prefer additive, guarded migrations.
+- Do not edit already-applied migrations casually because the runner stores checksums.
+- Fresh-install compatibility matters. If a migration pattern is DB-version-sensitive, prove it on a clean database.
+- Keep dev-only seed behavior in `sql/dev/` and `scripts/seed_dev.php`.
 
-## 9) How to Prompt an Agent (examples)
-- Investigation prompt
-  - "Investigate how CSRF headers are applied in the frontend and summarize the flow with file references. Do not propose changes."
-- Fix/implementation prompt
-  - "Fix the API route in `api/routes/*` to return the correct status code for unauthorized access. Update only what is necessary and include tests or explain why none were run."
+## Local Development Rules
+- Local built-in server entrypoint is:
+  - `php -S 127.0.0.1:8000 router.php`
+- The repo expects env values from root `.env`, `config/.env`, or `ENV_FILE_PATH`.
+- If you use `ENV_FILE_PATH`, validate that the path resolution works on the current OS.
+
+## Browser QA Expectations
+For user-facing work, browser QA is required when feasible. Cover:
+- Login and session continuity across multiple pages.
+- Dashboard entity switching, announcements, and loading states.
+- Admin entities/users/memberships flows.
+- Entity endeavours lifecycle screens.
+- Drive navigation, preview, and create/share actions.
+- Calendar and social pages.
+- Mobile width behavior, especially nav/sidebar access.
+
+For Entity Drive specifically, verify:
+- folder open plus Up/breadcrumb navigation
+- rename for both folders and files
+- delete for both folders and files
+- share modal scopes and target selection
+- list/grid toggle, search, and entity switching
+- inspector behavior on mobile and desktop
+
+Use `QA_CHECKLIST.md` as the baseline.
+
+## Common Pitfalls In This Repo
+- Assuming there is a SPA framework. There is not.
+- Forgetting that `public/assets/app.js` owns CSRF header behavior.
+- Duplicating sidebars instead of using `public/assets/sidebar.js`.
+- On the Drive page, keep the explicit hidden-state sync in `public/assets/entity_drive.js` for inspector controls, action menus, and the mobile backdrop.
+- Drive create/upload/link actions now require manage access to the parent folder, not just entity membership.
+- Shipping flows that succeed but leave blocking overlays or stale dropdowns open.
+- Treating browser prompt/confirm flows as "finished" UX.
+- Editing applied migration files and causing checksum mismatches later.
+- Forgetting to test on a fresh DB after migration changes.
+- Relying on spoofable forwarded headers for security-sensitive logic.
+
+## What Good Changes Look Like
+- Small, reviewable diffs.
+- Evidence-driven fixes tied to reproduced issues.
+- Browser-verified user-flow improvements.
+- Documentation updated when the mental model changes.
+- Clear handoff notes in the final response: what changed, what was verified, and what still needs attention.

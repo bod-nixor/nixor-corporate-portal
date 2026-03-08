@@ -24,14 +24,21 @@ function handle_drive(string $method, array $segments): void {
         $rows = $stmt->fetchAll();
         $shareTargetsMap = drive_item_share_targets_for_items(array_column($rows, 'id'));
 
-        $items = [];
+        $visibleRows = [];
         foreach ($rows as $item) {
             if (!drive_user_can_view_item($user, $item)) {
                 continue;
             }
+            $visibleRows[] = $item;
+        }
+
+        $canManageMap = drive_manage_access_map($user, $visibleRows);
+        $items = [];
+        foreach ($visibleRows as $item) {
             $targets = $shareTargetsMap[(int)$item['id']] ?? ['departments' => [], 'users' => []];
             $item['shared_departments'] = $targets['departments'];
             $item['shared_users'] = $targets['users'];
+            $item['can_manage'] = $canManageMap[(int)$item['id']] ?? false;
             $items[] = $item;
         }
 
@@ -61,6 +68,7 @@ function handle_drive(string $method, array $segments): void {
         $item['shared_departments'] = $shares['departments'];
         $item['shared_users'] = $shares['users'];
         $item['parent_chain'] = drive_build_parent_chain($user, $item);
+        $item['can_manage'] = drive_user_can_manage_item($user, $item);
         respond(['ok' => true, 'data' => $item]);
     }
 
@@ -121,7 +129,8 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
 
         $name = drive_validate_name((string)($data['name'] ?? 'New Folder'));
-        $parentId = drive_validate_parent_id(isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
 
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
@@ -146,13 +155,13 @@ function handle_drive(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'File too large'], 400);
         }
 
-        $parentId = drive_validate_parent_id(isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null, $entityId);
+        $parent = drive_assert_manageable_parent($user, isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null, $entityId);
+        $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($_POST['sharing_scope'] ?? 'entity'));
 
         $uploaded = save_drive_file((string)$entityId, $_FILES['file']);
-        $mimeType = mime_content_type($_FILES['file']['tmp_name']) ?: 'application/octet-stream';
         $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, file_path, mime_type, size_bytes, tags, sharing_scope, created_by) VALUES (?, ?, "file", ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$entityId, $parentId, $uploaded['original'], $uploaded['path'], $mimeType, $uploaded['size'], $_POST['tags'] ?? '', $sharingScope, $user['id']]);
+        $stmt->execute([$entityId, $parentId, $uploaded['original'], $uploaded['path'], $uploaded['mime'] ?? 'application/octet-stream', $uploaded['size'], $_POST['tags'] ?? '', $sharingScope, $user['id']]);
         $fileId = (int)db()->lastInsertId();
         drive_replace_shares($fileId, $sharingScope, $_POST['departments'] ?? [], $_POST['users'] ?? []);
         log_activity($user['id'], 'drive_item', $fileId, 'uploaded', 'Drive file uploaded');
@@ -168,7 +177,8 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
         $name = drive_validate_name((string)($data['name'] ?? ''));
         $url = drive_validate_url((string)($data['url'] ?? ''));
-        $parentId = drive_validate_parent_id(isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
         $mimeType = drive_detect_link_mime($url);
 
@@ -188,9 +198,8 @@ function handle_drive(string $method, array $segments): void {
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
         }
-        if (!drive_user_can_manage_item($user, $item)) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        drive_assert_item_entity_access($user, $item);
+        drive_assert_can_manage_item($user, $item);
         $stmt = db()->prepare('UPDATE file_drive_items SET name = ? WHERE id = ?');
         $stmt->execute([$name, $itemId]);
         respond(['ok' => true]);
@@ -203,9 +212,8 @@ function handle_drive(string $method, array $segments): void {
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
         }
-        if (!drive_user_can_manage_item($user, $item)) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        drive_assert_item_entity_access($user, $item);
+        drive_assert_can_manage_item($user, $item);
 
         $idsToDelete = $item['item_type'] === 'folder' ? drive_collect_folder_tree_ids($itemId) : [$itemId];
         $placeholders = implode(',', array_fill(0, count($idsToDelete), '?'));
@@ -247,9 +255,8 @@ function handle_drive(string $method, array $segments): void {
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
         }
-        if (!drive_user_can_manage_item($user, $item)) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        drive_assert_item_entity_access($user, $item);
+        drive_assert_can_manage_item($user, $item);
         $stmt = db()->prepare('UPDATE file_drive_items SET sharing_scope = ? WHERE id = ?');
         $stmt->execute([$sharingScope, $itemId]);
         drive_replace_shares($itemId, $sharingScope, $data['departments'] ?? [], $data['users'] ?? []);
@@ -328,12 +335,14 @@ function drive_build_preview_payload(array $item): array {
                 'kind' => 'pdf',
                 'label' => 'PDF preview',
                 'preview_url' => '/api/drive/content?id=' . urlencode((string)$item['id']),
+                'open_url' => '/api/drive/content?id=' . urlencode((string)$item['id']),
                 'download_url' => '/api/files/download?type=drive&id=' . urlencode((string)$item['id'])
             ];
         }
         return [
             'kind' => 'file',
             'label' => 'No inline preview',
+            'open_url' => '/api/drive/content?id=' . urlencode((string)$item['id']),
             'download_url' => '/api/files/download?type=drive&id=' . urlencode((string)$item['id'])
         ];
     }

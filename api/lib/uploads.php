@@ -7,7 +7,7 @@ function validate_upload_extension(string $fileName): void {
     }
 }
 
-function validate_upload_mime(string $filePath): void {
+function validate_upload_mime(string $filePath): string {
     $allowedMime = [
         'image/jpeg',
         'image/png',
@@ -21,6 +21,13 @@ function validate_upload_mime(string $filePath): void {
     if (!$mime || !in_array($mime, $allowedMime, true)) {
         respond(['ok' => false, 'error' => 'File type not allowed'], 400);
     }
+    return $mime;
+}
+
+function validate_upload_tmp_file(array $file): void {
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        respond(['ok' => false, 'error' => 'Upload failed'], 400);
+    }
 }
 
 function upload_base_path(): string {
@@ -30,7 +37,7 @@ function upload_base_path(): string {
             respond(['ok' => false, 'error' => 'Failed to create upload directory'], 500);
         }
     }
-    return rtrim($base, '/');
+    return rtrim($base, '/\\');
 }
 
 function ensure_upload_dir(string $endeavourId, string $docType): string {
@@ -47,12 +54,13 @@ function ensure_upload_dir(string $endeavourId, string $docType): string {
 
 function save_uploaded_file(string $endeavourId, string $docType, array $file): array {
     $dir = ensure_upload_dir($endeavourId, $docType);
-    $basename = basename($file['name']);
     if (($file['size'] ?? 0) > 10 * 1024 * 1024) {
         respond(['ok' => false, 'error' => 'File too large (10MB limit)'], 400);
     }
+    validate_upload_tmp_file($file);
+    $basename = basename($file['name']);
     validate_upload_extension($basename);
-    validate_upload_mime($file['tmp_name']);
+    $mime = validate_upload_mime($file['tmp_name']);
     $filename = time() . '_' . bin2hex(random_bytes(4)) . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
     $path = $dir . '/' . $filename;
     if (!move_uploaded_file($file['tmp_name'], $path)) {
@@ -62,12 +70,12 @@ function save_uploaded_file(string $endeavourId, string $docType, array $file): 
     $uploadsBase = upload_base_path();
     $normalizedBase = realpath($uploadsBase) ?: $uploadsBase;
     $relative = str_starts_with($normalizedPath, $normalizedBase)
-        ? ltrim(substr($normalizedPath, strlen($normalizedBase)), '/')
+        ? ltrim(substr($normalizedPath, strlen($normalizedBase)), '/\\')
         : 'endeavours/' . $endeavourId . '/' . $docType . '/' . $filename;
     if (!str_starts_with($normalizedPath, $normalizedBase)) {
         error_log("Upload path mismatch: normalized={$normalizedPath} base={$normalizedBase}");
     }
-    return ['path' => $relative, 'original' => $file['name']];
+    return ['path' => $relative, 'original' => $file['name'], 'mime' => $mime];
 }
 
 function save_drive_file(string $entityId, array $file): array {
@@ -79,12 +87,13 @@ function save_drive_file(string $entityId, array $file): array {
             respond(['ok' => false, 'error' => 'Failed to create upload directory'], 500);
         }
     }
-    $basename = basename($file['name']);
     if (($file['size'] ?? 0) > 10 * 1024 * 1024) {
         respond(['ok' => false, 'error' => 'File too large (10MB limit)'], 400);
     }
+    validate_upload_tmp_file($file);
+    $basename = basename($file['name']);
     validate_upload_extension($basename);
-    validate_upload_mime($file['tmp_name']);
+    $mime = validate_upload_mime($file['tmp_name']);
     $filename = time() . '_' . bin2hex(random_bytes(4)) . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $basename);
     $path = $dir . '/' . $filename;
     if (!move_uploaded_file($file['tmp_name'], $path)) {
@@ -93,12 +102,12 @@ function save_drive_file(string $entityId, array $file): array {
     $normalizedPath = realpath($path) ?: $path;
     $normalizedBase = realpath($uploadsBase) ?: $uploadsBase;
     $relative = str_starts_with($normalizedPath, $normalizedBase)
-        ? ltrim(substr($normalizedPath, strlen($normalizedBase)), '/')
+        ? ltrim(substr($normalizedPath, strlen($normalizedBase)), '/\\')
         : 'drive/' . $safeEntityId . '/' . $filename;
     if (!str_starts_with($normalizedPath, $normalizedBase)) {
         error_log("Drive upload path mismatch: normalized={$normalizedPath} base={$normalizedBase}");
     }
-    return ['path' => $relative, 'original' => $basename, 'size' => $file['size'] ?? 0];
+    return ['path' => $relative, 'original' => $basename, 'size' => $file['size'] ?? 0, 'mime' => $mime];
 }
 
 function resolve_upload_path(string $relativePath): string {

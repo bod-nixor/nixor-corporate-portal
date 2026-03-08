@@ -9,6 +9,8 @@ node_modules/
 tsconfig.tsbuildinfo
 vendor/
 package-lock.json
+.playwright-cli/
 
 # Uploads
 uploads/
+ws/events.queue

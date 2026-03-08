@@ -146,6 +146,143 @@ function split_sql_statements(string $sql): array {
     return $statements;
 }
 
+function split_alter_table_operations(string $operations): array {
+    $length = strlen($operations);
+    $buffer = '';
+    $parts = [];
+    $depth = 0;
+    $inSingle = false;
+    $inDouble = false;
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $operations[$i];
+        $next = $i + 1 < $length ? $operations[$i + 1] : '';
+
+        if ($char === "'" && !$inDouble) {
+            if ($inSingle && $next === "'") {
+                $buffer .= $char . $next;
+                $i++;
+                continue;
+            }
+            $backslashes = 0;
+            for ($j = $i - 1; $j >= 0 && $operations[$j] === '\\'; $j--) {
+                $backslashes++;
+            }
+            $escaped = $backslashes % 2 === 1;
+            if (!$escaped) {
+                $inSingle = !$inSingle;
+            }
+        } elseif ($char === '"' && !$inSingle) {
+            if ($inDouble && $next === '"') {
+                $buffer .= $char . $next;
+                $i++;
+                continue;
+            }
+            $backslashes = 0;
+            for ($j = $i - 1; $j >= 0 && $operations[$j] === '\\'; $j--) {
+                $backslashes++;
+            }
+            $escaped = $backslashes % 2 === 1;
+            if (!$escaped) {
+                $inDouble = !$inDouble;
+            }
+        }
+
+        if (!$inSingle && !$inDouble) {
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')' && $depth > 0) {
+                $depth--;
+            } elseif ($char === ',' && $depth === 0) {
+                $part = trim($buffer);
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+                $buffer = '';
+                continue;
+            }
+        }
+
+        $buffer .= $char;
+    }
+
+    $tail = trim($buffer);
+    if ($tail !== '') {
+        $parts[] = $tail;
+    }
+
+    return $parts;
+}
+
+function migration_database_name(PDO $pdo): string {
+    static $databaseNames = [];
+    $connectionKey = spl_object_hash($pdo);
+    if (array_key_exists($connectionKey, $databaseNames)) {
+        return $databaseNames[$connectionKey];
+    }
+    $databaseNames[$connectionKey] = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
+    return $databaseNames[$connectionKey];
+}
+
+function migration_column_exists(PDO $pdo, string $table, string $column): bool {
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1'
+    );
+    $stmt->execute([migration_database_name($pdo), $table, $column]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function migration_index_exists(PDO $pdo, string $table, string $index): bool {
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1'
+    );
+    $stmt->execute([migration_database_name($pdo), $table, $index]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function execute_migration_statement(PDO $pdo, string $statement): void {
+    if (stripos($statement, 'ALTER TABLE') !== 0 || stripos($statement, 'IF NOT EXISTS') === false) {
+        $pdo->exec($statement);
+        return;
+    }
+
+    if (!preg_match('/^ALTER\s+TABLE\s+`?([A-Za-z0-9_]+)`?\s+(.+)$/is', trim($statement), $matches)) {
+        $pdo->exec($statement);
+        return;
+    }
+
+    $table = $matches[1];
+    $operations = split_alter_table_operations($matches[2]);
+    $pendingOperations = [];
+    foreach ($operations as $operation) {
+        if (preg_match('/^ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s+(.+)$/is', $operation, $columnMatch)) {
+            if (!migration_column_exists($pdo, $table, $columnMatch[1])) {
+                $pendingOperations[] = sprintf('ADD COLUMN `%s` %s', $columnMatch[1], $columnMatch[2]);
+            }
+            continue;
+        }
+
+        if (preg_match('/^ADD\s+(UNIQUE\s+)?(?:INDEX|KEY)\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s*(.+)$/is', $operation, $indexMatch)) {
+            $indexModifier = trim((string)($indexMatch[1] ?? ''));
+            if (!migration_index_exists($pdo, $table, $indexMatch[2])) {
+                $pendingOperations[] = sprintf(
+                    'ADD %sINDEX `%s` %s',
+                    $indexModifier !== '' ? $indexModifier . ' ' : '',
+                    $indexMatch[2],
+                    $indexMatch[3]
+                );
+            }
+            continue;
+        }
+
+        $pendingOperations[] = $operation;
+    }
+
+    if ($pendingOperations) {
+        $pdo->exec(sprintf('ALTER TABLE `%s` %s', $table, implode(', ', $pendingOperations)));
+    }
+}
+
 function apply_migrations(PDO $pdo, string $directory): array {
     $applied = applied_migrations($pdo);
     $files = migration_files($directory);
@@ -169,7 +306,7 @@ function apply_migrations(PDO $pdo, string $directory): array {
         $pdo->beginTransaction();
         try {
             foreach ($statements as $statement) {
-                $pdo->exec($statement);
+                execute_migration_statement($pdo, $statement);
             }
             $insert = $pdo->prepare('INSERT INTO migrations (filename, checksum) VALUES (?, ?)');
             $insert->execute([$file, $checksum]);

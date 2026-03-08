@@ -1,4 +1,28 @@
 <?php
+function env_is_absolute_path(string $path): bool {
+    return str_starts_with($path, '/')
+        || str_starts_with($path, '\\')
+        || (bool)preg_match('/^[A-Za-z]:[\\\\\\/]/', $path);
+}
+
+function env_runtime_value(string $key) {
+    foreach ([$_SERVER, $_ENV] as $source) {
+        if (!array_key_exists($key, $source)) {
+            continue;
+        }
+        $value = $source[$key];
+        if ($value === null || $value === '') {
+            continue;
+        }
+        return $value;
+    }
+    $value = getenv($key);
+    if ($value === false || $value === '') {
+        return null;
+    }
+    return $value;
+}
+
 function env_value($key, $default = null) {
     static $env;
     if ($env === null) {
@@ -11,9 +35,9 @@ function env_value($key, $default = null) {
         $path = $_SERVER['ENV_FILE_PATH'] ?? $_ENV['ENV_FILE_PATH'] ?? getenv('ENV_FILE_PATH')
             ?: (file_exists($configPath) ? $configPath : $defaultPath);
 
-        // Handle relative paths by resolving against project root
-        if ($path && !str_starts_with($path, '/')) {
-            $path = $root . '/' . $path;
+        // Resolve only relative paths against the project root.
+        if ($path && !env_is_absolute_path($path)) {
+            $path = $root . '/' . ltrim($path, '/\\');
         }
 
         if (file_exists($path)) {
@@ -44,5 +68,8 @@ function env_value($key, $default = null) {
             }
         }
     }
-    return $env[$key] ?? $_SERVER[$key] ?? $_ENV[$key] ?? getenv($key) ?? $default;
+    if (array_key_exists($key, $env)) {
+        return $env[$key];
+    }
+    return env_runtime_value($key) ?? $default;
 }

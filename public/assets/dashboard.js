@@ -271,8 +271,8 @@ form.addEventListener('submit', async (event) => {
                 message: form.message.value
             })
         });
-        setStatus('Announcement published.', true);
         form.reset();
+        closeModal();
         loadDashboard(entitySelect.value);
     } catch (err) {
         setStatus(normalizeError(err), false);

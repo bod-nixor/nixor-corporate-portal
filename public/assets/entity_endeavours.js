@@ -477,11 +477,12 @@ const loadEndeavours = async (entityId) => {
         return;
     }
     const reqId = ++endeavoursRequestId;
-    const driveFilesPromise = loadDriveFiles(entityId);
-    const endeavoursPromise = apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
 
     try {
-        const response = await apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`);
+        const [driveFilesForRequest, response] = await Promise.all([
+            loadDriveFiles(entityId),
+            apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`)
+        ]);
         if (reqId !== endeavoursRequestId) return;
 
         renderEndeavours(response?.data || [], driveFilesForRequest);

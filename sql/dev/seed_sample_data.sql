@@ -1,12 +1,10 @@
-INSERT INTO entities (name, description) VALUES
-('Nixor Community Entity', 'Primary entity for seed data');
-
--- Example users (replace with secure, unique passwords before use)
+-- Example users for local development only.
+-- Password for all seeded users: Password123!
 INSERT INTO users (email, password_hash, full_name, global_role)
 VALUES
-('board@nixor.io', 'REPLACE_BEFORE_USE', 'Board Member', 'board'),
-('ceo@nixor.io', 'REPLACE_BEFORE_USE', 'Entity CEO', 'ceo'),
-('hr@nixor.io', 'REPLACE_BEFORE_USE', 'HR Lead', 'staff');
+('board@nixor.io', '$2y$10$u8LapUEc9T19QiW.RHIwf.TafwMMauQ/7U/UbfEjB3.Ef0VjyYP9S', 'Board Member', 'board'),
+('ceo@nixor.io', '$2y$10$u8LapUEc9T19QiW.RHIwf.TafwMMauQ/7U/UbfEjB3.Ef0VjyYP9S', 'Entity CEO', 'ceo'),
+('hr@nixor.io', '$2y$10$u8LapUEc9T19QiW.RHIwf.TafwMMauQ/7U/UbfEjB3.Ef0VjyYP9S', 'HR Lead', 'staff');
 
 INSERT INTO students (user_id, student_id, parent_email, phone)
 VALUES
