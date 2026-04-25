@@ -10,10 +10,38 @@ const emptyState = document.getElementById('endeavour-empty');
 const notificationBadge = document.getElementById('notification-badge');
 
 const initialEmptyState = emptyState.innerHTML;
+let unreadNotificationCount = 0;
+let visibleOpportunityCount = 0;
+
+const updateNotificationBadge = () => {
+    if (unreadNotificationCount <= 0) {
+        notificationBadge.classList.add('hidden');
+        return;
+    }
+    notificationBadge.textContent = visibleOpportunityCount > 0
+        ? `${unreadNotificationCount} new`
+        : `${unreadNotificationCount} notifications`;
+    notificationBadge.classList.remove('hidden');
+};
+
+const renderAccurateEmptyState = () => {
+    const hasFilters = Boolean(searchInput.value.trim() || entityFilter.value);
+    const heading = emptyState.querySelector('h3');
+    const copy = emptyState.querySelector('p');
+    if (!heading || !copy) return;
+    if (hasFilters) {
+        heading.textContent = 'No opportunities match your filters';
+        copy.textContent = 'Try a broader search or select All Entities to see every active registration window.';
+        return;
+    }
+    heading.textContent = 'No active volunteering opportunities are open';
+    copy.textContent = 'Volunteer registration opens here when an endeavour reaches the registration phase.';
+};
 
 const renderEndeavours = (rows) => {
     grid.innerHTML = '';
     if (!rows.length) {
+        renderAccurateEmptyState();
         emptyState.classList.remove('hidden');
         emptyState.classList.add('flex');
         return;
@@ -186,8 +214,13 @@ const loadEndeavours = async () => {
     try {
         const response = await apiFetch(`/endeavours/volunteering?${params.toString()}`);
         emptyState.innerHTML = initialEmptyState;
-        renderEndeavours(response?.data || []);
+        const rows = response?.data || [];
+        visibleOpportunityCount = rows.length;
+        renderEndeavours(rows);
+        updateNotificationBadge();
     } catch (err) {
+        visibleOpportunityCount = 0;
+        updateNotificationBadge();
         grid.innerHTML = '';
         emptyState.innerHTML = `
         <span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[rgba(239,68,68,0.1)] border border-[rgba(239,68,68,0.2)] text-[#ef4444] mb-4">
@@ -206,15 +239,11 @@ const loadEndeavours = async () => {
 const loadNotifications = async () => {
     try {
         const response = await apiFetch('/notifications');
-        const unread = response?.meta?.unread || 0;
-        if (unread > 0) {
-            notificationBadge.textContent = `${unread} new`;
-            notificationBadge.classList.remove('hidden');
-        } else {
-            notificationBadge.classList.add('hidden');
-        }
+        unreadNotificationCount = response?.meta?.unread || 0;
+        updateNotificationBadge();
     } catch (err) {
-        notificationBadge.classList.add('hidden');
+        unreadNotificationCount = 0;
+        updateNotificationBadge();
     }
 };
 

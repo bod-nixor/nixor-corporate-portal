@@ -9,6 +9,7 @@ node_modules/
 tsconfig.tsbuildinfo
 vendor/
 package-lock.json
+*.lock
 .playwright-cli/
 
 # Uploads

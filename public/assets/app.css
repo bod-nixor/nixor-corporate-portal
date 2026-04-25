@@ -12,8 +12,6 @@
     --color-red-300: oklch(80.8% 0.114 19.571);
     --color-red-400: oklch(70.4% 0.191 22.216);
     --color-red-500: oklch(63.7% 0.237 25.331);
-    --color-red-800: oklch(44.4% 0.177 26.899);
-    --color-red-950: oklch(25.8% 0.092 26.042);
     --color-amber-300: oklch(87.9% 0.169 91.605);
     --color-amber-400: oklch(82.8% 0.189 84.429);
     --color-emerald-100: oklch(95% 0.052 163.051);
@@ -24,8 +22,6 @@
     --color-sky-300: oklch(82.8% 0.111 230.318);
     --color-blue-500: oklch(62.3% 0.214 259.815);
     --color-indigo-200: oklch(87% 0.065 274.039);
-    --color-indigo-300: oklch(78.5% 0.115 274.713);
-    --color-indigo-400: oklch(67.3% 0.182 276.935);
     --color-indigo-500: oklch(58.5% 0.233 277.117);
     --color-indigo-600: oklch(51.1% 0.262 276.966);
     --color-slate-100: oklch(96.8% 0.007 247.896);
@@ -38,8 +34,6 @@
     --color-slate-800: oklch(27.9% 0.041 260.031);
     --color-slate-900: oklch(20.8% 0.042 265.755);
     --color-slate-950: oklch(12.9% 0.042 264.695);
-    --color-zinc-400: oklch(70.5% 0.015 286.067);
-    --color-zinc-500: oklch(55.2% 0.016 285.938);
     --color-black: #000;
     --color-white: #fff;
     --spacing: 0.25rem;
@@ -1001,6 +995,9 @@
   .border-\[\#10b98133\] {
     border-color: #10b98133;
   }
+  .border-\[\#ef4444\] {
+    border-color: #ef4444;
+  }
   .border-\[\#ef444433\] {
     border-color: #ef444433;
   }
@@ -1034,8 +1031,8 @@
   .border-\[var\(--border-subtle\)\] {
     border-color: var(--border-subtle);
   }
-  .border-\[var\(--color-danger-hover\)\] {
-    border-color: var(--color-danger-hover);
+  .border-\[var\(--color-danger\)\] {
+    border-color: var(--color-danger);
   }
   .border-\[var\(--color-primary\)\] {
     border-color: var(--color-primary);
@@ -1211,6 +1208,12 @@
   .bg-\[var\(--bg-base\)\] {
     background-color: var(--bg-base);
   }
+  .bg-\[var\(--bg-base\)\]\/80 {
+    background-color: var(--bg-base);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--bg-base) 80%, transparent);
+    }
+  }
   .bg-\[var\(--bg-surface\)\] {
     background-color: var(--bg-surface);
   }
@@ -1337,12 +1340,6 @@
       background-color: color-mix(in oklab, var(--color-slate-950) 70%, transparent);
     }
   }
-  .bg-slate-950\/80 {
-    background-color: color-mix(in srgb, oklch(12.9% 0.042 264.695) 80%, transparent);
-    @supports (color: color-mix(in lab, red, red)) {
-      background-color: color-mix(in oklab, var(--color-slate-950) 80%, transparent);
-    }
-  }
   .bg-transparent {
     background-color: transparent;
   }
@@ -1369,6 +1366,9 @@
   }
   .p-0 {
     padding: calc(var(--spacing) * 0);
+  }
+  .p-0\! {
+    padding: calc(var(--spacing) * 0) !important;
   }
   .p-0\.5 {
     padding: calc(var(--spacing) * 0.5);
@@ -1684,9 +1684,6 @@
   .text-\[var\(--text-tertiary\)\] {
     color: var(--text-tertiary);
   }
-  .text-\[xs\] {
-    color: xs;
-  }
   .text-amber-300 {
     color: var(--color-amber-300);
   }
@@ -1698,9 +1695,6 @@
   }
   .text-emerald-300 {
     color: var(--color-emerald-300);
-  }
-  .text-indigo-300 {
-    color: var(--color-indigo-300);
   }
   .text-red-100 {
     color: var(--color-red-100);
@@ -2216,6 +2210,12 @@
       align-self: center;
     }
   }
+  .sm\:break-normal {
+    @media (width >= 40rem) {
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+  }
   .md\:relative {
     @media (width >= 48rem) {
       position: relative;
@@ -2382,9 +2382,9 @@
       grid-column: span 3 / span 3;
     }
   }
-  .xl\:block {
+  .xl\:flex {
     @media (width >= 80rem) {
-      display: block;
+      display: flex;
     }
   }
   .xl\:hidden {
@@ -2475,6 +2475,7 @@
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717a;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 :root.theme-light {
   --bg-base: #f4f4f5;
@@ -2487,6 +2488,7 @@
   --text-tertiary: #71717a;
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
+  --skeleton-highlight: rgba(0, 0, 0, 0.05);
 }
 :root.theme-midnight {
   --bg-base: #020617;
@@ -2499,6 +2501,7 @@
   --text-tertiary: #64748b;
   --color-primary: #3b82f6;
   --color-primary-hover: #2563eb;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 :root.theme-graphite {
   --bg-base: #111111;
@@ -2511,6 +2514,7 @@
   --text-tertiary: #737373;
   --color-primary: #e5e5e5;
   --color-primary-hover: #ffffff;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 :root.theme-indigo {
   --bg-base: #0f0e17;
@@ -2523,6 +2527,7 @@
   --text-tertiary: #6366f1;
   --color-primary: #818cf8;
   --color-primary-hover: #6366f1;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 :root.theme-emerald {
   --bg-base: #022c22;
@@ -2535,6 +2540,7 @@
   --text-tertiary: #34d399;
   --color-primary: #10b981;
   --color-primary-hover: #059669;
+  --skeleton-highlight: rgba(255, 255, 255, 0.05);
 }
 body {
   font-family: Inter, system-ui, -apple-system, sans-serif;
@@ -2573,7 +2579,7 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 .btn-primary:not(:disabled):hover {
-  background-color: #e4e4e7;
+  background-color: var(--color-primary-hover);
   transform: scale(0.98);
 }
 .btn-secondary {
@@ -2583,7 +2589,7 @@ body {
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 .btn-secondary:not(:disabled):hover {
-  background-color: #3f3f46;
+  background-color: var(--bg-surface-hover);
   border-color: var(--border-strong);
 }
 .btn-ghost {
@@ -2766,7 +2772,7 @@ tbody tr:hover {
   animation: fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-surface-hover) 25%, #3f3f46 50%, var(--bg-surface-hover) 75%);
+  background: linear-gradient(90deg, var(--bg-surface-hover) 25%, var(--skeleton-highlight) 50%, var(--bg-surface-hover) 75%);
   background-size: 200% 100%;
   animation: loading 1.5s infinite;
   border-radius: 0.5rem;

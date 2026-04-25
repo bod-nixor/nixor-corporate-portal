@@ -23,7 +23,14 @@ function handle_entities(string $method, array $segments): void {
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $description = sanitize_text($data['description'] ?? '', 2000);
         $stmt = db()->prepare('INSERT INTO entities (name, description) VALUES (?, ?)');
-        $stmt->execute([$name, $description]);
+        try {
+            $stmt->execute([$name, $description]);
+        } catch (PDOException $e) {
+            if (is_duplicate_entity_name_error($e)) {
+                respond(['ok' => false, 'error' => 'Entity already exists'], 409);
+            }
+            throw $e;
+        }
         $entityId = (int)db()->lastInsertId();
         log_activity($user['id'], 'entity', $entityId, 'created', 'Entity created');
         respond(['ok' => true, 'data' => ['id' => $entityId]]);
@@ -34,7 +41,14 @@ function handle_entities(string $method, array $segments): void {
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $description = sanitize_text($data['description'] ?? '', 2000);
         $stmt = db()->prepare('UPDATE entities SET name = ?, description = ? WHERE id = ?');
-        $stmt->execute([$name, $description, $id]);
+        try {
+            $stmt->execute([$name, $description, $id]);
+        } catch (PDOException $e) {
+            if (is_duplicate_entity_name_error($e)) {
+                respond(['ok' => false, 'error' => 'Entity already exists'], 409);
+            }
+            throw $e;
+        }
         log_activity($user['id'], 'entity', (int)$id, 'updated', 'Entity updated');
         respond(['ok' => true, 'data' => ['id' => (int)$id]]);
     }
@@ -47,4 +61,10 @@ function handle_entities(string $method, array $segments): void {
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function is_duplicate_entity_name_error(PDOException $e): bool {
+    $driverCode = (int)($e->errorInfo[1] ?? 0);
+    $message = strtolower($e->getMessage());
+    return $e->getCode() === '23000' && ($driverCode === 1062 || str_contains($message, 'duplicate'));
 }

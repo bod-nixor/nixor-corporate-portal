@@ -88,6 +88,44 @@ final class ApiTest extends TestCase {
         $this->assertNull($me['data']['data']['user']);
     }
 
+    public function testPasswordLoginRejectsInvalidNullMissingAndUnsupportedHashes(): void {
+        $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $this->createUserWithHash('google-only@example.com', null, 'staff');
+        $this->createUserWithHash('legacy@example.com', 'not-a-password-hash', 'staff');
+
+        $client = new TestClient(self::$baseUrl);
+        $csrf = $client->request('GET', '/api/auth/csrf');
+        $token = $csrf['data']['data']['csrfToken'] ?? '';
+
+        $invalid = $client->request('POST', '/api/auth/login', [
+            'email' => 'admin@example.com',
+            'password' => 'WrongPassword123!'
+        ], ["X-CSRF-Token: {$token}"]);
+        $this->assertSame(401, $invalid['status']);
+        $this->assertSame('Invalid credentials', $invalid['data']['error']);
+
+        $nullHash = $client->request('POST', '/api/auth/login', [
+            'email' => 'google-only@example.com',
+            'password' => 'Password123!'
+        ], ["X-CSRF-Token: {$token}"]);
+        $this->assertSame(401, $nullHash['status']);
+        $this->assertSame('Invalid credentials', $nullHash['data']['error']);
+
+        $unsupported = $client->request('POST', '/api/auth/login', [
+            'email' => 'legacy@example.com',
+            'password' => 'Password123!'
+        ], ["X-CSRF-Token: {$token}"]);
+        $this->assertSame(401, $unsupported['status']);
+        $this->assertSame('Invalid credentials', $unsupported['data']['error']);
+
+        $missing = $client->request('POST', '/api/auth/login', [
+            'email' => '',
+            'password' => ''
+        ], ["X-CSRF-Token: {$token}"]);
+        $this->assertSame(400, $missing['status']);
+        $this->assertSame('Email and password are required', $missing['data']['error']);
+    }
+
     public function testProtectedRouteRequiresAuth(): void {
         $client = new TestClient(self::$baseUrl);
         $response = $client->request('GET', '/api/endeavours');
@@ -145,6 +183,64 @@ final class ApiTest extends TestCase {
         $this->assertSame('Forbidden', $blocked['data']['error']);
     }
 
+    public function testAdminAliasesAuthorizeAndValidateEntityAndUserCreation(): void {
+        $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $this->createUser('staff@example.com', 'Password123!', 'staff');
+
+        $anonymous = new TestClient(self::$baseUrl);
+        $anonymousSummary = $anonymous->request('GET', '/api/admin/summary');
+        $this->assertSame(401, $anonymousSummary['status']);
+
+        $staffClient = $this->loginClient('staff@example.com', 'Password123!');
+        $staffSummary = $staffClient->request('GET', '/api/admin/summary');
+        $this->assertSame(403, $staffSummary['status']);
+
+        $adminClient = $this->loginClient('admin@example.com', 'Password123!');
+        $summary = $adminClient->request('GET', '/api/admin/summary');
+        $this->assertSame(200, $summary['status']);
+        $this->assertArrayHasKey('missing_docs', $summary['data']['data']);
+
+        $entity = $adminClient->request('POST', '/api/admin/entities', [
+            'name' => 'Admin Alias Entity',
+            'description' => 'Created through admin alias'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(200, $entity['status']);
+
+        $secondEntity = $adminClient->request('POST', '/api/admin/entities', [
+            'name' => 'Second Admin Entity',
+            'description' => 'Created for rename collision'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(200, $secondEntity['status']);
+
+        $duplicateEntity = $adminClient->request('POST', '/api/admin/entities', [
+            'name' => 'admin alias entity',
+            'description' => 'Duplicate casing'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(409, $duplicateEntity['status']);
+
+        $duplicateRename = $adminClient->request('PUT', '/api/admin/entities/' . (int)$secondEntity['data']['data']['id'], [
+            'name' => 'ADMIN ALIAS ENTITY',
+            'description' => 'Duplicate rename'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(409, $duplicateRename['status']);
+
+        $user = $adminClient->request('POST', '/api/admin/users', [
+            'email' => 'new-user@example.com',
+            'full_name' => 'New User',
+            'password' => 'AnotherPassword123!',
+            'global_role' => 'staff'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(200, $user['status']);
+
+        $duplicateUser = $adminClient->request('POST', '/api/admin/users', [
+            'email' => 'new-user@example.com',
+            'full_name' => 'Duplicate User',
+            'password' => 'AnotherPassword123!',
+            'global_role' => 'staff'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(409, $duplicateUser['status']);
+    }
+
     public function testAdminSetupBlockedForNonAdmin(): void {
         $this->createUser('admin@example.com', 'Password123!', 'admin');
         $this->createUser('staff@example.com', 'Password123!', 'staff');
@@ -165,6 +261,96 @@ final class ApiTest extends TestCase {
         $this->assertSame(403, $setup['status']);
     }
 
+    public function testCalendarRejectsBadDatesAndHidesExistingOutOfRangeEvents(): void {
+        $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $entityId = $this->createEntity('Calendar Entity');
+        $client = $this->loginClient('admin@example.com', 'Password123!');
+
+        $badYear = $client->request('POST', '/api/calendar', [
+            'entity_id' => $entityId,
+            'title' => 'Bad Year',
+            'event_date' => '1111-11-01T11:11'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(400, $badYear['status']);
+
+        $endBeforeStart = $client->request('POST', '/api/calendar', [
+            'entity_id' => $entityId,
+            'title' => 'Bad Range',
+            'event_date' => '2026-05-01T12:00',
+            'end_date' => '2026-05-01T11:00'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(400, $endBeforeStart['status']);
+
+        $missingTitle = $client->request('POST', '/api/calendar', [
+            'entity_id' => $entityId,
+            'event_date' => '2026-05-01T12:00'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(400, $missingTitle['status']);
+
+        $valid = $client->request('POST', '/api/calendar', [
+            'entity_id' => $entityId,
+            'title' => 'Valid Calendar Event',
+            'event_date' => '2026-05-01T12:00',
+            'end_date' => '2026-05-01T13:00'
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(200, $valid['status']);
+        $eventId = (int)$valid['data']['data']['id'];
+        $stored = db()->prepare('SELECT event_date, end_date FROM calendar_events WHERE id = ?');
+        $stored->execute([$eventId]);
+        $storedEvent = $stored->fetch();
+        $this->assertSame('2026-05-01 12:00:00', $storedEvent['event_date']);
+        $this->assertSame('2026-05-01 13:00:00', $storedEvent['end_date']);
+
+        $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, event_date, created_by) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$entityId, 'Legacy Bad Event', '1111-11-01 11:11:00', $adminId]);
+
+        $list = $client->request('GET', '/api/calendar?entity_id=' . $entityId);
+        $this->assertSame(200, $list['status']);
+        $titles = array_column($list['data']['data'], 'title');
+        $this->assertContains('Valid Calendar Event', $titles);
+        $this->assertNotContains('Legacy Bad Event', $titles);
+        $validEvent = array_values(array_filter($list['data']['data'], fn($event) => $event['title'] === 'Valid Calendar Event'))[0] ?? null;
+        $this->assertSame('2026-05-01 13:00:00', $validEvent['end_date'] ?? null);
+    }
+
+    public function testVolunteeringOnlyReturnsVisibleRegistrationOpportunities(): void {
+        $userId = $this->createUser('volunteer@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Volunteer Entity');
+        $this->addMembership($entityId, $userId, 'operations', 'member');
+        $this->createEndeavour($entityId, $userId, 'Planning Only', 'PRE_EVENT', true, '+5 days');
+        $activeId = $this->createEndeavour($entityId, $userId, 'Registration Open', 'VOLUNTEER_REGISTRATION', true, '+5 days');
+
+        $client = $this->loginClient('volunteer@example.com', 'Password123!');
+        $list = $client->request('GET', '/api/endeavours/volunteering');
+        $this->assertSame(200, $list['status']);
+        $this->assertCount(1, $list['data']['data']);
+        $this->assertSame($activeId, (int)$list['data']['data'][0]['id']);
+        $this->assertSame('Registration Open', $list['data']['data'][0]['name']);
+    }
+
+    public function testDashboardProgressAndDeadlinesUseActionableData(): void {
+        $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $entityId = $this->createEntity('Dashboard Entity');
+        $approvedId = $this->createEndeavour($entityId, $adminId, 'Approved Docs', 'PRE_EVENT', false, '+3 days');
+        $pendingId = $this->createEndeavour($entityId, $adminId, 'Pending Docs', 'PRE_EVENT', false, null);
+        $this->createEndeavour($entityId, $adminId, 'No Dates', 'PRE_EVENT', false, null);
+
+        $this->insertDocApproval($approvedId, 'operational_plan', 'bod', 'approved');
+        $this->insertDocApproval($approvedId, 'operational_plan', 'student_affairs', 'approved');
+        $this->insertDocApproval($pendingId, 'budget_plan', 'bod', 'pending');
+        $this->insertDocApproval($pendingId, 'budget_plan', 'student_affairs', 'pending');
+
+        $client = $this->loginClient('admin@example.com', 'Password123!');
+        $dashboard = $client->request('GET', '/api/dashboard?entity_id=' . $entityId);
+        $this->assertSame(200, $dashboard['status']);
+        $this->assertSame(1, $dashboard['data']['data']['doc_progress_approved']);
+        $this->assertSame(2, $dashboard['data']['data']['doc_progress_total']);
+        $this->assertSame(50, $dashboard['data']['data']['doc_progress']);
+        $deadlineNames = array_column($dashboard['data']['data']['deadlines'], 'name');
+        $this->assertContains('Approved Docs', $deadlineNames);
+        $this->assertNotContains('Pending Docs', $deadlineNames);
+        $this->assertNotContains('No Dates', $deadlineNames);
+    }
 
     public function testDrivePermissionModelAndSharing(): void {
         $this->createUser('admin@example.com', 'Password123!', 'admin');
@@ -267,6 +453,26 @@ final class ApiTest extends TestCase {
         return (int)db()->lastInsertId();
     }
 
+    private function createEndeavour(int $entityId, int $creatorId, string $name, string $phase, bool $volunteeringEnabled, ?string $deadlineModifier): int {
+        $deadline = $deadlineModifier ? (new DateTimeImmutable($deadlineModifier))->format('Y-m-d H:i:s') : null;
+        $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, phase, volunteering_enabled, volunteer_registration_deadline, event_start_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, "draft")');
+        $stmt->execute([
+            $entityId,
+            $creatorId,
+            $name,
+            $phase,
+            $volunteeringEnabled ? 1 : 0,
+            $deadline,
+            $deadline
+        ]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function insertDocApproval(int $endeavourId, string $docType, string $approverGroup, string $status): void {
+        $stmt = db()->prepare('INSERT INTO endeavour_doc_approvals (endeavour_id, doc_type, approver_group, status) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$endeavourId, $docType, $approverGroup, $status]);
+    }
+
     private function loginClient(string $email, string $password): object {
         $client = new TestClient(self::$baseUrl);
         $csrf = $client->request('GET', '/api/auth/csrf');
@@ -291,6 +497,10 @@ final class ApiTest extends TestCase {
 
     private function createUser(string $email, string $password, string $role): int {
         $hash = password_hash($password, PASSWORD_DEFAULT);
+        return $this->createUserWithHash($email, $hash, $role);
+    }
+
+    private function createUserWithHash(string $email, ?string $hash, string $role): int {
         $stmt = db()->prepare('INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, ?)');
         $stmt->execute([$email, $hash, ucfirst($role), $role]);
         return (int)db()->lastInsertId();
@@ -309,12 +519,15 @@ final class ApiTest extends TestCase {
         $envPath = realpath($envPath) ?: $envPath;
 
         $phpIni = realpath(__DIR__ . '/../php.ini');
+        $phpConfigArg = $phpIni ? ('-c ' . escapeshellarg($phpIni) . ' ') : '';
 
-        $command = sprintf('php -c %s -S %s:%d -t %s',
-            escapeshellarg($phpIni),
+        $router = dirname(__DIR__) . '/router.php';
+        $command = sprintf('php %s-S %s:%d -t %s %s',
+            $phpConfigArg,
             $host,
             $port,
-            escapeshellarg(dirname(__DIR__))
+            escapeshellarg(dirname(__DIR__)),
+            escapeshellarg($router)
         );
 
         $descriptors = [

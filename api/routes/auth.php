@@ -2,21 +2,34 @@
 function handle_auth(string $method, array $segments): void {
     $action = $segments[1] ?? '';
     if ($action === 'login' && $method === 'POST') {
-        if (!rate_limit('login', 5, 900)) {
-            respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+        try {
+            if (!rate_limit('login', 5, 900)) {
+                respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+            }
+            require_csrf();
+            $data = read_json();
+            $email = strtolower(trim((string)($data['email'] ?? '')));
+            $password = (string)($data['password'] ?? '');
+            if ($email === '' || $password === '') {
+                respond(['ok' => false, 'error' => 'Email and password are required'], 400);
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
+            }
+            $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+            if (!$user || !verify_password($password, $user['password_hash'] ?? null)) {
+                respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
+            }
+            if (($user['status'] ?? 'active') !== 'active') {
+                respond(['ok' => false, 'error' => 'Account inactive'], 403);
+            }
+            complete_login($user);
+        } catch (Throwable $e) {
+            error_log('Password login failed unexpectedly: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            respond(['ok' => false, 'error' => 'Internal server error'], 500);
         }
-        require_csrf();
-        $data = read_json();
-        $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
-        $stmt->execute([$data['email'] ?? '']);
-        $user = $stmt->fetch();
-        if (!$user || !verify_password($data['password'] ?? '', $user['password_hash'])) {
-            respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
-        }
-        if (($user['status'] ?? 'active') !== 'active') {
-            respond(['ok' => false, 'error' => 'Account inactive'], 403);
-        }
-        complete_login($user);
     }
 
     if ($action === 'logout' && $method === 'POST') {

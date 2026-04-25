@@ -30,10 +30,11 @@ CREATE TABLE students (
 
 CREATE TABLE entities (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(190) NOT NULL,
+  name VARCHAR(190) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_entities_name_unique (name)
 );
 
 CREATE TABLE entity_memberships (
@@ -376,6 +377,7 @@ CREATE TABLE calendar_events (
   title VARCHAR(190) NOT NULL,
   description TEXT,
   event_date DATETIME NOT NULL,
+  end_date DATETIME NULL,
   location VARCHAR(190),
   created_by INT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

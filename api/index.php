@@ -83,7 +83,7 @@ try {
         default:
             respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log($e->getMessage() . ' ' . $e->getTraceAsString());
     respond(['ok' => false, 'error' => 'Internal server error'], 500);
 }
