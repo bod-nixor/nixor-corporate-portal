@@ -22,6 +22,11 @@ function handle_entities(string $method, array $segments): void {
         $data = read_json();
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $description = sanitize_text($data['description'] ?? '', 2000);
+        $duplicate = db()->prepare('SELECT id FROM entities WHERE LOWER(name) = LOWER(?) LIMIT 1');
+        $duplicate->execute([$name]);
+        if ($duplicate->fetch()) {
+            respond(['ok' => false, 'error' => 'Entity already exists'], 409);
+        }
         $stmt = db()->prepare('INSERT INTO entities (name, description) VALUES (?, ?)');
         $stmt->execute([$name, $description]);
         $entityId = (int)db()->lastInsertId();
