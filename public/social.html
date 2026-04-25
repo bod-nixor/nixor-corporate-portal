@@ -68,10 +68,10 @@
       </section>
     </main>
   </div>
-  <div id="delete-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-message" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="card w-full max-w-sm shadow-2xl border-[var(--color-danger)] border animate-fade-in">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-bold">Confirm delete</h2>
+        <h2 id="delete-title" class="text-lg font-bold">Confirm delete</h2>
         <button id="delete-close" aria-label="Close" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
@@ -87,3 +87,4 @@
 </body>
 
 </html>
+

@@ -42,17 +42,17 @@ function handle_calendar(string $method, array $segments): void {
 
     if ($method === 'PUT' && $id) {
         $eventId = (int)$id;
-        $check = db()->prepare('SELECT * FROM calendar_events WHERE id = ?');
-        $check->execute([$eventId]);
-        $event = $check->fetch();
-        if (!$event) {
-            respond(['ok' => false, 'error' => 'Event not found'], 404);
-        }
-        ensure_entity_access((int)$event['entity_id'], []);
-        if ($user['global_role'] !== 'admin' && (int)$event['created_by'] !== (int)$user['id']) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        $event = require_event_writable($eventId, $user);
         $data = read_json();
+        
+        $entityId = isset($data['entity_id']) ? (int)$data['entity_id'] : (int)$event['entity_id'];
+        if ($entityId <= 0) {
+            respond(['ok' => false, 'error' => 'Invalid entity_id'], 400);
+        }
+        if ($entityId !== (int)$event['entity_id']) {
+            ensure_entity_access($entityId, []);
+        }
+
         $title = require_non_empty($data['title'] ?? $event['title'], 'title', 190);
         $eventDate = $data['event_date'] ?? $event['event_date'];
         $dateTime = parse_calendar_datetime($eventDate, 'event_date', true);
@@ -65,10 +65,7 @@ function handle_calendar(string $method, array $segments): void {
         $normalizedEndDate = $endDate ? $endDate->format('Y-m-d H:i:s') : null;
         $description = sanitize_text($data['description'] ?? $event['description'], 2000);
         $location = sanitize_text($data['location'] ?? $event['location'], 190);
-        $entityId = isset($data['entity_id']) ? (int)$data['entity_id'] : (int)$event['entity_id'];
-        if ($entityId !== (int)$event['entity_id']) {
-            ensure_entity_access($entityId, []);
-        }
+        
         $stmt = db()->prepare('UPDATE calendar_events SET title = ?, description = ?, event_date = ?, end_date = ?, location = ?, entity_id = ? WHERE id = ?');
         $stmt->execute([$title, $description, $normalizedDate, $normalizedEndDate, $location, $entityId, $eventId]);
         log_activity($user['id'], 'calendar_event', $eventId, 'updated', 'Calendar event updated');
@@ -78,16 +75,7 @@ function handle_calendar(string $method, array $segments): void {
 
     if ($method === 'DELETE' && $id) {
         $eventId = (int)$id;
-        $check = db()->prepare('SELECT * FROM calendar_events WHERE id = ?');
-        $check->execute([$eventId]);
-        $event = $check->fetch();
-        if (!$event) {
-            respond(['ok' => false, 'error' => 'Event not found'], 404);
-        }
-        ensure_entity_access((int)$event['entity_id'], []);
-        if ($user['global_role'] !== 'admin' && (int)$event['created_by'] !== (int)$user['id']) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        require_event_writable($eventId, $user);
         $del = db()->prepare('DELETE FROM calendar_events WHERE id = ?');
         $del->execute([$eventId]);
         log_activity($user['id'], 'calendar_event', $eventId, 'deleted', 'Calendar event deleted');
@@ -96,6 +84,20 @@ function handle_calendar(string $method, array $segments): void {
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function require_event_writable($eventId, $user) {
+    $check = db()->prepare('SELECT * FROM calendar_events WHERE id = ?');
+    $check->execute([$eventId]);
+    $event = $check->fetch();
+    if (!$event) {
+        respond(['ok' => false, 'error' => 'Event not found'], 404);
+    }
+    ensure_entity_access((int)$event['entity_id'], []);
+    if ($user['global_role'] !== 'admin' && (int)$event['created_by'] !== (int)$user['id']) {
+        respond(['ok' => false, 'error' => 'Forbidden'], 403);
+    }
+    return $event;
 }
 
 function parse_calendar_datetime($value, string $field, bool $required): ?DateTime {
@@ -126,3 +128,4 @@ function parse_calendar_datetime($value, string $field, bool $required): ?DateTi
 
     respond(['ok' => false, 'error' => "Invalid {$field} format"], 400);
 }
+

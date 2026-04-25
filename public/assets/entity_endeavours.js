@@ -478,6 +478,7 @@ const renderEndeavours = (rows, driveFiles) => {
         const header = document.createElement('button');
         header.className = 'flex w-full text-left flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)] hover:bg-[rgba(255,255,255,0.03)] transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]';
         header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', bodyContainer.id);
 
         const titleContent = document.createElement('div');
         titleContent.className = 'flex items-center gap-4';
@@ -486,7 +487,7 @@ const renderEndeavours = (rows, driveFiles) => {
         iconDiv.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>`;
 
         const textDiv = document.createElement('div');
-        const title = document.createElement('h3');
+        const title = document.createElement('span');
         title.className = 'text-xl font-bold tracking-tight text-[var(--text-primary)] leading-tight';
         title.textContent = row.name;
 
@@ -523,6 +524,7 @@ const renderEndeavours = (rows, driveFiles) => {
                 bodyContainer.classList.remove('flex');
                 toggleIcon.classList.remove('rotate-180');
                 header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', bodyContainer.id);
             }
         });
 
@@ -643,3 +645,5 @@ createForm.addEventListener('submit', async (event) => {
         }
     }
 });
+
+

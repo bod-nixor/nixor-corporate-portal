@@ -58,11 +58,18 @@
               <input id="calendar-title" name="title" required placeholder="Quarterly Review"
                 class="input-field font-medium w-full" />
             </div>
-            <div class="space-y-1.5">
+                        <div class="space-y-1.5">
               <label for="calendar-event-date"
                 class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Date &
                 Time</label>
               <input id="calendar-event-date" name="event_date" type="datetime-local" required
+                min="2000-01-01T00:00" max="2100-12-31T23:59"
+                class="input-field font-medium w-full" />
+            </div>
+            <div class="space-y-1.5">
+              <label for="calendar-end-date"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">End Date (Optional)</label>
+              <input id="calendar-end-date" name="end_date" type="datetime-local"
                 min="2000-01-01T00:00" max="2100-12-31T23:59"
                 class="input-field font-medium w-full" />
             </div>
@@ -90,10 +97,10 @@
       </section>
     </main>
   </div>
-  <div id="delete-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="delete-modal" role="dialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-message" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="card w-full max-w-sm shadow-2xl border-[var(--color-danger)] border animate-fade-in">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-bold">Confirm delete</h2>
+        <h2 id="delete-title" class="text-lg font-bold">Confirm delete</h2>
         <button id="delete-close" aria-label="Close" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
@@ -109,5 +116,6 @@
 </body>
 
 </html>
+
 
 

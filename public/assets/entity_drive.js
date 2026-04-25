@@ -424,7 +424,7 @@ function rowTemplate(item) {
   checkCell.appendChild(checkbox);
 
   const nameCell = document.createElement('td');
-  nameCell.className = 'px-4 py-2.5 align-middle truncate';
+  nameCell.className = 'px-4 py-2.5 align-middle';
   const nameWrapper = document.createElement('div');
   nameWrapper.className = 'flex items-center gap-3 min-w-0';
   nameWrapper.appendChild(createIconContainer(item.item_type));
@@ -453,7 +453,7 @@ function rowTemplate(item) {
   sizeCell.textContent = formatSize(item);
 
   const modifiedCell = document.createElement('td');
-  modifiedCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle truncate whitespace-nowrap';
+  modifiedCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle hidden sm:table-cell';
   modifiedCell.textContent = formatDate(item.updated_at || item.created_at);
 
   const actionCell = document.createElement('td');
@@ -552,11 +552,19 @@ function renderItems() {
 function setInspectorVisible(open) {
   state.mobileInspectorOpen = open;
   if (open) {
-    el.inspectorPanel.classList.remove('hidden', 'xl:hidden');
-    el.inspectorPanel.classList.add('flex', 'xl:flex');
+    el.inspectorPanel.classList.remove('hidden');
+    el.inspectorPanel.classList.add('flex');
     if (!isDesktopInspector()) {
       setNodeHidden(el.inspectorBackdrop, false);
     } else {
+      setNodeHidden(el.inspectorBackdrop, true);
+    }
+  } else {
+    el.inspectorPanel.classList.add('hidden');
+    el.inspectorPanel.classList.remove('flex');
+    setNodeHidden(el.inspectorBackdrop, true);
+  }
+} else {
       setNodeHidden(el.inspectorBackdrop, true);
     }
   } else {
@@ -1286,6 +1294,7 @@ function bindListEvents(container) {
   });
 
   container.addEventListener('dblclick', async (event) => {
+    if (event.target.closest('[data-open-folder]')) return;
     const card = event.target.closest('[data-id]');
     if (!card) return;
     const item = getItemById(Number(card.dataset.id));
@@ -1587,5 +1596,8 @@ boot().catch((error) => {
   setStatus(message, 'error');
   toast(message, 'error');
 });
+
+
+
 
 
