@@ -21,6 +21,22 @@ function handle_social(string $method, array $segments): void {
             $commentStmt->execute($postIds);
             $comments = $commentStmt->fetchAll();
         }
+        $posts = array_map(static function ($post) use ($user) {
+            $post['can_manage'] = social_user_can_manage_record($user, (int)$post['entity_id'], (int)$post['user_id']);
+            return $post;
+        }, $posts);
+        $comments = array_map(static function ($comment) use ($user, $posts) {
+            $post = null;
+            foreach ($posts as $candidate) {
+                if ((int)$candidate['id'] === (int)$comment['post_id']) {
+                    $post = $candidate;
+                    break;
+                }
+            }
+            $entityId = (int)($post['entity_id'] ?? 0);
+            $comment['can_manage'] = $entityId > 0 && social_user_can_manage_record($user, $entityId, (int)$comment['user_id']);
+            return $comment;
+        }, $comments);
         respond(['ok' => true, 'data' => ['posts' => $posts, 'comments' => $comments]]);
     }
 
@@ -85,7 +101,7 @@ function handle_social(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
         ensure_entity_access((int)$post['entity_id'], []);
-        if ($user['global_role'] !== 'admin' && (int)$post['user_id'] !== (int)$user['id']) {
+        if (!social_user_can_manage_record($user, (int)$post['entity_id'], (int)$post['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
         $data = read_json();
@@ -94,6 +110,27 @@ function handle_social(string $method, array $segments): void {
         $stmt->execute([$content, $postId]);
         log_activity($user['id'], 'social_post', $postId, 'updated', 'Social post updated');
         emit_ws_event('social.updated', ['id' => $postId]);
+        respond(['ok' => true]);
+    }
+
+    if ($method === 'PUT' && $id === 'comments' && $action) {
+        $commentId = (int)$action;
+        $check = db()->prepare('SELECT sc.*, sp.entity_id FROM social_comments sc JOIN social_posts sp ON sc.post_id = sp.id WHERE sc.id = ?');
+        $check->execute([$commentId]);
+        $comment = $check->fetch();
+        if (!$comment) {
+            respond(['ok' => false, 'error' => 'Comment not found'], 404);
+        }
+        ensure_entity_access((int)$comment['entity_id'], []);
+        if (!social_user_can_manage_record($user, (int)$comment['entity_id'], (int)$comment['user_id'])) {
+            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+        $data = read_json();
+        $content = require_non_empty($data['comment'] ?? $comment['comment'], 'comment', 1000);
+        $stmt = db()->prepare('UPDATE social_comments SET comment = ? WHERE id = ?');
+        $stmt->execute([$content, $commentId]);
+        log_activity($user['id'], 'social_post', $comment['post_id'], 'comment_updated', 'Social comment updated');
+        emit_ws_event('social.comment_updated', ['post_id' => $comment['post_id']]);
         respond(['ok' => true]);
     }
 
@@ -106,7 +143,7 @@ function handle_social(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Comment not found'], 404);
         }
         ensure_entity_access((int)$comment['entity_id'], []);
-        if ($user['global_role'] !== 'admin' && (int)$comment['user_id'] !== (int)$user['id']) {
+        if (!social_user_can_manage_record($user, (int)$comment['entity_id'], (int)$comment['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
         $del = db()->prepare('DELETE FROM social_comments WHERE id = ?');
@@ -125,7 +162,7 @@ function handle_social(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
         ensure_entity_access((int)$post['entity_id'], []);
-        if ($user['global_role'] !== 'admin' && (int)$post['user_id'] !== (int)$user['id']) {
+        if (!social_user_can_manage_record($user, (int)$post['entity_id'], (int)$post['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
         $del = db()->prepare('DELETE FROM social_posts WHERE id = ?');
@@ -136,6 +173,34 @@ function handle_social(string $method, array $segments): void {
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function social_user_can_manage_record(array $user, int $entityId, int $authorId): bool {
+    if ((int)$user['id'] === $authorId) {
+        return true;
+    }
+    if (in_array($user['global_role'] ?? '', ['admin', 'board', 'student_affairs'], true)) {
+        return true;
+    }
+    if ($entityId <= 0) {
+        return false;
+    }
+    $membership = social_user_membership((int)$user['id'], $entityId);
+    if (!$membership) {
+        return false;
+    }
+    if (($user['global_role'] ?? '') === 'ceo') {
+        return true;
+    }
+    return in_array($membership['department'] ?? '', ['communications', 'management'], true)
+        && in_array($membership['role'] ?? '', ['manager', 'executive'], true);
+}
+
+function social_user_membership(int $userId, int $entityId): ?array {
+    $stmt = db()->prepare('SELECT department, role FROM entity_memberships WHERE entity_id = ? AND user_id = ? ORDER BY role = "manager" DESC, id ASC LIMIT 1');
+    $stmt->execute([$entityId, $userId]);
+    $membership = $stmt->fetch();
+    return $membership ?: null;
 }
 
 

@@ -11,7 +11,11 @@ function handle_calendar(string $method, array $segments): void {
         ensure_entity_access($entityId, []);
         $stmt = db()->prepare('SELECT c.*, u.full_name FROM calendar_events c JOIN users u ON c.created_by = u.id WHERE c.entity_id = ? AND c.event_date >= "2000-01-01 00:00:00" AND c.event_date < "2101-01-01 00:00:00" ORDER BY c.event_date ASC LIMIT 50');
         $stmt->execute([$entityId]);
-        respond(['ok' => true, 'data' => $stmt->fetchAll()]);
+        $events = array_map(static function ($event) use ($user) {
+            $event['can_manage'] = calendar_user_can_manage_event($user, $event);
+            return $event;
+        }, $stmt->fetchAll());
+        respond(['ok' => true, 'data' => $events]);
     }
 
     if ($method === 'POST' && !$id) {
@@ -94,10 +98,38 @@ function require_event_writable($eventId, $user) {
         respond(['ok' => false, 'error' => 'Event not found'], 404);
     }
     ensure_entity_access((int)$event['entity_id'], []);
-    if ($user['global_role'] !== 'admin' && (int)$event['created_by'] !== (int)$user['id']) {
+    if (!calendar_user_can_manage_event($user, $event)) {
         respond(['ok' => false, 'error' => 'Forbidden'], 403);
     }
     return $event;
+}
+
+function calendar_user_can_manage_event(array $user, array $event): bool {
+    if ((int)$event['created_by'] === (int)$user['id']) {
+        return true;
+    }
+    if (in_array($user['global_role'] ?? '', ['admin', 'board', 'student_affairs'], true)) {
+        return true;
+    }
+    $entityId = (int)($event['entity_id'] ?? 0);
+    if ($entityId <= 0) {
+        return false;
+    }
+    $membership = calendar_user_membership((int)$user['id'], $entityId);
+    if (!$membership) {
+        return false;
+    }
+    if (($user['global_role'] ?? '') === 'ceo') {
+        return true;
+    }
+    return in_array($membership['role'] ?? '', ['manager', 'executive'], true);
+}
+
+function calendar_user_membership(int $userId, int $entityId): ?array {
+    $stmt = db()->prepare('SELECT department, role FROM entity_memberships WHERE entity_id = ? AND user_id = ? ORDER BY role = "manager" DESC, id ASC LIMIT 1');
+    $stmt->execute([$entityId, $userId]);
+    $membership = $stmt->fetch();
+    return $membership ?: null;
 }
 
 function parse_calendar_datetime($value, string $field, bool $required): ?DateTime {

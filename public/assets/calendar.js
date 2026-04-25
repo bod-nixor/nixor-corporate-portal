@@ -120,7 +120,7 @@ if (deleteConfirmBtn) {
             closeDeleteModal();
             loadEvents();
         } catch (err) {
-            alert(normalizeError(err));
+            setStatus(normalizeError(err), false);
         } finally {
             deleteConfirmBtn.disabled = false;
         }
@@ -180,7 +180,7 @@ const loadEvents = async () => {
       card.appendChild(meta);
       card.appendChild(desc);
       
-      const canManage = currentUser?.global_role === 'admin' || Number(event.created_by) === Number(currentUser?.id);
+      const canManage = Boolean(event.can_manage);
       if (canManage) {
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity';
@@ -217,7 +217,7 @@ const loadEvents = async () => {
 
 apiFetch('/auth/me')
   .then((response) => {
-    currentUser = response?.data;
+    currentUser = response?.data?.user || null;
     const entities = response?.data?.entities || [];
     entitySelect.innerHTML = '';
     entities.forEach((entity) => {

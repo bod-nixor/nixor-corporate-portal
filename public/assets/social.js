@@ -10,6 +10,7 @@ const statusEl = document.getElementById("social-status");
 let currentUser = null;
 let editingPostId = null;
 let deletingItem = null;
+let editingCommentId = null;
 const deleteModal = document.getElementById("delete-modal");
 const deleteMessage = document.getElementById("delete-message");
 const deleteConfirmBtn = document.getElementById("delete-confirm");
@@ -52,6 +53,10 @@ const cancelEdit = () => {
   const cancelBtn = document.getElementById("social-cancel-edit");
   if (cancelBtn) cancelBtn.classList.add("hidden");
   statusEl.classList.add("hidden");
+};
+const resetCommentEdit = () => {
+  editingCommentId = null;
+  loadPosts();
 };
 const deleteItem = (type, id, text) => {
   deletingItem = { type, id, text };
@@ -104,7 +109,7 @@ if (deleteConfirmBtn) {
       closeDeleteModal();
       loadPosts();
     } catch (err) {
-      alert(normalizeError(err));
+      setStatus(normalizeError(err), false);
     } finally {
       deleteConfirmBtn.disabled = false;
     }
@@ -150,7 +155,7 @@ const loadPosts = async () => {
         "text-[15px] font-medium text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap";
       content.textContent = post.content;
       const commentList = document.createElement("div");
-      const postComments = comments.filter((c) => c.post_id === post.id);
+      const postComments = comments.filter((c) => Number(c.post_id) === Number(post.id));
       if (postComments.length > 0) {
         commentList.className =
           "mt-6 space-y-3.5 border-t border-[var(--border-subtle)] pt-4";
@@ -175,18 +180,69 @@ const loadPosts = async () => {
           cContent.appendChild(commentSpan);
           line.appendChild(cAvatar);
           line.appendChild(cContent);
-          const canManageComment =
-            currentUser?.global_role === "admin" ||
-            Number(comment.user_id) === Number(currentUser?.id);
+          const canManageComment = Boolean(comment.can_manage);
           if (canManageComment) {
+            const commentActions = document.createElement("div");
+            commentActions.className =
+              "flex gap-1 opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 transition-opacity shrink-0";
+            const editCommentBtn = document.createElement("button");
+            editCommentBtn.type = "button";
+            editCommentBtn.className =
+              "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] p-1 mt-1";
+            editCommentBtn.setAttribute("aria-label", "Edit reply");
+            editCommentBtn.innerHTML =
+              '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>';
+            editCommentBtn.onclick = () => {
+              if (editingCommentId === comment.id) return;
+              editingCommentId = comment.id;
+              cContent.innerHTML = "";
+              const editForm = document.createElement("form");
+              editForm.className = "flex w-full gap-2";
+              const editInput = document.createElement("input");
+              editInput.className = "input-field py-1.5 text-sm flex-1";
+              editInput.value = comment.comment;
+              const saveBtn = document.createElement("button");
+              saveBtn.type = "submit";
+              saveBtn.className = "btn btn-secondary py-1.5 px-3 text-xs";
+              saveBtn.textContent = "Save";
+              const cancelBtn = document.createElement("button");
+              cancelBtn.type = "button";
+              cancelBtn.className = "btn btn-ghost py-1.5 px-2 text-xs";
+              cancelBtn.textContent = "Cancel";
+              cancelBtn.onclick = resetCommentEdit;
+              editForm.append(editInput, saveBtn, cancelBtn);
+              editForm.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                const nextValue = editInput.value.trim();
+                if (!nextValue) return;
+                try {
+                  saveBtn.disabled = true;
+                  await apiFetch(`/social/comments/${comment.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify({ comment: nextValue }),
+                  });
+                  editingCommentId = null;
+                  loadPosts();
+                } catch (err) {
+                  setStatus(normalizeError(err), false);
+                } finally {
+                  saveBtn.disabled = false;
+                }
+              });
+              cContent.appendChild(editForm);
+              editInput.focus();
+            };
             const delCommentBtn = document.createElement("button");
+            delCommentBtn.type = "button";
             delCommentBtn.className =
-              "opacity-0 group-hover/comment:opacity-100 transition-opacity text-[var(--text-tertiary)] hover:text-[var(--color-danger)] p-1 mt-1 shrink-0";
+              "text-[var(--text-tertiary)] hover:text-[var(--color-danger)] p-1 mt-1";
+            delCommentBtn.setAttribute("aria-label", "Delete reply");
             delCommentBtn.innerHTML =
               '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
             delCommentBtn.onclick = () =>
               deleteItem("comment", comment.id, comment.comment);
-            line.appendChild(delCommentBtn);
+            commentActions.append(editCommentBtn, delCommentBtn);
+            line.appendChild(commentActions);
           }
           commentList.appendChild(line);
         });
@@ -224,9 +280,7 @@ const loadPosts = async () => {
       card.appendChild(content);
       if (commentList.children.length) card.appendChild(commentList);
       card.appendChild(commentForm);
-      const canManagePost =
-        currentUser?.global_role === "admin" ||
-        Number(post.user_id) === Number(currentUser?.id);
+      const canManagePost = Boolean(post.can_manage);
       if (canManagePost) {
         const actionsDiv = document.createElement("div");
         actionsDiv.className =
@@ -265,7 +319,7 @@ const loadPosts = async () => {
 };
 apiFetch("/auth/me")
   .then((response) => {
-    currentUser = response?.data;
+    currentUser = response?.data?.user || null;
     const entities = response?.data?.entities || [];
     entitySelect.innerHTML = "";
     entities.forEach((entity) => {
@@ -309,7 +363,7 @@ form.addEventListener("submit", async (event) => {
         body: JSON.stringify({ content: form.content.value }),
       });
       setStatus("Post updated successfully.", true);
-      window.cancelEdit();
+      cancelEdit();
     } else {
       await apiFetch("/social", {
         method: "POST",
