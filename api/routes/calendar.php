@@ -9,7 +9,7 @@ function handle_calendar(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         ensure_entity_access($entityId, []);
-        $stmt = db()->prepare('SELECT c.*, u.full_name FROM calendar_events c JOIN users u ON c.created_by = u.id WHERE c.entity_id = ? ORDER BY c.event_date ASC LIMIT 50');
+        $stmt = db()->prepare('SELECT c.*, u.full_name FROM calendar_events c JOIN users u ON c.created_by = u.id WHERE c.entity_id = ? AND c.event_date >= "2000-01-01 00:00:00" AND c.event_date < "2101-01-01 00:00:00" ORDER BY c.event_date ASC LIMIT 50');
         $stmt->execute([$entityId]);
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
@@ -23,21 +23,12 @@ function handle_calendar(string $method, array $segments): void {
         ensure_entity_access($entityId, []);
         $title = require_non_empty($data['title'] ?? '', 'title', 190);
         $eventDate = $data['event_date'] ?? '';
-        if ($eventDate === '') {
-            respond(['ok' => false, 'error' => 'event_date required'], 400);
+        $dateTime = parse_calendar_datetime($eventDate, 'event_date', true);
+        $endDate = parse_calendar_datetime($data['end_date'] ?? ($data['event_end_at'] ?? null), 'end_date', false);
+        if ($endDate && $endDate < $dateTime) {
+            respond(['ok' => false, 'error' => 'end_date must be after event_date'], 400);
         }
-        $normalizedDate = null;
-        $dateTime = DateTime::createFromFormat('Y-m-d\\TH:i', $eventDate);
-        if ($dateTime && $dateTime->format('Y-m-d\\TH:i') === $eventDate) {
-            $normalizedDate = $dateTime->format('Y-m-d H:i:s');
-        } else {
-            $iso = DateTime::createFromFormat(DateTime::ATOM, $eventDate);
-            if ($iso && $iso->format(DateTime::ATOM) === $eventDate) {
-                $normalizedDate = $iso->format('Y-m-d H:i:s');
-            } else {
-                respond(['ok' => false, 'error' => 'Invalid event_date format'], 400);
-            }
-        }
+        $normalizedDate = $dateTime->format('Y-m-d H:i:s');
         $description = sanitize_text($data['description'] ?? '', 2000);
         $location = sanitize_text($data['location'] ?? '', 190);
         $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?)');
@@ -68,4 +59,33 @@ function handle_calendar(string $method, array $segments): void {
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function parse_calendar_datetime($value, string $field, bool $required): ?DateTime {
+    if ($value === null || $value === '') {
+        if ($required) {
+            respond(['ok' => false, 'error' => "{$field} required"], 400);
+        }
+        return null;
+    }
+
+    $value = (string)$value;
+    $formats = ['Y-m-d\\TH:i', DateTime::ATOM, 'Y-m-d H:i:s'];
+    foreach ($formats as $format) {
+        $dt = DateTime::createFromFormat($format, $value);
+        $errors = DateTime::getLastErrors();
+        $isValid = $dt
+            && ($errors === false || (($errors['warning_count'] ?? 0) === 0 && ($errors['error_count'] ?? 0) === 0))
+            && $dt->format($format) === $value;
+        if (!$isValid) {
+            continue;
+        }
+        $year = (int)$dt->format('Y');
+        if ($year < 2000 || $year > 2100) {
+            respond(['ok' => false, 'error' => "{$field} must be between years 2000 and 2100"], 400);
+        }
+        return $dt;
+    }
+
+    respond(['ok' => false, 'error' => "Invalid {$field} format"], 400);
 }

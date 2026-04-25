@@ -117,6 +117,9 @@ function handle_endeavours(string $method, array $segments): void {
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $eventStart = validate_datetime($data['event_start_at'] ?? null, 'event_start_at');
         $eventEnd = validate_datetime($data['event_end_at'] ?? null, 'event_end_at');
+        if ($eventStart && $eventEnd && strtotime($eventEnd) < strtotime($eventStart)) {
+            respond(['ok' => false, 'error' => 'event_end_at must be after event_start_at'], 400);
+        }
         $startDate = $eventStart ? substr($eventStart, 0, 10) : null;
         $endDate = $eventEnd ? substr($eventEnd, 0, 10) : null;
         $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -199,6 +202,9 @@ function handle_endeavours(string $method, array $segments): void {
         $name = require_non_empty($data['name'] ?? $endeavour['name'] ?? '', 'name', 190);
         $eventStart = validate_datetime($data['event_start_at'] ?? $endeavour['event_start_at'] ?? null, 'event_start_at');
         $eventEnd = validate_datetime($data['event_end_at'] ?? $endeavour['event_end_at'] ?? null, 'event_end_at');
+        if ($eventStart && $eventEnd && strtotime($eventEnd) < strtotime($eventStart)) {
+            respond(['ok' => false, 'error' => 'event_end_at must be after event_start_at'], 400);
+        }
         $startDate = $eventStart ? substr($eventStart, 0, 10) : ($data['start_date'] ?? $endeavour['start_date']);
         $endDate = $eventEnd ? substr($eventEnd, 0, 10) : ($data['end_date'] ?? $endeavour['end_date']);
         $stmt = db()->prepare('UPDATE endeavours SET name = ?, description = ?, venue = ?, schedule = ?, start_date = ?, end_date = ?, transport_payment_required = ?, volunteering_enabled = ?, transport_fee_required = ?, volunteer_registration_deadline = ?, pre_financial_deadline = ?, post_financial_deadline = ?, event_start_at = ?, event_end_at = ? WHERE id = ?');
