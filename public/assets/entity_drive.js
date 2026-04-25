@@ -1,4 +1,4 @@
-﻿import { apiFetch, normalizeError } from '/assets/app.js';
+import { apiFetch, normalizeError } from '/assets/app.js';
 import { renderSidebar } from '/assets/sidebar.js';
 
 document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_drive');
@@ -424,7 +424,7 @@ function rowTemplate(item) {
   checkCell.appendChild(checkbox);
 
   const nameCell = document.createElement('td');
-  nameCell.className = 'px-4 py-2.5 align-middle w-1/3';
+  nameCell.className = 'px-4 py-2.5 align-middle';
   const nameWrapper = document.createElement('div');
   nameWrapper.className = 'flex items-center gap-3 min-w-0';
   nameWrapper.appendChild(createIconContainer(item.item_type));
@@ -449,11 +449,11 @@ function rowTemplate(item) {
   sharingCell.appendChild(createSharingCell(item));
 
   const sizeCell = document.createElement('td');
-  sizeCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle';
+  sizeCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle truncate';
   sizeCell.textContent = formatSize(item);
 
   const modifiedCell = document.createElement('td');
-  modifiedCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle whitespace-nowrap';
+  modifiedCell.className = 'px-4 py-2.5 font-medium text-[var(--text-tertiary)] align-middle hidden sm:table-cell';
   modifiedCell.textContent = formatDate(item.updated_at || item.created_at);
 
   const actionCell = document.createElement('td');
@@ -551,15 +551,28 @@ function renderItems() {
 
 function setInspectorVisible(open) {
   state.mobileInspectorOpen = open;
-  if (isDesktopInspector()) {
+  if (open) {
     el.inspectorPanel.classList.remove('hidden');
+    el.inspectorPanel.classList.add('flex');
+    if (!isDesktopInspector()) {
+      setNodeHidden(el.inspectorBackdrop, false);
+    } else {
+      setNodeHidden(el.inspectorBackdrop, true);
+    }
+  } else {
+    el.inspectorPanel.classList.add('hidden');
+    el.inspectorPanel.classList.remove('flex');
     setNodeHidden(el.inspectorBackdrop, true);
-    return;
   }
-  el.inspectorPanel.classList.toggle('hidden', !open);
-  setNodeHidden(el.inspectorBackdrop, !open);
+} else {
+      setNodeHidden(el.inspectorBackdrop, true);
+    }
+  } else {
+    el.inspectorPanel.classList.add('hidden', 'xl:hidden');
+    el.inspectorPanel.classList.remove('flex', 'xl:flex');
+    setNodeHidden(el.inspectorBackdrop, true);
+  }
 }
-
 function renderInspector() {
   const item = state.activeItem;
   const preview = state.activePreview;
@@ -1280,6 +1293,17 @@ function bindListEvents(container) {
     }
   });
 
+  container.addEventListener('dblclick', async (event) => {
+    if (event.target.closest('[data-open-folder]')) return;
+    const card = event.target.closest('[data-id]');
+    if (!card) return;
+    const item = getItemById(Number(card.dataset.id));
+    if (item && item.item_type === 'folder') {
+      event.preventDefault();
+      navigateToFolder(item);
+    }
+  });
+
   container.addEventListener('contextmenu', (event) => {
     const row = event.target.closest('[data-id]');
     if (!row) return;
@@ -1572,3 +1596,8 @@ boot().catch((error) => {
   setStatus(message, 'error');
   toast(message, 'error');
 });
+
+
+
+
+

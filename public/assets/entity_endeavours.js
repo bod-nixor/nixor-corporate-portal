@@ -475,8 +475,10 @@ const renderEndeavours = (rows, driveFiles) => {
         const card = document.createElement('div');
         card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-hidden mb-10 transition-transform duration-300 hover:border-[#3b82f640]';
 
-        const header = document.createElement('div');
-        header.className = 'flex flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)]';
+        const header = document.createElement('button');
+        header.className = 'flex w-full text-left flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)] hover:bg-[rgba(255,255,255,0.03)] transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]';
+        header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', bodyContainer.id);
 
         const titleContent = document.createElement('div');
         titleContent.className = 'flex items-center gap-4';
@@ -485,7 +487,7 @@ const renderEndeavours = (rows, driveFiles) => {
         iconDiv.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>`;
 
         const textDiv = document.createElement('div');
-        const title = document.createElement('h3');
+        const title = document.createElement('span');
         title.className = 'text-xl font-bold tracking-tight text-[var(--text-primary)] leading-tight';
         title.textContent = row.name;
 
@@ -502,7 +504,31 @@ const renderEndeavours = (rows, driveFiles) => {
         header.appendChild(titleContent);
         card.appendChild(header);
 
-        card.appendChild(renderStepper(row.phase));
+        const toggleIcon = document.createElement('div');
+        toggleIcon.className = 'text-[var(--text-secondary)] transition-transform duration-300';
+        toggleIcon.innerHTML = `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+        header.appendChild(toggleIcon);
+
+        const bodyContainer = document.createElement('div');
+        bodyContainer.className = 'hidden flex-col';
+
+        header.addEventListener('click', () => {
+            const isExpanded = bodyContainer.classList.contains('hidden');
+            if (isExpanded) {
+                bodyContainer.classList.remove('hidden');
+                bodyContainer.classList.add('flex');
+                toggleIcon.classList.add('rotate-180');
+                header.setAttribute('aria-expanded', 'true');
+            } else {
+                bodyContainer.classList.add('hidden');
+                bodyContainer.classList.remove('flex');
+                toggleIcon.classList.remove('rotate-180');
+                header.setAttribute('aria-expanded', 'false');
+    header.setAttribute('aria-controls', bodyContainer.id);
+            }
+        });
+
+        bodyContainer.appendChild(renderStepper(row.phase));
 
         const contentGrid = document.createElement('div');
         contentGrid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-6 p-6 md:p-8 bg-[var(--bg-surface)]';
@@ -522,7 +548,8 @@ const renderEndeavours = (rows, driveFiles) => {
         }
 
         contentGrid.appendChild(col2);
-        card.appendChild(contentGrid);
+        bodyContainer.appendChild(contentGrid);
+        card.appendChild(bodyContainer);
         listEl.appendChild(card);
     });
 };
@@ -618,3 +645,5 @@ createForm.addEventListener('submit', async (event) => {
         }
     }
 });
+
+
