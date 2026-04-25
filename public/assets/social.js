@@ -133,26 +133,27 @@ const loadPosts = async () => {
       card.className =
         "bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6 hover:border-[var(--border-strong)] transition-colors shadow-sm relative group";
       const headerWrap = document.createElement("div");
-      headerWrap.className = "flex items-center gap-3 mb-4";
+      headerWrap.className = "flex items-center gap-3 mb-4 min-w-0";
       const avatar = document.createElement("div");
       const hue = ((post.full_name || "").length * 10) % 360;
       avatar.className = "w-10 h-10 rounded-full shadow-inner flex-shrink-0";
       avatar.style.background = `linear-gradient(135deg, hsl(${hue}, 80%, 60%), hsl(${(hue + 40) % 360}, 80%, 40%))`;
       const headerName = document.createElement("p");
-      headerName.className = "font-bold text-[var(--text-primary)] text-sm";
+      headerName.className = "font-bold text-[var(--text-primary)] text-sm truncate";
       headerName.textContent = post.full_name;
       const metaTime = document.createElement("p");
       metaTime.className =
         "text-[10px] font-bold text-[var(--text-tertiary)] tracking-widest uppercase mt-0.5";
       metaTime.textContent = new Date(post.created_at).toLocaleString();
       const nameMetaGroup = document.createElement("div");
+      nameMetaGroup.className = "min-w-0";
       nameMetaGroup.appendChild(headerName);
       nameMetaGroup.appendChild(metaTime);
       headerWrap.appendChild(avatar);
       headerWrap.appendChild(nameMetaGroup);
       const content = document.createElement("p");
       content.className =
-        "text-[15px] font-medium text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap";
+        "text-[15px] font-medium text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap break-words";
       content.textContent = post.content;
       const commentList = document.createElement("div");
       const postComments = comments.filter((c) => Number(c.post_id) === Number(post.id));
@@ -174,7 +175,7 @@ const loadPosts = async () => {
           nameSpan.textContent = comment.full_name;
           const commentSpan = document.createElement("span");
           commentSpan.className =
-            "text-[var(--text-secondary)] font-medium leading-snug break-all sm:break-normal";
+            "text-[var(--text-secondary)] font-medium leading-snug break-words";
           commentSpan.textContent = comment.comment;
           cContent.appendChild(nameSpan);
           cContent.appendChild(commentSpan);
@@ -184,7 +185,7 @@ const loadPosts = async () => {
           if (canManageComment) {
             const commentActions = document.createElement("div");
             commentActions.className =
-              "flex gap-1 opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 transition-opacity shrink-0";
+              "flex gap-1 opacity-100 sm:opacity-0 sm:pointer-events-none sm:group-hover/comment:opacity-100 sm:group-hover/comment:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity shrink-0";
             const editCommentBtn = document.createElement("button");
             editCommentBtn.type = "button";
             editCommentBtn.className =
@@ -248,13 +249,13 @@ const loadPosts = async () => {
         });
       }
       const commentForm = document.createElement("form");
-      commentForm.className = `flex gap-2 relative ${postComments.length === 0 ? "mt-6 pt-4 border-t border-[var(--border-subtle)]" : "mt-4"}`;
+      commentForm.className = `flex flex-col sm:flex-row gap-2 relative ${postComments.length === 0 ? "mt-6 pt-4 border-t border-[var(--border-subtle)]" : "mt-4"}`;
       const commentInput = document.createElement("input");
       commentInput.className =
         "input-field font-medium py-2 px-4 shadow-inner text-sm flex-1 bg-[var(--bg-base)]";
       commentInput.placeholder = "Write a reply...";
       const commentButton = document.createElement("button");
-      commentButton.className = "btn btn-secondary px-4 py-2 shadow-sm text-sm";
+      commentButton.className = "btn btn-secondary px-4 py-2 shadow-sm text-sm w-full sm:w-auto";
       commentButton.textContent = "Reply";
       commentForm.appendChild(commentInput);
       commentForm.appendChild(commentButton);
@@ -284,7 +285,7 @@ const loadPosts = async () => {
       if (canManagePost) {
         const actionsDiv = document.createElement("div");
         actionsDiv.className =
-          "absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity";
+          "absolute top-4 right-4 flex gap-1 opacity-100 sm:opacity-0 sm:pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity";
         const postStr = encodeURIComponent(JSON.stringify(post));
         const editBtn = document.createElement("button");
         editBtn.type = "button";

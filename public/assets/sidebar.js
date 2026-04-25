@@ -22,7 +22,7 @@ export function renderSidebar(activeId) {
   }).join('\n        ');
 
   return `
-    <button id="mobile-menu-btn" class="block md:hidden fixed top-5 right-5 z-50 p-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-xl shadow-lg" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
+    <button id="mobile-menu-btn" class="app-mobile-menu-button" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
       <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
       </svg>
@@ -30,7 +30,7 @@ export function renderSidebar(activeId) {
     
     <div id="sidebar-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden md:hidden transition-opacity duration-300 opacity-0"></div>
 
-    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 md:w-64 min-h-screen bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] p-6 transform -translate-x-full md:translate-x-0 md:relative transition-transform duration-300 ease-in-out flex flex-col">
+    <aside id="sidebar" class="app-sidebar -translate-x-full md:translate-x-0">
       <div class="flex items-center gap-3 mb-8 px-2">
         <div class="w-8 h-8 rounded-lg bg-[var(--text-primary)] flex items-center justify-center">
           <svg class="w-5 h-5 text-[var(--bg-base)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,7 +39,7 @@ export function renderSidebar(activeId) {
         </div>
         <span class="text-sm uppercase tracking-widest text-[var(--text-primary)] font-bold">Nixor Portal</span>
       </div>
-      <nav class="space-y-1.5 flex-1">
+      <nav class="app-sidebar-nav space-y-1.5 flex-1">
         ${navHtml}
       </nav>
       <div class="mt-auto pt-6 border-t border-[var(--border-subtle)] px-2">

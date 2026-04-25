@@ -101,23 +101,23 @@ const renderEndeavours = (rows) => {
         const fmtDate = (value) => value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'TBD';
 
         const dateRow = document.createElement('div');
-        dateRow.className = 'flex justify-between items-center text-xs font-medium';
+        dateRow.className = 'flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-xs font-medium';
         const dateLabel = document.createElement('span');
         dateLabel.className = 'text-[var(--text-tertiary)]';
         dateLabel.textContent = 'Event Dates';
         const dateSpan = document.createElement('span');
-        dateSpan.className = 'text-[var(--text-primary)]';
+        dateSpan.className = 'text-[var(--text-primary)] sm:text-right break-words';
         dateSpan.textContent = `${fmtDate(row.event_start_at)} \u2013 ${fmtDate(row.event_end_at)}`;
         dateRow.appendChild(dateLabel);
         dateRow.appendChild(dateSpan);
 
         const applyRow = document.createElement('div');
-        applyRow.className = 'flex justify-between items-center text-xs font-medium';
+        applyRow.className = 'flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-xs font-medium';
         const applyLabel = document.createElement('span');
         applyLabel.className = 'text-[var(--text-tertiary)]';
         applyLabel.textContent = 'Apply By';
         const applySpan = document.createElement('span');
-        applySpan.className = 'text-[#fcd34d] font-bold';
+        applySpan.className = 'text-[#fcd34d] font-bold sm:text-right break-words';
         applySpan.textContent = fmtDate(row.volunteer_registration_deadline);
         applyRow.appendChild(applyLabel);
         applyRow.appendChild(applySpan);
@@ -126,7 +126,7 @@ const renderEndeavours = (rows) => {
         meta.appendChild(applyRow);
 
         const actions = document.createElement('div');
-        actions.className = 'mt-5 pt-1 flex items-center gap-3 w-full';
+        actions.className = 'mt-5 pt-1 flex flex-col sm:flex-row sm:items-center gap-3 w-full';
 
         const registerButton = document.createElement('button');
         registerButton.className = 'btn btn-primary flex-1 shadow-sm';
@@ -148,7 +148,7 @@ const renderEndeavours = (rows) => {
 
         const viewLink = document.createElement('a');
         viewLink.href = `/endeavour_view.html?id=${row.id}`;
-        viewLink.className = 'btn btn-secondary px-5 shadow-sm';
+        viewLink.className = 'btn btn-secondary px-5 shadow-sm w-full sm:w-auto';
         viewLink.textContent = 'Details';
 
         const registerError = document.createElement('p');

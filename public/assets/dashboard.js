@@ -159,21 +159,21 @@ const loadDashboard = async (entityId) => {
                 const acard = document.createElement('div');
                 acard.className = 'card card-hoverable';
                 const headerRow = document.createElement('div');
-                headerRow.className = 'flex items-center justify-between mb-2';
+                headerRow.className = 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2 min-w-0';
 
                 const title = document.createElement('h3');
-                title.className = 'text-lg font-semibold tracking-tight';
+                title.className = 'text-lg font-semibold tracking-tight min-w-0 break-words';
                 title.textContent = announcement.title;
 
                 const meta = document.createElement('p');
-                meta.className = 'text-xs font-medium text-slate-500';
+                meta.className = 'text-xs font-medium text-slate-500 min-w-0 truncate';
                 meta.textContent = `${announcement.creator_name || announcement.full_name || 'System'}`;
 
                 headerRow.appendChild(title);
                 headerRow.appendChild(meta);
 
                 const message = document.createElement('p');
-                message.className = 'text-sm text-slate-300 leading-relaxed';
+                message.className = 'text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words';
                 message.textContent = announcement.message;
 
                 acard.appendChild(headerRow);

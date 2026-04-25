@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Render sidebar
     const sidebarContainer = document.getElementById('sidebar-container');
     if (sidebarContainer) {
-        sidebarContainer.innerHTML = renderSidebar('settings');
+        sidebarContainer.outerHTML = renderSidebar('settings');
     }
 
     // Theme logic
