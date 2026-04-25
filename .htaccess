@@ -4,6 +4,13 @@ DirectoryIndex index.html
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Clean API URLs should dispatch through api/index.php on cPanel/Apache.
+    # Existing files such as /api/index.php remain directly reachable for fallback compatibility.
+    RewriteRule ^api/?$ api/index.php [QSA,L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^api/ api/index.php [QSA,L]
+
     # Send root requests directly to the public index
     RewriteRule ^$ public/index.html [L]
 
