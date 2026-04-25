@@ -471,6 +471,98 @@ final class ApiTest extends TestCase {
         $this->assertSame('Endeavour not found for entity', $response['data']['error']);
     }
 
+    public function testEndeavourListReturnsEmptyStateAsSuccess(): void {
+        $userId = $this->createUser('exec-empty@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Empty Endeavours Entity');
+        $this->addMembership($entityId, $userId, 'operations', 'executive');
+
+        $client = $this->loginClient('exec-empty@example.com', 'Password123!');
+        $empty = $client->request('GET', '/api/endeavours?entity_id=' . $entityId);
+        $this->assertSame(200, $empty['status']);
+        $this->assertSame([], $empty['data']['data']);
+
+        $endeavourId = $this->createEndeavour($entityId, $userId, 'Loaded Workflow', 'PRE_EVENT', false, '+5 days');
+        $loaded = $client->request('GET', '/api/endeavours?entity_id=' . $entityId);
+        $this->assertSame(200, $loaded['status']);
+        $ids = array_map('intval', array_column($loaded['data']['data'], 'id'));
+        $this->assertContains($endeavourId, $ids);
+    }
+
+    public function testCalendarManagerCanEditAndDeleteButMemberCannot(): void {
+        $creatorId = $this->createUser('calendar-creator@example.com', 'Password123!', 'staff');
+        $managerId = $this->createUser('calendar-manager@example.com', 'Password123!', 'staff');
+        $memberId = $this->createUser('calendar-member@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Calendar Permissions Entity');
+        $this->addMembership($entityId, $creatorId, 'operations', 'member');
+        $this->addMembership($entityId, $managerId, 'management', 'manager');
+        $this->addMembership($entityId, $memberId, 'operations', 'member');
+
+        $eventId = $this->createCalendarEvent($entityId, $creatorId, 'Editable Event');
+        $managerClient = $this->loginClient('calendar-manager@example.com', 'Password123!');
+        $list = $managerClient->request('GET', '/api/calendar?entity_id=' . $entityId);
+        $this->assertSame(200, $list['status']);
+        $listedEvent = array_values(array_filter($list['data']['data'], fn($event) => (int)$event['id'] === $eventId))[0] ?? null;
+        $this->assertTrue((bool)($listedEvent['can_manage'] ?? false));
+
+        $update = $managerClient->request('PUT', '/api/calendar/' . $eventId, [
+            'title' => 'Edited Event',
+            'event_date' => '2026-06-01T10:00',
+            'end_date' => '2026-06-01T11:00',
+            'location' => 'Board Room',
+            'description' => 'Updated by manager'
+        ], ["X-CSRF-Token: {$managerClient->csrfToken}"]);
+        $this->assertSame(200, $update['status']);
+
+        $memberClient = $this->loginClient('calendar-member@example.com', 'Password123!');
+        $blocked = $memberClient->request('DELETE', '/api/calendar/' . $eventId, null, ["X-CSRF-Token: {$memberClient->csrfToken}"]);
+        $this->assertSame(403, $blocked['status']);
+
+        $delete = $managerClient->request('DELETE', '/api/calendar/' . $eventId, null, ["X-CSRF-Token: {$managerClient->csrfToken}"]);
+        $this->assertSame(200, $delete['status']);
+    }
+
+    public function testSocialModerationPermissionsForPostsAndComments(): void {
+        $authorId = $this->createUser('social-author@example.com', 'Password123!', 'staff');
+        $commenterId = $this->createUser('social-commenter@example.com', 'Password123!', 'staff');
+        $managerId = $this->createUser('social-manager@example.com', 'Password123!', 'staff');
+        $memberId = $this->createUser('social-member@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Social Permissions Entity');
+        $this->addMembership($entityId, $authorId, 'operations', 'member');
+        $this->addMembership($entityId, $commenterId, 'operations', 'member');
+        $this->addMembership($entityId, $managerId, 'communications', 'manager');
+        $this->addMembership($entityId, $memberId, 'operations', 'member');
+
+        $postId = $this->createSocialPost($entityId, $authorId, 'Original post');
+        $commentId = $this->createSocialComment($postId, $commenterId, 'Original reply');
+
+        $managerClient = $this->loginClient('social-manager@example.com', 'Password123!');
+        $feed = $managerClient->request('GET', '/api/social?entity_id=' . $entityId);
+        $this->assertSame(200, $feed['status']);
+        $listedPost = array_values(array_filter($feed['data']['data']['posts'], fn($post) => (int)$post['id'] === $postId))[0] ?? null;
+        $listedComment = array_values(array_filter($feed['data']['data']['comments'], fn($comment) => (int)$comment['id'] === $commentId))[0] ?? null;
+        $this->assertTrue((bool)($listedPost['can_manage'] ?? false));
+        $this->assertTrue((bool)($listedComment['can_manage'] ?? false));
+
+        $postUpdate = $managerClient->request('PUT', '/api/social/' . $postId, [
+            'content' => 'Moderated post'
+        ], ["X-CSRF-Token: {$managerClient->csrfToken}"]);
+        $this->assertSame(200, $postUpdate['status']);
+
+        $commentUpdate = $managerClient->request('PUT', '/api/social/comments/' . $commentId, [
+            'comment' => 'Moderated reply'
+        ], ["X-CSRF-Token: {$managerClient->csrfToken}"]);
+        $this->assertSame(200, $commentUpdate['status']);
+
+        $memberClient = $this->loginClient('social-member@example.com', 'Password123!');
+        $blockedPost = $memberClient->request('DELETE', '/api/social/' . $postId, null, ["X-CSRF-Token: {$memberClient->csrfToken}"]);
+        $this->assertSame(403, $blockedPost['status']);
+
+        $deleteComment = $managerClient->request('DELETE', '/api/social/comments/' . $commentId, null, ["X-CSRF-Token: {$managerClient->csrfToken}"]);
+        $this->assertSame(200, $deleteComment['status']);
+        $deletePost = $managerClient->request('DELETE', '/api/social/' . $postId, null, ["X-CSRF-Token: {$managerClient->csrfToken}"]);
+        $this->assertSame(200, $deletePost['status']);
+    }
+
     public function testDashboardProgressAndDeadlinesUseActionableData(): void {
         $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
         $entityId = $this->createEntity('Dashboard Entity');
@@ -625,6 +717,24 @@ final class ApiTest extends TestCase {
             $deadline,
             $deadline
         ]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function createCalendarEvent(int $entityId, int $creatorId, string $title): int {
+        $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, event_date, created_by) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$entityId, $title, '2026-05-01 12:00:00', $creatorId]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function createSocialPost(int $entityId, int $userId, string $content): int {
+        $stmt = db()->prepare('INSERT INTO social_posts (entity_id, user_id, content) VALUES (?, ?, ?)');
+        $stmt->execute([$entityId, $userId, $content]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function createSocialComment(int $postId, int $userId, string $comment): int {
+        $stmt = db()->prepare('INSERT INTO social_comments (post_id, user_id, comment) VALUES (?, ?, ?)');
+        $stmt->execute([$postId, $userId, $comment]);
         return (int)db()->lastInsertId();
     }
 
