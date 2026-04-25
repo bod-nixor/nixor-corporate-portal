@@ -203,6 +203,24 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
     }
 };
 
+const setWorkflowCardExpanded = (card, expanded) => {
+    const body = card.querySelector(':scope > .workflow-body');
+    const header = card.querySelector(':scope > .workflow-summary');
+    const toggleText = card.querySelector('[data-role="toggle-text"]');
+    const toggleIcon = card.querySelector('[data-role="toggle-icon"]');
+    const workflowName = card.dataset.workflowName || 'workflow';
+
+    if (!body || !header) return;
+
+    body.hidden = !expanded;
+    body.classList.toggle('is-open', expanded);
+    card.classList.toggle('is-expanded', expanded);
+    header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    header.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} workflow ${workflowName}`);
+    if (toggleText) toggleText.textContent = expanded ? 'Collapse' : 'Expand';
+    if (toggleIcon) toggleIcon.classList.toggle('rotate-180', expanded);
+};
+
 const buildPlansCard = (row, driveFiles) => {
     const plansCard = document.createElement('div');
     plansCard.className = 'workflow-panel';
@@ -395,7 +413,7 @@ const buildVolCard = (row, currentUser) => {
 
 const buildAdminCard = (row) => {
     const adminCard = document.createElement('div');
-    adminCard.className = 'workflow-panel relative overflow-hidden bg-[rgba(59,130,246,0.05)] border-[rgba(59,130,246,0.15)]';
+    adminCard.className = 'workflow-panel workflow-panel--admin relative bg-[rgba(59,130,246,0.05)] border-[rgba(59,130,246,0.15)]';
 
     adminCard.innerHTML = `
       <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
@@ -509,10 +527,12 @@ const renderEndeavours = (rows, driveFiles) => {
     rows.forEach((row) => {
         const card = document.createElement('article');
         card.className = 'workflow-card card animate-fade-in !p-0';
+        card.dataset.workflowName = row.name || 'workflow';
 
         const bodyContainer = document.createElement('div');
         bodyContainer.id = `endeavour-body-${row.id}`;
         bodyContainer.className = 'workflow-body';
+        bodyContainer.hidden = true;
 
         const header = document.createElement('button');
         header.className = 'workflow-summary';
@@ -561,8 +581,10 @@ const renderEndeavours = (rows, driveFiles) => {
         const toggleWrap = document.createElement('span');
         toggleWrap.className = 'inline-flex items-center gap-2 self-end sm:self-center shrink-0 text-xs font-bold text-[var(--text-secondary)]';
         const toggleText = document.createElement('span');
+        toggleText.dataset.role = 'toggle-text';
         toggleText.textContent = 'Expand';
         const toggleIcon = document.createElement('span');
+        toggleIcon.dataset.role = 'toggle-icon';
         toggleIcon.className = 'transition-transform duration-300';
         toggleIcon.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
         toggleWrap.append(toggleText, toggleIcon);
@@ -570,43 +592,24 @@ const renderEndeavours = (rows, driveFiles) => {
 
         header.addEventListener('click', () => {
             const isExpanded = bodyContainer.classList.contains('is-open');
-            if (!isExpanded) {
-                bodyContainer.classList.add('is-open');
-                toggleIcon.classList.add('rotate-180');
-                toggleText.textContent = 'Collapse';
-                header.setAttribute('aria-expanded', 'true');
-                header.setAttribute('aria-label', `Collapse workflow ${row.name}`);
-                card.classList.add('is-expanded');
-            } else {
-                bodyContainer.classList.remove('is-open');
-                toggleIcon.classList.remove('rotate-180');
-                toggleText.textContent = 'Expand';
-                header.setAttribute('aria-expanded', 'false');
-                header.setAttribute('aria-label', `Expand workflow ${row.name}`);
-                card.classList.remove('is-expanded');
-            }
+            listEl.querySelectorAll('.workflow-card.is-expanded').forEach((openCard) => {
+                if (openCard !== card) setWorkflowCardExpanded(openCard, false);
+            });
+            setWorkflowCardExpanded(card, !isExpanded);
         });
 
         bodyContainer.appendChild(renderStepper(row.phase));
 
         const contentGrid = document.createElement('div');
-        contentGrid.className = 'workflow-panels-grid';
+        contentGrid.className = 'workflow-panels';
 
-        const col1 = document.createElement('div');
-        col1.className = 'workflow-panel-stack';
-        col1.appendChild(buildPlansCard(row, driveFiles));
-        col1.appendChild(buildFinCard(row, driveFiles));
-        contentGrid.appendChild(col1);
-
-        const col2 = document.createElement('div');
-        col2.className = 'workflow-panel-stack';
-        col2.appendChild(buildVolCard(row, currentUser));
-
+        contentGrid.appendChild(buildPlansCard(row, driveFiles));
+        contentGrid.appendChild(buildVolCard(row, currentUser));
+        contentGrid.appendChild(buildFinCard(row, driveFiles));
         if (['board', 'student_affairs', 'admin'].includes(currentUser?.global_role)) {
-            col2.appendChild(buildAdminCard(row));
+            contentGrid.appendChild(buildAdminCard(row));
         }
 
-        contentGrid.appendChild(col2);
         bodyContainer.appendChild(contentGrid);
         card.appendChild(bodyContainer);
         listEl.appendChild(card);
