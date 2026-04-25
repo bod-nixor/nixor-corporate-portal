@@ -20,8 +20,13 @@ function handle_endeavours(string $method, array $segments): void {
             $params[] = $user['id'];
         }
         if (!empty($_GET['entity_id'])) {
+            $entityId = (int)$_GET['entity_id'];
+            if ($entityId <= 0) {
+                respond(['ok' => false, 'error' => 'Invalid entity_id'], 400);
+            }
+            ensure_entity_access($entityId, []);
             $filters[] = 'e.entity_id = ?';
-            $params[] = (int)$_GET['entity_id'];
+            $params[] = $entityId;
         }
         if (!empty($_GET['q'])) {
             $filters[] = '(e.name LIKE ? ESCAPE "\\\\" OR en.name LIKE ? ESCAPE "\\\\")';

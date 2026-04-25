@@ -409,7 +409,7 @@ function createActionButton(item) {
 
 function rowTemplate(item) {
   const row = document.createElement('tr');
-  const active = state.activeId === item.id;
+  const active = Number(state.activeId) === Number(item.id);
   row.className = `transition-colors group ${active ? 'bg-[rgba(59,130,246,0.1)]' : 'hover:bg-[rgba(255,255,255,0.02)]'}`;
   row.dataset.id = String(item.id);
 
@@ -435,9 +435,6 @@ function rowTemplate(item) {
   nameButton.type = 'button';
   nameButton.className = 'block max-w-full text-left font-semibold text-[var(--text-primary)] hover:text-white truncate pb-0.5';
   nameButton.dataset.selectId = String(item.id);
-  if (item.item_type === 'folder') {
-    nameButton.dataset.openFolder = String(item.id);
-  }
   nameButton.textContent = item.name;
 
   nameMeta.append(nameButton);
@@ -466,7 +463,7 @@ function rowTemplate(item) {
 
 function cardTemplate(item) {
   const card = document.createElement('article');
-  const active = state.activeId === item.id;
+  const active = Number(state.activeId) === Number(item.id);
   card.className = `rounded-xl border p-4 transition-colors shadow-sm relative ${active ? 'border-[var(--color-primary)] bg-[var(--color-primary-ghost)]' : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-strong)]'}`;
   card.dataset.id = String(item.id);
 
@@ -488,11 +485,7 @@ function cardTemplate(item) {
   const body = document.createElement('button');
   body.type = 'button';
   body.className = 'mt-3 w-full text-left relative z-0 focus:outline-none';
-  if (item.item_type === 'folder') {
-    body.dataset.openFolder = String(item.id);
-  } else {
-    body.dataset.selectId = String(item.id);
-  }
+  body.dataset.selectId = String(item.id);
 
   const icon = createIconContainer(item.item_type);
   icon.classList.add('h-10', 'w-10');
@@ -562,14 +555,6 @@ function setInspectorVisible(open) {
   } else {
     el.inspectorPanel.classList.add('hidden');
     el.inspectorPanel.classList.remove('flex');
-    setNodeHidden(el.inspectorBackdrop, true);
-  }
-} else {
-      setNodeHidden(el.inspectorBackdrop, true);
-    }
-  } else {
-    el.inspectorPanel.classList.add('hidden', 'xl:hidden');
-    el.inspectorPanel.classList.remove('flex', 'xl:flex');
     setNodeHidden(el.inspectorBackdrop, true);
   }
 }
@@ -1268,13 +1253,6 @@ function bindListEvents(container) {
       return;
     }
 
-    const folderButton = event.target.closest('[data-open-folder]');
-    if (folderButton) {
-      event.preventDefault();
-      navigateToFolder(Number(folderButton.dataset.openFolder));
-      return;
-    }
-
     const selectButton = event.target.closest('[data-select-id]');
     if (selectButton) {
       event.preventDefault();
@@ -1294,7 +1272,6 @@ function bindListEvents(container) {
   });
 
   container.addEventListener('dblclick', async (event) => {
-    if (event.target.closest('[data-open-folder]')) return;
     const card = event.target.closest('[data-id]');
     if (!card) return;
     const item = getItemById(Number(card.dataset.id));

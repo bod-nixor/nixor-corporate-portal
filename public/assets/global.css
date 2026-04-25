@@ -278,7 +278,17 @@ body {
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
+  max-width: 100%;
+  min-width: 0;
   white-space: nowrap;
+}
+
+.badge.whitespace-normal {
+  white-space: normal;
+}
+
+.badge.break-words {
+  overflow-wrap: anywhere;
 }
 
 .badge-success {
@@ -333,6 +343,42 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
   background-color: var(--bg-surface-hover);
+}
+
+.input-with-icon {
+  position: relative;
+}
+
+.input-icon-left,
+.input-icon-right {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  transform: translateY(-50%);
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.input-icon-left {
+  left: 0.875rem;
+}
+
+.input-icon-right {
+  right: 0.875rem;
+}
+
+.input-with-icon .input-field,
+.input-field.pl-9,
+.input-field.pl-10 {
+  padding-left: 2.5rem !important;
+}
+
+.input-with-icon.has-right-icon .input-field,
+.input-field.pr-9,
+.input-field.pr-10 {
+  padding-right: 2.5rem !important;
 }
 
 /* Base list row transitions */
