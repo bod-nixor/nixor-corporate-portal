@@ -119,7 +119,7 @@ function handle_dashboard(string $method, array $_segments): void {
     $announcementStmt = db()->prepare('SELECT a.*, u.full_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 5');
     $announcementStmt->execute([$entityId]);
 
-    $canPost = $user['global_role'] === 'admin';
+    $canPost = in_array($user['global_role'], ['admin', 'board'], true);
     if (!$canPost) {
         $membership = db()->prepare('SELECT department FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
         $membership->execute([$entityId, $user['id']]);

@@ -32,9 +32,21 @@ function handle_social(string $method, array $segments): void {
         }
         ensure_entity_access($entityId, []);
         $content = require_non_empty($data['content'] ?? '', 'content', 2000);
+        $endeavourId = null;
+        if (array_key_exists('endeavour_id', $data) && $data['endeavour_id'] !== null && $data['endeavour_id'] !== '') {
+            $endeavourId = filter_var($data['endeavour_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($endeavourId === false) {
+                respond(['ok' => false, 'error' => 'Invalid endeavour_id'], 400);
+            }
+            $endeavourCheck = db()->prepare('SELECT id FROM endeavours WHERE id = ? AND entity_id = ?');
+            $endeavourCheck->execute([$endeavourId, $entityId]);
+            if (!$endeavourCheck->fetch()) {
+                respond(['ok' => false, 'error' => 'Endeavour not found for entity'], 400);
+            }
+        }
         $stmt = db()->prepare('INSERT INTO social_posts (endeavour_id, entity_id, user_id, content) VALUES (?, ?, ?, ?)');
         $stmt->execute([
-            $data['endeavour_id'] ?? null,
+            $endeavourId,
             $entityId,
             $user['id'],
             $content
