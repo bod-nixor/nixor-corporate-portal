@@ -5,6 +5,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 ## 1) Upload files to `public_html`
 1. Upload the repository contents into `/public_html/portal` (or directly into `/public_html`).
 2. Ensure the document root points to the `/public` folder (the `.htaccess` already routes traffic to `/public`).
+3. If Apache serves from the repository root, keep the root `.htaccess` enabled so clean `/api/*` requests dispatch to `api/index.php`. If Apache serves from a parent folder, ensure `AllowOverride FileInfo Options` is enabled for the portal directory so both the root and `api/.htaccess` rewrite rules are honored.
 
 ## 2) Create database + user in cPanel
 1. Create a new MariaDB database (e.g., `nixor_portal`).
@@ -84,3 +85,6 @@ The portal falls back to polling automatically, but if you enable websockets:
 - Calendar event creation
 - Social posts + comments
 - Cron reminders send/log correctly
+
+## 11) Manual QA data cleanup
+The repo includes `scripts/cleanup_bad_calendar_and_qa_data.sql` for reviewing and removing QA leftovers such as the `sfef` entity, year-1111 calendar events, and `QA_TEST_DO_NOT_USE_*` records. The script runs inside a transaction and ends with `ROLLBACK` by default; review the SELECT previews and row counts before changing it to `COMMIT` in production.

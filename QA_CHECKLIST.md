@@ -72,3 +72,12 @@ Use this checklist for release candidates, major feature work, and any agent-dri
 - CSRF token is required for protected mutating routes.
 - Rate limiting does not trust spoofed forwarded IP headers unless a trusted proxy is configured.
 - Backend authorization still blocks unauthorized actions even if the frontend is manipulated.
+
+## QA Report Regression Checks
+- Password login: valid credentials succeed; wrong credentials, null password hashes, and unsupported hashes return structured JSON without 500s.
+- API routing: `/api/auth/csrf`, `/api/auth/me`, `/api/auth/config`, and `/api/admin/summary` work without `/api/index.php` in the URL; `/api/index.php/*` still works as fallback.
+- Entity Drive: page loads without console crashes, folder creation appears immediately, selecting items updates the bulk toolbar, and search plus list/grid toggles still render.
+- Calendar: year 1111 and dates outside 2000-2100 are rejected; end dates before start dates are rejected; legacy out-of-range events do not display.
+- Volunteering: zero visible opportunities does not show an "X new" badge; active `VOLUNTEER_REGISTRATION` opportunities appear; search/entity filters update the count and empty state.
+- Dashboard: document progress shows approved-vs-total context, and critical deadlines exclude items without a real date.
+- CSP: Google Fonts, Google OAuth, and Cloudflare analytics load without broad wildcard allowances.
