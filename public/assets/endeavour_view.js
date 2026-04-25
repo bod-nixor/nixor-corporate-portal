@@ -353,8 +353,8 @@ const initEndeavourView = () => {
   }
 
   const docTypeEndpointMap = {
-    operational_plan: 'submit_operational_plan',
-    budget_plan: 'submit_budget_plan',
+    ops_plan: 'submit_ops_plan',
+    operational_plan: 'submit_ops_plan',
     mou: 'submit_mou',
     pre_financial: 'submit_pre_financial',
     post_financial: 'submit_post_financial',

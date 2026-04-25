@@ -656,7 +656,7 @@ function renderInspector() {
     copy.textContent = 'Use the breadcrumbs or Up button to move back.';
     wrapper.append(title, body, copy);
     el.inspectorPreview.replaceChildren(wrapper);
-  } else if (preview.kind === 'pdf' || preview.kind === 'pdf_link') {
+  } else if (preview.kind === 'pdf') {
     const frame = document.createElement('iframe');
     frame.className = 'w-full h-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]';
     frame.src = preview.preview_url;

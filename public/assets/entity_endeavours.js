@@ -57,7 +57,7 @@ const fileOptions = (selectedId, driveFiles) => {
     return options.join('');
 };
 
-const renderRegistrations = async (container, endeavourId, phase) => {
+const renderRegistrations = async (container, endeavourId, phase, transportFeeRequired = false) => {
     container.innerHTML = '<p class="text-xs text-[var(--text-tertiary)] font-medium">Loading registrations...</p>';
     try {
         const response = await apiFetch(`/endeavours/${endeavourId}/registrations`);
@@ -68,13 +68,14 @@ const renderRegistrations = async (container, endeavourId, phase) => {
         }
         container.innerHTML = '';
         registrations.forEach((reg) => {
+            const status = String(reg.status || '').toLowerCase();
             const row = document.createElement('div');
             row.className = 'flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--text-primary)] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] rounded-lg p-3 shadow-sm transition-all hover:bg-[rgba(255,255,255,0.04)]';
 
             const nameContent = document.createElement('div');
             nameContent.className = 'flex flex-col min-w-[120px]';
             const nameStr = `<span class="font-semibold">${escapeHtml(reg.full_name)}</span>`;
-            const statusStr = `<span class="text-xs text-[var(--text-tertiary)] uppercase tracking-wide mt-0.5">${escapeHtml(reg.status)}</span>`;
+            const statusStr = `<span class="text-xs text-[var(--text-tertiary)] uppercase tracking-wide mt-0.5">${escapeHtml(status || 'pending')}</span>`;
             nameContent.innerHTML = nameStr + statusStr;
 
             row.appendChild(nameContent);
@@ -82,7 +83,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
             actions.className = 'flex gap-2';
 
             if (phase === 'VOLUNTEER_SHORTLISTING') {
-                if (reg.status !== 'SHORTLISTED') {
+                if (status !== 'shortlisted') {
                     const shortlist = document.createElement('button');
                     shortlist.className = 'btn text-xs py-1.5 px-3 bg-[#10b9811a] text-[#10b981] border border-[#10b98133] hover:bg-[#10b98133] font-semibold';
                     shortlist.textContent = 'Shortlist';
@@ -90,7 +91,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                         shortlist.disabled = true;
                         try {
                             await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                            await renderRegistrations(container, endeavourId, phase);
+                            await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
                             alert(err?.message || 'Unable to shortlist volunteer.');
                             console.error(err);
@@ -101,7 +102,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                     actions.appendChild(shortlist);
                 }
 
-                if (reg.status !== 'REJECTED') {
+                if (status !== 'rejected') {
                     const reject = document.createElement('button');
                     reject.className = 'btn text-xs py-1.5 px-3 bg-[#ef44441a] text-[#ef4444] border border-[#ef444433] hover:bg-[#ef444433] font-semibold';
                     reject.textContent = 'Reject';
@@ -109,7 +110,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                         reject.disabled = true;
                         try {
                             await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                            await renderRegistrations(container, endeavourId, phase);
+                            await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
                             alert(err?.message || 'Unable to reject volunteer.');
                             console.error(err);
@@ -129,7 +130,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                         present.disabled = true;
                         try {
                             await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
-                            await renderRegistrations(container, endeavourId, phase);
+                            await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
                             alert(err?.message || 'Unable to mark attendance.');
                             console.error(err);
@@ -140,7 +141,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                     actions.appendChild(present);
                 }
 
-                if (reg.transport_fee_status !== 'paid' && !reg.has_paid_transport) {
+                if (transportFeeRequired && !Number(reg.transport_fee_paid || 0)) {
                     const paid = document.createElement('button');
                     paid.className = 'btn text-xs py-1.5 px-3 bg-[#f59e0b1a] text-[#f59e0b] border border-[#f59e0b33] hover:bg-[#f59e0b33] font-semibold';
                     paid.textContent = 'Paid Fee';
@@ -148,7 +149,7 @@ const renderRegistrations = async (container, endeavourId, phase) => {
                         paid.disabled = true;
                         try {
                             await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
-                            await renderRegistrations(container, endeavourId, phase);
+                            await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
                             alert(err?.message || 'Unable to mark transport fee.');
                             console.error(err);
@@ -349,7 +350,7 @@ const buildVolCard = (row, currentUser) => {
     `;
     loadRegs.addEventListener('click', async () => {
         loadRegs.classList.add('hidden');
-        await renderRegistrations(regContainer, row.id, row.phase);
+        await renderRegistrations(regContainer, row.id, row.phase, Number(row.transport_fee_required || 0) === 1);
     });
 
     volCard.appendChild(loadRegs);
@@ -381,6 +382,14 @@ const buildAdminCard = (row) => {
             <option value="epilogue">Epilogue</option>
           </select>
         </div>
+        ${currentUser?.global_role === 'admin' ? `
+        <div class="flex-1 space-y-1.5">
+          <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Approver Group</label>
+          <select id="admin-approver-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="approver" aria-label="Select Approver Group">
+            <option value="bod">BoD</option>
+            <option value="student_affairs">Student Affairs</option>
+          </select>
+        </div>` : ''}
         <div class="flex-1 space-y-1.5">
           <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Decision</label>
           <select id="admin-dec-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="decision" aria-label="Select Decision">
@@ -399,8 +408,11 @@ const buildAdminCard = (row) => {
         approveBtn.disabled = true;
         const docType = adminCard.querySelector('[data-role="doc"]').value;
         const decision = adminCard.querySelector('[data-role="decision"]').value;
+        const approverGroup = adminCard.querySelector('[data-role="approver"]')?.value;
+        const payload = { doc_type: docType, decision };
+        if (approverGroup) payload.approver_group = approverGroup;
         try {
-            await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify({ doc_type: docType, decision }) });
+            await apiFetch(`/endeavours/${row.id}/doc_approvals`, { method: 'POST', body: JSON.stringify(payload) });
             setStatus(adminStatusEl, 'Decision recorded.', true);
             loadEndeavours(entitySelect.value);
         } catch (err) {
