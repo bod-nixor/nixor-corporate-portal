@@ -30,10 +30,10 @@ const renderPendingDocs = (listEl, docs) => {
     if (docs?.length) {
         docs.forEach((item) => {
             const li = document.createElement('li');
-            li.className = 'p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors';
+            li.className = 'p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors min-w-0';
 
             const nameSpan = document.createElement('div');
-            nameSpan.className = 'text-slate-100 font-medium text-sm mb-1';
+            nameSpan.className = 'text-slate-100 font-medium text-sm mb-1 truncate';
             nameSpan.textContent = item.endeavour_name;
 
             const labelsContainer = document.createElement('div');
@@ -55,7 +55,7 @@ const renderPendingDocs = (listEl, docs) => {
     } else {
         const empty = document.createElement('li');
         empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
-        empty.textContent = 'All caught up! 🎉';
+        empty.textContent = 'All caught up.';
         listEl.appendChild(empty);
     }
 };
@@ -65,9 +65,9 @@ const renderMeetings = (listEl, meetings) => {
     if (meetings?.length) {
         meetings.forEach((event) => {
             const item = document.createElement('li');
-            item.className = 'flex flex-col p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
+            item.className = 'flex flex-col p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 min-w-0';
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-slate-200';
+            left.className = 'text-sm font-medium text-slate-200 truncate';
             left.textContent = event.title;
             const right = document.createElement('span');
             right.className = 'text-slate-400 text-xs mt-1';
@@ -100,10 +100,10 @@ const renderDeadlines = (listEl, deadlines) => {
         validDeadlines.forEach((deadline) => {
             const daysUntil = Number(deadline.days_until);
             const item = document.createElement('li');
-            item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 gap-3';
+            item.className = 'flex flex-col sm:flex-row sm:items-start sm:justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 gap-2 min-w-0';
 
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-slate-200 truncate flex-1';
+            left.className = 'text-sm font-medium text-slate-200 min-w-0 max-w-full break-words leading-snug';
             left.textContent = deadline.name;
 
             const right = document.createElement('span');
@@ -125,7 +125,7 @@ const renderDeadlines = (listEl, deadlines) => {
                 badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
             }
 
-            right.className = badgeClass + ' shrink-0 whitespace-normal text-right max-w-[50%] overflow-hidden';
+            right.className = badgeClass + ' max-w-full whitespace-normal break-words text-left sm:text-right leading-snug';
             item.appendChild(left);
             item.appendChild(right);
             listEl.appendChild(item);

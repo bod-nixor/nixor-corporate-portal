@@ -64,8 +64,8 @@
               <!-- Action Controls -->
               <div class="flex flex-wrap items-center gap-2.5 xl:justify-end">
                 <label for="drive-search" class="sr-only">Search current folder</label>
-                <div class="relative">
-                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div class="input-with-icon">
+                  <div class="input-icon-left">
                     <svg class="w-4 h-4 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24"
                       stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -73,7 +73,7 @@
                     </svg>
                   </div>
                   <input id="drive-search" type="search" placeholder="Search..."
-                    class="input-field pl-9 py-2 min-w-[200px]" />
+                    class="input-field py-2 min-w-[200px]" />
                 </div>
 
                 <div class="h-6 w-px bg-[var(--border-subtle)] mx-1 hidden sm:block"></div>
@@ -141,7 +141,7 @@
 
             <!-- Context Rail -->
             <aside aria-label="Workspace navigation"
-              class="hidden lg:block w-[240px] xl:w-[260px] border-r border-[var(--border-subtle)] bg-[rgba(255,255,255,0.01)] p-5 overflow-auto shrink-0">
+              class="hidden 2xl:block w-[220px] border-r border-[var(--border-subtle)] bg-[rgba(255,255,255,0.01)] p-4 overflow-y-auto overflow-x-hidden shrink-0">
               <div class="mb-8">
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-3">Workspace
                 </p>
@@ -166,7 +166,7 @@
               <div class="mb-8">
                 <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-3">Quick
                   Access</p>
-                <div id="drive-summary" class="grid gap-1.5"></div>
+                <div id="drive-summary" class="grid grid-cols-2 gap-1.5"></div>
               </div>
 
               <div id="drive-status"
@@ -188,7 +188,7 @@
                 <span id="bulk-note" class="text-xs text-[var(--text-tertiary)]"></span>
               </div>
 
-              <div id="list-shell" class="flex-1 overflow-auto h-full w-full">
+              <div id="list-shell" class="flex-1 overflow-auto h-full w-full overscroll-contain">
                 <!-- Skeleton Loading -->
                 <div id="drive-skeleton" class="hidden p-5 space-y-2">
                   <div class="h-10 rounded-lg bg-[var(--bg-surface-hover)] animate-pulse"></div>
@@ -207,11 +207,11 @@
                           <input id="select-all" type="checkbox" aria-label="Select all items"
                             class="rounded border-[var(--border-strong)] bg-transparent text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer" />
                         </th>
-                        <th class="px-4 py-3 font-semibold w-1/3 sm:w-1/2">Name</th>
-                        <th class="px-4 py-3 font-semibold w-24 sm:w-32">Sharing</th>
-                        <th class="px-4 py-3 font-semibold w-20 sm:w-24">Size</th>
-                        <th class="px-4 py-3 font-semibold w-24 sm:w-32">Modified</th>
-                        <th class="px-4 py-3 text-right w-12 sm:w-16"></th>
+                        <th class="px-4 py-3 font-semibold min-w-[180px]">Name</th>
+                        <th class="px-4 py-3 font-semibold w-28">Sharing</th>
+                        <th class="px-4 py-3 font-semibold w-20">Size</th>
+                        <th class="px-4 py-3 font-semibold w-32 hidden sm:table-cell">Modified</th>
+                        <th class="px-4 py-3 text-right w-12"></th>
                       </tr>
                     </thead>
                     <tbody id="drive-list"
@@ -243,14 +243,14 @@
 
             <!-- Inspector Panel -->
             <aside id="inspector-panel" aria-label="File inspector"
-              class="hidden xl:flex w-[320px] 2xl:w-[360px] border-l border-[var(--border-subtle)] bg-[rgba(255,255,255,0.01)] flex flex-col shrink-0">
+              class="hidden fixed inset-y-0 right-0 z-40 w-[min(380px,calc(100vw-1.5rem))] border-l border-[var(--border-subtle)] bg-[var(--bg-surface)] flex-col shadow-2xl xl:static xl:z-auto xl:w-[300px] 2xl:w-[340px] xl:bg-[rgba(255,255,255,0.01)] xl:shadow-none shrink-0">
               <div class="p-5 border-b border-[var(--border-subtle)] flex items-center justify-between gap-3 shrink-0">
                 <div class="min-w-0">
                   <p class="text-[10px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]">Inspector</p>
                   <h2 id="inspector-name" class="text-sm font-bold text-[var(--text-primary)] mt-1 truncate">Select an
                     item</h2>
                 </div>
-                <button id="inspector-close" type="button" class="btn btn-ghost px-2 py-1.5 xl:hidden shrink-0">
+                <button id="inspector-close" type="button" class="btn btn-ghost px-2 py-1.5 shrink-0" aria-label="Close inspector">
                   <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
                     </path>
@@ -258,7 +258,7 @@
                 </button>
               </div>
 
-              <div class="flex-1 overflow-auto p-5">
+              <div class="flex-1 overflow-y-auto overflow-x-hidden p-5">
                 <div id="inspector-preview"
                   class="h-44 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface-hover)] p-4 flex items-center justify-center text-sm font-medium text-[var(--text-tertiary)] shadow-inner overflow-hidden relative group">
                   Select a file or folder to preview.
@@ -438,15 +438,15 @@
 
             <section id="share-users-section" class="hidden animate-fade-in">
               <h3 class="text-sm font-bold text-[var(--text-primary)] mb-2">People</h3>
-              <div class="relative mb-4">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <div class="input-with-icon mb-4">
+                <div class="input-icon-left">
                   <svg class="w-4 h-4 text-[var(--text-tertiary)]" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                   </svg>
                 </div>
-                <input id="share-user-search" type="search" class="input-field pl-9"
+                <input id="share-user-search" type="search" class="input-field"
                   placeholder="Search entity members..." />
               </div>
               <div id="share-users-list"

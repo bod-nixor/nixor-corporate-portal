@@ -58,6 +58,39 @@ const fileOptions = (selectedId, driveFiles) => {
     return options.join('');
 };
 
+const formatDateTime = (value) => {
+    if (!value) return '';
+    const date = new Date(String(value).replace(' ', 'T'));
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+};
+
+const nextDeadlineSummary = (row) => {
+    const candidates = [
+        ['Volunteer deadline', row.volunteer_registration_deadline],
+        ['Pre-financial', row.pre_financial_deadline],
+        ['Event starts', row.event_start_at || row.start_date],
+        ['Event ends', row.event_end_at || row.end_date],
+        ['Post-financial', row.post_financial_deadline]
+    ];
+    const now = Date.now();
+    const upcoming = candidates
+        .map(([label, value]) => {
+            if (!value) return null;
+            const date = new Date(String(value).replace(' ', 'T'));
+            if (Number.isNaN(date.getTime())) return null;
+            return { label, date };
+        })
+        .filter(Boolean)
+        .sort((left, right) => Math.abs(left.date.getTime() - now) - Math.abs(right.date.getTime() - now))[0];
+    return upcoming ? `${upcoming.label}: ${formatDateTime(upcoming.date)}` : 'No deadline set';
+};
+
 const renderRegistrations = async (container, endeavourId, phase, transportFeeRequired = false) => {
     container.innerHTML = '<p class="text-xs text-[var(--text-tertiary)] font-medium">Loading registrations...</p>';
     try {
@@ -475,34 +508,49 @@ const renderEndeavours = (rows, driveFiles) => {
 
     rows.forEach((row) => {
         const card = document.createElement('div');
-        card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-hidden mb-10 transition-transform duration-300 hover:border-[#3b82f640]';
+        card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-visible transition-colors duration-200 hover:border-[#3b82f640]';
 
         const bodyContainer = document.createElement('div');
         bodyContainer.id = `endeavour-body-${row.id}`;
         bodyContainer.className = 'hidden flex-col';
 
         const header = document.createElement('button');
-        header.className = 'flex w-full text-left flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)] hover:bg-[rgba(255,255,255,0.03)] transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]';
+        header.className = 'flex w-full text-left flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-5 md:px-6 py-4 bg-[rgba(255,255,255,0.015)] border border-transparent rounded-2xl hover:bg-[rgba(255,255,255,0.03)] transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]';
         header.setAttribute('aria-expanded', 'false');
         header.setAttribute('aria-controls', bodyContainer.id);
+        header.setAttribute('aria-label', `Expand workflow ${row.name}`);
 
         const titleContent = document.createElement('div');
-        titleContent.className = 'flex items-center gap-4';
+        titleContent.className = 'flex items-center gap-4 min-w-0';
         const iconDiv = document.createElement('div');
         iconDiv.className = 'w-10 h-10 rounded-xl bg-[var(--color-primary-ghost)] text-[var(--color-primary)] flex items-center justify-center shadow-inner';
         iconDiv.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>`;
 
         const textDiv = document.createElement('div');
+        textDiv.className = 'min-w-0';
         const title = document.createElement('span');
-        title.className = 'text-xl font-bold tracking-tight text-[var(--text-primary)] leading-tight';
+        title.className = 'block text-base md:text-lg font-bold tracking-tight text-[var(--text-primary)] leading-tight truncate';
         title.textContent = row.name;
 
+        const summary = document.createElement('div');
+        summary.className = 'mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--text-tertiary)]';
+
         const phaseBadge = document.createElement('span');
-        phaseBadge.className = 'badge badge-info mt-1.5';
+        phaseBadge.className = 'badge badge-info';
         phaseBadge.textContent = phaseLabels[row.phase] || 'Unknown Phase';
 
+        const progressBadge = document.createElement('span');
+        progressBadge.className = 'badge bg-[rgba(255,255,255,0.04)] text-[var(--text-secondary)] border border-[var(--border-subtle)]';
+        progressBadge.textContent = `Phase ${Math.max(1, PHASES.indexOf(row.phase) + 1)} of ${PHASES.length}`;
+
+        const deadline = document.createElement('span');
+        deadline.className = 'min-w-0 max-w-full break-words leading-snug';
+        deadline.textContent = nextDeadlineSummary(row);
+
+        summary.append(phaseBadge, progressBadge, deadline);
+
         textDiv.appendChild(title);
-        textDiv.appendChild(phaseBadge);
+        textDiv.appendChild(summary);
 
         titleContent.appendChild(iconDiv);
         titleContent.appendChild(textDiv);
@@ -510,10 +558,15 @@ const renderEndeavours = (rows, driveFiles) => {
         header.appendChild(titleContent);
         card.appendChild(header);
 
-        const toggleIcon = document.createElement('div');
-        toggleIcon.className = 'text-[var(--text-secondary)] transition-transform duration-300';
-        toggleIcon.innerHTML = `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
-        header.appendChild(toggleIcon);
+        const toggleWrap = document.createElement('span');
+        toggleWrap.className = 'inline-flex items-center gap-2 self-end sm:self-center shrink-0 text-xs font-bold text-[var(--text-secondary)]';
+        const toggleText = document.createElement('span');
+        toggleText.textContent = 'Expand';
+        const toggleIcon = document.createElement('span');
+        toggleIcon.className = 'transition-transform duration-300';
+        toggleIcon.innerHTML = `<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
+        toggleWrap.append(toggleText, toggleIcon);
+        header.appendChild(toggleWrap);
 
         header.addEventListener('click', () => {
             const isExpanded = bodyContainer.classList.contains('hidden');
@@ -521,12 +574,18 @@ const renderEndeavours = (rows, driveFiles) => {
                 bodyContainer.classList.remove('hidden');
                 bodyContainer.classList.add('flex');
                 toggleIcon.classList.add('rotate-180');
+                toggleText.textContent = 'Collapse';
                 header.setAttribute('aria-expanded', 'true');
+                header.setAttribute('aria-label', `Collapse workflow ${row.name}`);
+                header.classList.add('rounded-b-none', 'border-b-[var(--border-subtle)]');
             } else {
                 bodyContainer.classList.add('hidden');
                 bodyContainer.classList.remove('flex');
                 toggleIcon.classList.remove('rotate-180');
+                toggleText.textContent = 'Expand';
                 header.setAttribute('aria-expanded', 'false');
+                header.setAttribute('aria-label', `Expand workflow ${row.name}`);
+                header.classList.remove('rounded-b-none', 'border-b-[var(--border-subtle)]');
             }
         });
 
@@ -558,6 +617,9 @@ const renderEndeavours = (rows, driveFiles) => {
 
 const loadEndeavours = async (entityId) => {
     if (!entityId) {
+        listEl.innerHTML = '';
+        emptyEl.textContent = 'Select an entity to view workflows.';
+        emptyEl.classList.remove('hidden');
         return;
     }
     const reqId = ++endeavoursRequestId;
@@ -569,12 +631,19 @@ const loadEndeavours = async (entityId) => {
         ]);
         if (reqId !== endeavoursRequestId) return;
 
-        renderEndeavours(response?.data || [], driveFilesForRequest);
+        if (!Array.isArray(response?.data)) {
+            throw new Error('Malformed endeavours response');
+        }
+        renderEndeavours(response.data, driveFilesForRequest);
     } catch (err) {
         if (reqId !== endeavoursRequestId) return;
         console.error('Failed to load endeavours:', err);
         listEl.innerHTML = '';
-        emptyEl.textContent = 'Failed to load endeavours.';
+        emptyEl.textContent = err?.status === 401
+            ? 'Please sign in to view workflows.'
+            : err?.status === 403
+                ? 'You do not have access to workflows for this entity.'
+                : `Failed to load endeavours${err?.message ? `: ${err.message}` : '.'}`;
         emptyEl.classList.remove('hidden');
     }
 };
