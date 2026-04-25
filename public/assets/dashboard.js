@@ -166,7 +166,7 @@ const loadDashboard = async (entityId) => {
                 title.textContent = announcement.title;
 
                 const meta = document.createElement('p');
-                meta.className = 'text-xs font-medium text-slate-500 shrink-0';
+                meta.className = 'text-xs font-medium text-slate-500 min-w-0 truncate';
                 meta.textContent = `${announcement.creator_name || announcement.full_name || 'System'}`;
 
                 headerRow.appendChild(title);

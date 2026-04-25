@@ -185,7 +185,7 @@ const loadPosts = async () => {
           if (canManageComment) {
             const commentActions = document.createElement("div");
             commentActions.className =
-              "flex gap-1 opacity-100 sm:opacity-0 sm:group-hover/comment:opacity-100 focus-within:opacity-100 transition-opacity shrink-0";
+              "flex gap-1 opacity-100 sm:opacity-0 sm:pointer-events-none sm:group-hover/comment:opacity-100 sm:group-hover/comment:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity shrink-0";
             const editCommentBtn = document.createElement("button");
             editCommentBtn.type = "button";
             editCommentBtn.className =
@@ -285,7 +285,7 @@ const loadPosts = async () => {
       if (canManagePost) {
         const actionsDiv = document.createElement("div");
         actionsDiv.className =
-          "absolute top-4 right-4 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity";
+          "absolute top-4 right-4 flex gap-1 opacity-100 sm:opacity-0 sm:pointer-events-none sm:group-hover:opacity-100 sm:group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity";
         const postStr = encodeURIComponent(JSON.stringify(post));
         const editBtn = document.createElement("button");
         editBtn.type = "button";

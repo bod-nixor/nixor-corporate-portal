@@ -509,7 +509,7 @@ body {
 }
 
 /* Forms */
-.input-field {
+:where(.input-field) {
   width: 100%;
   background-color: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border-subtle);
@@ -522,28 +522,28 @@ body {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.input-field::placeholder {
+:where(.input-field)::placeholder {
   color: var(--text-tertiary);
 }
 
-.input-field:focus {
+:where(.input-field):focus {
   border-color: var(--text-secondary);
   background-color: rgba(0, 0, 0, 0.4);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--text-secondary);
 }
 
-.input-field:disabled {
+:where(.input-field):disabled {
   opacity: 0.5;
   cursor: not-allowed;
   background-color: var(--bg-surface-hover);
 }
 
-.input-field.w-auto {
+:where(.input-field).w-auto {
   width: auto;
 }
 
 @media (min-width: 640px) {
-  .input-field.sm\:w-48 {
+  :where(.input-field).sm\:w-48 {
     width: 12rem;
   }
 }

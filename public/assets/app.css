@@ -1962,6 +1962,11 @@
       border-width: 0px;
     }
   }
+  .focus-within\:pointer-events-auto {
+    &:focus-within {
+      pointer-events: auto;
+    }
+  }
   .focus-within\:border-\[var\(--border-strong\)\] {
     &:focus-within {
       border-color: var(--border-strong);
@@ -2168,6 +2173,11 @@
       opacity: 50%;
     }
   }
+  .sm\:pointer-events-none {
+    @media (width >= 40rem) {
+      pointer-events: none;
+    }
+  }
   .sm\:block {
     @media (width >= 40rem) {
       display: block;
@@ -2243,11 +2253,29 @@
       opacity: 0%;
     }
   }
+  .sm\:group-hover\:pointer-events-auto {
+    @media (width >= 40rem) {
+      &:is(:where(.group):hover *) {
+        @media (hover: hover) {
+          pointer-events: auto;
+        }
+      }
+    }
+  }
   .sm\:group-hover\:opacity-100 {
     @media (width >= 40rem) {
       &:is(:where(.group):hover *) {
         @media (hover: hover) {
           opacity: 100%;
+        }
+      }
+    }
+  }
+  .sm\:group-hover\/comment\:pointer-events-auto {
+    @media (width >= 40rem) {
+      &:is(:where(.group\/comment):hover *) {
+        @media (hover: hover) {
+          pointer-events: auto;
         }
       }
     }
@@ -2869,7 +2897,7 @@ body {
   color: #60a5fa;
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
-.input-field {
+:where(.input-field) {
   width: 100%;
   background-color: rgba(0, 0, 0, 0.25);
   border: 1px solid var(--border-subtle);
@@ -2881,24 +2909,24 @@ body {
   outline: none;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
-.input-field::placeholder {
+:where(.input-field)::placeholder {
   color: var(--text-tertiary);
 }
-.input-field:focus {
+:where(.input-field):focus {
   border-color: var(--text-secondary);
   background-color: rgba(0, 0, 0, 0.4);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2), 0 0 0 1px var(--text-secondary);
 }
-.input-field:disabled {
+:where(.input-field):disabled {
   opacity: 0.5;
   cursor: not-allowed;
   background-color: var(--bg-surface-hover);
 }
-.input-field.w-auto {
+:where(.input-field).w-auto {
   width: auto;
 }
 @media (min-width: 640px) {
-  .input-field.sm\:w-48 {
+  :where(.input-field).sm\:w-48 {
     width: 12rem;
   }
 }

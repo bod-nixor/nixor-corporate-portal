@@ -96,10 +96,17 @@ const showRegistrationActionError = (container, message) => {
     if (!status) {
         status = document.createElement('p');
         status.dataset.registrationStatus = 'true';
+        status.setAttribute('role', 'alert');
+        status.setAttribute('aria-live', 'assertive');
         status.className = 'text-xs font-semibold text-[var(--color-danger)] bg-[var(--color-danger-bg)] border border-[rgba(239,68,68,0.2)] rounded-lg px-3 py-2';
         container.prepend(status);
     }
+    if (status._hideTimer) clearTimeout(status._hideTimer);
     status.textContent = message;
+    status._hideTimer = setTimeout(() => {
+        status.textContent = '';
+        status.remove();
+    }, 4000);
 };
 
 const renderRegistrations = async (container, endeavourId, phase, transportFeeRequired = false) => {

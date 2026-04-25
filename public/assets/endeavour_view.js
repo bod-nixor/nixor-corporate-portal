@@ -284,10 +284,11 @@ const initEndeavourView = () => {
             savePaymentBtn.textContent = '...';
             try {
               await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef }) });
-              loadEndeavour();
+              await loadEndeavour();
+              receiptInput.value = '';
+              paymentForm.classList.add('hidden');
             } catch (err) {
               setStatus(actionStatus, normalizeError(err) || 'Payment update failed', false);
-            } finally {
               paymentBtn.disabled = false;
               savePaymentBtn.disabled = false;
               savePaymentBtn.textContent = 'Save';
