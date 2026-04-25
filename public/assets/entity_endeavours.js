@@ -34,6 +34,7 @@ const loadDriveFiles = async (entityId) => {
         const response = await apiFetch(`/drive/list?entity_id=${encodeURIComponent(entityId)}`);
         return (response?.data || []).filter((item) => item.item_type === 'file');
     } catch (err) {
+        console.warn('Failed to load drive files:', err);
         return [];
     }
 };
@@ -164,6 +165,7 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
             container.appendChild(row);
         });
     } catch (err) {
+        console.error('Failed to render registrations:', err);
         container.innerHTML = '<p class="text-xs text-[var(--color-danger)] font-medium">Failed to load registrations.</p>';
     }
 };
@@ -570,6 +572,7 @@ const loadEndeavours = async (entityId) => {
         renderEndeavours(response?.data || [], driveFilesForRequest);
     } catch (err) {
         if (reqId !== endeavoursRequestId) return;
+        console.error('Failed to load endeavours:', err);
         listEl.innerHTML = '';
         emptyEl.textContent = 'Failed to load endeavours.';
         emptyEl.classList.remove('hidden');
