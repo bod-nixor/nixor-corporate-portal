@@ -375,6 +375,7 @@ final class ApiTest extends TestCase {
         $this->createUser('admin@example.com', 'Password123!', 'admin');
         $execId = $this->createUser('exec@example.com', 'Password123!', 'staff');
         $volunteerId = $this->createUser('volunteer@example.com', 'Password123!', 'staff');
+        $otherUserId = $this->createUser('other@example.com', 'Password123!', 'staff');
         $entityId = $this->createEntity('Registration Entity');
         $this->addMembership($entityId, $execId, 'operations', 'executive');
         $this->addMembership($entityId, $volunteerId, 'operations', 'member');
@@ -388,6 +389,16 @@ final class ApiTest extends TestCase {
         $this->assertCount(1, $list['data']['data']);
         $this->assertSame('pending', $list['data']['data'][0]['status']);
 
+        $otherClient = $this->loginClient('other@example.com', 'Password123!');
+        $otherList = $otherClient->request('GET', "/api/endeavours/{$endeavourId}/registrations");
+        $this->assertSame(403, $otherList['status']);
+
+        $volunteerClient = $this->loginClient('volunteer@example.com', 'Password123!');
+        $volunteerShortlist = $volunteerClient->request('POST', "/api/endeavours/{$endeavourId}/registrations/shortlist", [
+            'registration_id' => $registrationId
+        ], ["X-CSRF-Token: {$volunteerClient->csrfToken}"]);
+        $this->assertSame(403, $volunteerShortlist['status']);
+
         $shortlist = $execClient->request('POST', "/api/endeavours/{$endeavourId}/registrations/shortlist", [
             'registration_id' => $registrationId
         ], ["X-CSRF-Token: {$execClient->csrfToken}"]);
@@ -397,6 +408,12 @@ final class ApiTest extends TestCase {
         $this->assertSame('shortlisted', $afterShortlist['data']['data'][0]['status']);
 
         $this->setEndeavourPhase($endeavourId, 'ON_DAY');
+
+        $lateShortlist = $execClient->request('POST', "/api/endeavours/{$endeavourId}/registrations/shortlist", [
+            'registration_id' => $registrationId
+        ], ["X-CSRF-Token: {$execClient->csrfToken}"]);
+        $this->assertSame(400, $lateShortlist['status']);
+
         $adminClient = $this->loginClient('admin@example.com', 'Password123!');
         $fee = $adminClient->request('POST', "/api/endeavours/{$endeavourId}/registrations/transport_fee", [
             'registration_id' => $registrationId
@@ -428,6 +445,12 @@ final class ApiTest extends TestCase {
             'status' => 'present'
         ], ["X-CSRF-Token: {$client->csrfToken}"]);
         $this->assertSame(200, $attendance['status']);
+
+        $readBack = $client->request('GET', "/api/endeavours/{$endeavourId}");
+        $this->assertSame(200, $readBack['status']);
+        $attRecords = array_filter($readBack['data']['data']['attendance'], fn($a) => (int)$a['volunteer_application_id'] === $applicationId);
+        $record = reset($attRecords);
+        $this->assertSame('present', $record['status']);
     }
 
     public function testSocialPostRejectsEndeavourFromAnotherEntity(): void {

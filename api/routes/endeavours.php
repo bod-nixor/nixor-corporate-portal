@@ -419,7 +419,7 @@ function handle_endeavours(string $method, array $segments): void {
         if (!$endeavour) {
             respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
         }
-        ensure_entity_access((int)$endeavour['entity_id'], []);
+        ensure_entity_access((int)$endeavour['entity_id'], ['hr']);
         $stmt = db()->prepare(
             'SELECT vr.*, u.full_name, u.email
              FROM volunteer_registrations vr
@@ -793,11 +793,13 @@ function validate_datetime(?string $value, string $field): ?string {
         $year = (int)$dt->format('Y');
         if ($year < 2000 || $year > 2100) {
             respond(['ok' => false, 'error' => "{$field} must be between years 2000 and 2100"], 400);
+            return null;
         }
         return $dt->format('Y-m-d H:i:s');
     }
 
     respond(['ok' => false, 'error' => "Invalid datetime for {$field}"], 400);
+    return null;
 }
 
 function phase_precedes(string $current, string $target): bool {

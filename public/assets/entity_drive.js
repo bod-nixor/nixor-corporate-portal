@@ -1,4 +1,4 @@
-import { apiFetch, normalizeError } from '/assets/app.js';
+﻿import { apiFetch, normalizeError } from '/assets/app.js';
 import { renderSidebar } from '/assets/sidebar.js';
 
 document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_drive');
@@ -680,6 +680,20 @@ function renderInspector() {
     anchor.target = '_blank';
     anchor.rel = 'noopener noreferrer';
     anchor.textContent = preview.open_url;
+    wrapper.append(label, anchor);
+    el.inspectorPreview.replaceChildren(wrapper);
+  } else if (preview.kind === 'pdf_link') {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)] p-5 text-left shadow-inner h-full flex flex-col justify-center';
+    const label = document.createElement('p');
+    label.className = 'text-[10px] uppercase font-bold tracking-[0.2em] text-[var(--text-tertiary)]';
+    label.textContent = 'External PDF';
+    const anchor = document.createElement('a');
+    anchor.className = 'mt-3 inline-block break-all text-sm font-semibold text-[var(--color-primary)] hover:text-white transition-colors';
+    anchor.href = preview.open_url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    anchor.textContent = preview.label || preview.open_url;
     wrapper.append(label, anchor);
     el.inspectorPreview.replaceChildren(wrapper);
   } else {

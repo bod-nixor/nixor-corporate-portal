@@ -34,10 +34,10 @@ function handle_social(string $method, array $segments): void {
         $content = require_non_empty($data['content'] ?? '', 'content', 2000);
         $endeavourId = null;
         if (array_key_exists('endeavour_id', $data) && $data['endeavour_id'] !== null && $data['endeavour_id'] !== '') {
-            if (!is_numeric($data['endeavour_id']) || (int)$data['endeavour_id'] <= 0) {
+            $endeavourId = filter_var($data['endeavour_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($endeavourId === false) {
                 respond(['ok' => false, 'error' => 'Invalid endeavour_id'], 400);
             }
-            $endeavourId = (int)$data['endeavour_id'];
             $endeavourCheck = db()->prepare('SELECT id FROM endeavours WHERE id = ? AND entity_id = ?');
             $endeavourCheck->execute([$endeavourId, $entityId]);
             if (!$endeavourCheck->fetch()) {
