@@ -205,23 +205,23 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
 
 const buildPlansCard = (row, driveFiles) => {
     const plansCard = document.createElement('div');
-    plansCard.className = 'p-5 bg-[rgba(255,255,255,0.015)] border border-[var(--border-strong)] rounded-2xl flex flex-col h-full shadow-sm';
+    plansCard.className = 'workflow-panel';
     plansCard.innerHTML = `
-      <div class="flex items-center gap-2 mb-5 pb-3 border-b border-[var(--border-subtle)]">
+      <div class="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--border-subtle)]">
         <h4 class="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Planning Phase</h4>
       </div>
-      <div class="flex flex-col sm:flex-row gap-4 mb-5">
-        <div class="flex-1 space-y-1.5">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="min-w-0 space-y-1.5">
           <label for="ops-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Operational Plan</label>
           <select id="ops-select-${row.id}" class="input-field py-2.5 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id, driveFiles)}</select>
         </div>
-        <div class="flex-1 space-y-1.5">
+        <div class="min-w-0 space-y-1.5">
           <label for="budget-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Budget Plan</label>
           <select id="budget-select-${row.id}" class="input-field py-2.5 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id, driveFiles)}</select>
         </div>
       </div>
-      <div data-role="status" class="hidden mb-4"></div>
-      <button class="btn btn-secondary mt-auto w-full sm:w-auto self-start" data-action="attach-plans">Save Plans</button>
+      <div data-role="status" class="hidden mt-4"></div>
+      <button class="btn btn-secondary mt-4 w-full sm:w-auto self-start" data-action="attach-plans">Save Plans</button>
     `;
     const plansStatusEl = plansCard.querySelector('[data-role="status"]');
     const attachBtn = plansCard.querySelector('[data-action="attach-plans"]');
@@ -244,12 +244,12 @@ const buildPlansCard = (row, driveFiles) => {
 
 const buildFinCard = (row, driveFiles) => {
     const finCard = document.createElement('div');
-    finCard.className = 'p-5 bg-[rgba(255,255,255,0.015)] border border-[var(--border-strong)] rounded-2xl flex flex-col h-full shadow-sm';
+    finCard.className = 'workflow-panel';
     finCard.innerHTML = `
-      <div class="flex items-center gap-2 mb-5 pb-3 border-b border-[var(--border-subtle)]">
+      <div class="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--border-subtle)]">
         <h4 class="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Financials & Epilogue</h4>
       </div>
-      <div class="space-y-4 mb-5">
+      <div class="space-y-4">
         <div class="flex flex-col sm:flex-row gap-3 items-end">
           <div class="flex-1 w-full space-y-1.5">
              <label for="pre-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Pre-Financial</label>
@@ -272,7 +272,7 @@ const buildFinCard = (row, driveFiles) => {
           <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="epilogue">Submit</button>
         </div>
       </div>
-      <div data-role="status" class="hidden mt-auto"></div>
+      <div data-role="status" class="hidden mt-4"></div>
     `;
     const finStatusEl = finCard.querySelector('[data-role="status"]');
     const preBtn = finCard.querySelector('[data-action="pre"]');
@@ -320,10 +320,10 @@ const buildFinCard = (row, driveFiles) => {
 
 const buildVolCard = (row, currentUser) => {
     const volCard = document.createElement('div');
-    volCard.className = 'p-5 bg-[rgba(255,255,255,0.015)] border border-[var(--border-strong)] rounded-2xl flex flex-col h-full shadow-sm';
+    volCard.className = 'workflow-panel';
 
     const volHeader = document.createElement('div');
-    volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-[var(--border-subtle)]';
+    volHeader.className = 'flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-[var(--border-subtle)]';
     volHeader.innerHTML = `<h4 class="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Volunteer Management</h4>`;
 
     const volControls = document.createElement('div');
@@ -375,10 +375,10 @@ const buildVolCard = (row, currentUser) => {
     volCard.appendChild(volStatusEl);
 
     const regContainer = document.createElement('div');
-    regContainer.className = 'space-y-3 mt-1';
+    regContainer.className = 'workflow-scroll-list space-y-3 mt-3';
 
     const loadRegs = document.createElement('button');
-    loadRegs.className = 'btn btn-ghost w-full py-4 border border-dashed border-[var(--border-strong)] text-[var(--text-secondary)] font-medium text-sm hover:border-[var(--text-tertiary)]';
+    loadRegs.className = 'btn btn-ghost w-full py-3 border border-dashed border-[var(--border-strong)] text-[var(--text-secondary)] font-medium text-sm hover:border-[var(--text-tertiary)]';
     loadRegs.innerHTML = `
       <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
       Load Registrations
@@ -395,10 +395,10 @@ const buildVolCard = (row, currentUser) => {
 
 const buildAdminCard = (row) => {
     const adminCard = document.createElement('div');
-    adminCard.className = 'p-5 bg-[rgba(59,130,246,0.05)] border border-[rgba(59,130,246,0.15)] rounded-2xl flex flex-col h-full shadow-sm relative overflow-hidden';
+    adminCard.className = 'workflow-panel relative overflow-hidden bg-[rgba(59,130,246,0.05)] border-[rgba(59,130,246,0.15)]';
 
     adminCard.innerHTML = `
-      <div class="absolute top-0 right-0 p-4 opacity-10">
+      <div class="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
         <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
       <div class="flex items-center gap-2 mb-5 pb-3 border-b border-[rgba(59,130,246,0.15)] relative z-10">
@@ -406,8 +406,8 @@ const buildAdminCard = (row) => {
           Admin Approvals
         </h4>
       </div>
-      <div class="flex flex-col sm:flex-row gap-3 mb-5 relative z-10">
-        <div class="flex-1 space-y-1.5">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 relative z-10">
+        <div class="min-w-0 space-y-1.5">
           <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Document</label>
           <select id="admin-doc-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="doc" aria-label="Select Document">
             <option value="operational_plan">Operational Plan</option>
@@ -418,14 +418,14 @@ const buildAdminCard = (row) => {
           </select>
         </div>
         ${currentUser?.global_role === 'admin' ? `
-        <div class="flex-1 space-y-1.5">
+        <div class="min-w-0 space-y-1.5">
           <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Approver Group</label>
           <select id="admin-approver-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="approver" aria-label="Select Approver Group">
             <option value="bod">BoD</option>
             <option value="student_affairs">Student Affairs</option>
           </select>
         </div>` : ''}
-        <div class="flex-1 space-y-1.5">
+        <div class="min-w-0 space-y-1.5">
           <label class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Decision</label>
           <select id="admin-dec-${row.id}" class="input-field py-2.5 text-sm w-full" data-role="decision" aria-label="Select Decision">
             <option value="approved">Approve</option>
@@ -507,15 +507,15 @@ const renderEndeavours = (rows, driveFiles) => {
     };
 
     rows.forEach((row) => {
-        const card = document.createElement('div');
-        card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-visible transition-colors duration-200 hover:border-[#3b82f640]';
+        const card = document.createElement('article');
+        card.className = 'workflow-card card animate-fade-in !p-0';
 
         const bodyContainer = document.createElement('div');
         bodyContainer.id = `endeavour-body-${row.id}`;
-        bodyContainer.className = 'hidden flex-col';
+        bodyContainer.className = 'workflow-body hidden';
 
         const header = document.createElement('button');
-        header.className = 'flex w-full text-left flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-5 md:px-6 py-4 bg-[rgba(255,255,255,0.015)] border border-transparent rounded-2xl hover:bg-[rgba(255,255,255,0.03)] transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]';
+        header.className = 'workflow-summary';
         header.setAttribute('aria-expanded', 'false');
         header.setAttribute('aria-controls', bodyContainer.id);
         header.setAttribute('aria-label', `Expand workflow ${row.name}`);
@@ -572,36 +572,36 @@ const renderEndeavours = (rows, driveFiles) => {
             const isExpanded = bodyContainer.classList.contains('hidden');
             if (isExpanded) {
                 bodyContainer.classList.remove('hidden');
-                bodyContainer.classList.add('flex');
+                bodyContainer.classList.add('is-open');
                 toggleIcon.classList.add('rotate-180');
                 toggleText.textContent = 'Collapse';
                 header.setAttribute('aria-expanded', 'true');
                 header.setAttribute('aria-label', `Collapse workflow ${row.name}`);
-                header.classList.add('rounded-b-none', 'border-b-[var(--border-subtle)]');
+                card.classList.add('is-expanded');
             } else {
                 bodyContainer.classList.add('hidden');
-                bodyContainer.classList.remove('flex');
+                bodyContainer.classList.remove('is-open');
                 toggleIcon.classList.remove('rotate-180');
                 toggleText.textContent = 'Expand';
                 header.setAttribute('aria-expanded', 'false');
                 header.setAttribute('aria-label', `Expand workflow ${row.name}`);
-                header.classList.remove('rounded-b-none', 'border-b-[var(--border-subtle)]');
+                card.classList.remove('is-expanded');
             }
         });
 
         bodyContainer.appendChild(renderStepper(row.phase));
 
         const contentGrid = document.createElement('div');
-        contentGrid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-6 p-6 md:p-8 bg-[var(--bg-surface)]';
+        contentGrid.className = 'workflow-panels-grid';
 
         const col1 = document.createElement('div');
-        col1.className = 'space-y-6';
+        col1.className = 'workflow-panel-stack';
         col1.appendChild(buildPlansCard(row, driveFiles));
         col1.appendChild(buildFinCard(row, driveFiles));
         contentGrid.appendChild(col1);
 
         const col2 = document.createElement('div');
-        col2.className = 'space-y-6';
+        col2.className = 'workflow-panel-stack';
         col2.appendChild(buildVolCard(row, currentUser));
 
         if (['board', 'student_affairs', 'admin'].includes(currentUser?.global_role)) {
