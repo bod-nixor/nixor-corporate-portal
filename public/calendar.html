@@ -90,163 +90,24 @@
       </section>
     </main>
   </div>
-  <script type="module">
-    import { apiFetch } from '/assets/app.js';
-    import { renderSidebar } from '/assets/sidebar.js';
-
-    document.getElementById('sidebar-container').outerHTML = renderSidebar('calendar');
-    const entitySelect = document.getElementById('calendar-entity');
-    const list = document.getElementById('calendar-list');
-    const emptyState = document.getElementById('calendar-empty');
-    const form = document.getElementById('calendar-form');
-    const statusEl = document.getElementById('calendar-status');
-    const eventDateInput = document.getElementById('calendar-event-date');
-
-    // Store default empty-state text so it can be restored after errors
-    const defaultEmptyHeading = emptyState.querySelector('[data-empty-heading]')?.textContent || 'No events scheduled.';
-    const defaultEmptySubtext = emptyState.querySelector('[data-empty-subtext]')?.textContent || 'Select a different entity or create a new event.';
-
-    const normalizeError = (err) => {
-      const message = err?.message || '';
-      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
-    };
-
-    const setStatus = (message, ok) => {
-      statusEl.textContent = message;
-      statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 border ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
-      statusEl.classList.remove('hidden');
-    };
-
-    const dateInAllowedRange = (value) => {
-      return value >= '2000-01-01T00:00' && value <= '2100-12-31T23:59';
-    };
-
-    const loadEvents = async () => {
-      const entityId = entitySelect.value;
-      if (!entityId) return;
-      try {
-        const response = await apiFetch(`/calendar?entity_id=${entityId}`);
-        const events = (response?.data || []).filter((event) => {
-          const value = String(event.event_date || '').replace(' ', 'T').slice(0, 16);
-          return dateInAllowedRange(value);
-        });
-        list.innerHTML = '';
-        if (!events.length) {
-          // Restore default text (in case a previous error overwrote it)
-          emptyState.querySelector('[data-empty-heading]').textContent = defaultEmptyHeading;
-          emptyState.querySelector('[data-empty-subtext]').textContent = defaultEmptySubtext;
-          emptyState.classList.remove('hidden');
-          return;
-        }
-        emptyState.classList.add('hidden');
-        events.forEach((event) => {
-          const card = document.createElement('div');
-          card.className = 'bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl p-5 hover:border-[var(--border-strong)] transition-colors shadow-sm';
-          const title = document.createElement('p');
-          title.className = 'font-bold text-[var(--text-primary)] text-base leading-tight';
-          title.textContent = event.title;
-          const meta = document.createElement('p');
-          meta.className = 'text-[10px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-2 flex items-center gap-2';
-          const timeSpan = document.createElement('span');
-          timeSpan.textContent = new Date(event.event_date).toLocaleString();
-
-          const separatorSpan = document.createElement('span');
-          separatorSpan.className = 'text-[var(--border-strong)]';
-          separatorSpan.textContent = '|';
-
-          const locSpan = document.createElement('span');
-          locSpan.className = 'truncate';
-          locSpan.textContent = event.location || 'TBD';
-
-          meta.innerHTML = `<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
-          meta.appendChild(timeSpan);
-          meta.appendChild(separatorSpan);
-
-          const iconSpan = document.createElement('span');
-          iconSpan.innerHTML = `<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>`;
-          meta.appendChild(iconSpan.firstChild);
-          meta.appendChild(locSpan);
-
-          const desc = document.createElement('p');
-          desc.className = 'text-[13px] font-medium text-[var(--text-secondary)] mt-3 leading-relaxed';
-          desc.textContent = event.description || 'No description provided.';
-          card.appendChild(title);
-          card.appendChild(meta);
-          card.appendChild(desc);
-          list.appendChild(card);
-        });
-      } catch (err) {
-        console.error('Failed to load events:', err);
-        list.innerHTML = '';
-        emptyState.querySelector('[data-empty-heading]').textContent = 'Failed to load events.';
-        emptyState.querySelector('[data-empty-subtext]').textContent = 'Please try again later.';
-        emptyState.classList.remove('hidden');
-      }
-    };
-
-    apiFetch('/auth/me')
-      .then((response) => {
-        const entities = response?.data?.entities || [];
-        entitySelect.innerHTML = '';
-        entities.forEach((entity) => {
-          const option = document.createElement('option');
-          option.value = entity.id;
-          option.textContent = entity.name;
-          entitySelect.appendChild(option);
-        });
-        if (entities.length) {
-          entitySelect.value = entities[0].id;
-          loadEvents();
-        }
-      })
-      .catch((err) => {
-        if (err.status === 401 || err.status === 403 || String(err.message).includes('401') || String(err.message).includes('Unauthorized') || String(err.message).includes('Forbidden')) {
-          window.location.href = '/login.html';
-          return;
-        }
-        console.error('Failed to load entities:', err);
-        entitySelect.innerHTML = '';
-        entitySelect.disabled = true;
-        emptyState.querySelector('[data-empty-heading]').textContent = 'Unable to load calendar without access.';
-        emptyState.querySelector('[data-empty-subtext]').textContent = '';
-        emptyState.classList.remove('hidden');
-        // Disable form when no entities are accessible
-        form.querySelectorAll('input, textarea, select, button').forEach(el => { el.disabled = true; });
-      });
-
-    entitySelect.addEventListener('change', loadEvents);
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (form.dataset.submitting) return;
-      if (!entitySelect.value) {
-        setStatus('No entity selected.', false);
-        return;
-      }
-      form.dataset.submitting = 'true';
-      const submitBtn = form.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
-      const payload = Object.fromEntries(new FormData(form).entries());
-      payload.entity_id = entitySelect.value;
-      if (!dateInAllowedRange(payload.event_date || '')) {
-        setStatus('Event date must be between years 2000 and 2100.', false);
-        eventDateInput.focus();
-        form.dataset.submitting = '';
-        if (submitBtn) submitBtn.disabled = false;
-        return;
-      }
-      try {
-        await apiFetch('/calendar', { method: 'POST', body: JSON.stringify(payload) });
-        setStatus('Event created successfully.', true);
-        form.reset();
-        loadEvents();
-      } catch (err) {
-        setStatus(normalizeError(err), false);
-      } finally {
-        form.dataset.submitting = '';
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    });
-  </script>
+  <div id="delete-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="card w-full max-w-sm shadow-2xl border-[var(--color-danger)] border animate-fade-in">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">Confirm delete</h2>
+        <button id="delete-close" aria-label="Close" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <p id="delete-message" class="mt-3 text-sm font-medium text-[var(--text-secondary)]">Delete this event?</p>
+      <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
+        <button id="delete-cancel" type="button" class="btn btn-ghost px-5">Cancel</button>
+        <button id="delete-confirm" type="button" class="btn btn-danger font-semibold px-6 bg-[rgba(239,68,68,0.15)]">Delete</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/assets/calendar.js"></script>
 </body>
 
 </html>
+
+

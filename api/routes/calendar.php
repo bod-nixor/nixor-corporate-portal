@@ -40,6 +40,42 @@ function handle_calendar(string $method, array $segments): void {
         respond(['ok' => true, 'data' => ['id' => $eventId]]);
     }
 
+    if ($method === 'PUT' && $id) {
+        $eventId = (int)$id;
+        $check = db()->prepare('SELECT * FROM calendar_events WHERE id = ?');
+        $check->execute([$eventId]);
+        $event = $check->fetch();
+        if (!$event) {
+            respond(['ok' => false, 'error' => 'Event not found'], 404);
+        }
+        ensure_entity_access((int)$event['entity_id'], []);
+        if ($user['global_role'] !== 'admin' && (int)$event['created_by'] !== (int)$user['id']) {
+            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+        $data = read_json();
+        $title = require_non_empty($data['title'] ?? $event['title'], 'title', 190);
+        $eventDate = $data['event_date'] ?? $event['event_date'];
+        $dateTime = parse_calendar_datetime($eventDate, 'event_date', true);
+        $endDateRaw = array_key_exists('end_date', $data) ? $data['end_date'] : $event['end_date'];
+        $endDate = parse_calendar_datetime($endDateRaw, 'end_date', false);
+        if ($endDate && $endDate < $dateTime) {
+            respond(['ok' => false, 'error' => 'end_date must not be before event_date'], 400);
+        }
+        $normalizedDate = $dateTime->format('Y-m-d H:i:s');
+        $normalizedEndDate = $endDate ? $endDate->format('Y-m-d H:i:s') : null;
+        $description = sanitize_text($data['description'] ?? $event['description'], 2000);
+        $location = sanitize_text($data['location'] ?? $event['location'], 190);
+        $entityId = isset($data['entity_id']) ? (int)$data['entity_id'] : (int)$event['entity_id'];
+        if ($entityId !== (int)$event['entity_id']) {
+            ensure_entity_access($entityId, []);
+        }
+        $stmt = db()->prepare('UPDATE calendar_events SET title = ?, description = ?, event_date = ?, end_date = ?, location = ?, entity_id = ? WHERE id = ?');
+        $stmt->execute([$title, $description, $normalizedDate, $normalizedEndDate, $location, $entityId, $eventId]);
+        log_activity($user['id'], 'calendar_event', $eventId, 'updated', 'Calendar event updated');
+        emit_ws_event('calendar.updated', ['id' => $eventId]);
+        respond(['ok' => true]);
+    }
+
     if ($method === 'DELETE' && $id) {
         $eventId = (int)$id;
         $check = db()->prepare('SELECT * FROM calendar_events WHERE id = ?');

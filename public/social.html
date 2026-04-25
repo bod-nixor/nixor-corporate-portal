@@ -68,201 +68,22 @@
       </section>
     </main>
   </div>
-  <script type="module">
-    import { apiFetch } from '/assets/app.js';
-    import { renderSidebar } from '/assets/sidebar.js';
-
-    document.getElementById('sidebar-container').outerHTML = renderSidebar('social');
-    const entitySelect = document.getElementById('social-entity');
-    const postsEl = document.getElementById('social-posts');
-    const emptyEl = document.getElementById('social-empty');
-    const form = document.getElementById('social-form');
-    const statusEl = document.getElementById('social-status');
-
-    const normalizeError = (err) => {
-      const message = err?.message || '';
-      return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
-    };
-
-    const setStatus = (message, ok) => {
-      statusEl.textContent = message;
-      statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
-      statusEl.classList.remove('hidden');
-    };
-
-    const loadPosts = async () => {
-      const entityId = entitySelect.value;
-      if (!entityId) return;
-      try {
-        const response = await apiFetch(`/social?entity_id=${entityId}`);
-        const posts = response?.data?.posts || [];
-        const comments = response?.data?.comments || [];
-        postsEl.innerHTML = '';
-        if (!posts.length) {
-          emptyEl.classList.remove('hidden');
-          return;
-        }
-        emptyEl.classList.add('hidden');
-        posts.forEach((post) => {
-          const card = document.createElement('article');
-          card.className = 'bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl p-6 hover:border-[var(--border-strong)] transition-colors shadow-sm relative';
-
-          const headerWrap = document.createElement('div');
-          headerWrap.className = 'flex items-center gap-3 mb-4';
-
-          const avatar = document.createElement('div');
-          // Intentionally generate an abstract beautiful gradient avatar fallback
-          const hue = ((post.full_name || '').length * 10) % 360;
-          avatar.className = 'w-10 h-10 rounded-full shadow-inner flex-shrink-0';
-          avatar.style.background = `linear-gradient(135deg, hsl(${hue}, 80%, 60%), hsl(${(hue + 40) % 360}, 80%, 40%))`;
-
-          const headerName = document.createElement('p');
-          headerName.className = 'font-bold text-[var(--text-primary)] text-sm';
-          headerName.textContent = post.full_name;
-
-          const metaTime = document.createElement('p');
-          metaTime.className = 'text-[10px] font-bold text-[var(--text-tertiary)] tracking-widest uppercase mt-0.5';
-          metaTime.textContent = new Date(post.created_at).toLocaleString();
-
-          const nameMetaGroup = document.createElement('div');
-          nameMetaGroup.appendChild(headerName);
-          nameMetaGroup.appendChild(metaTime);
-
-          headerWrap.appendChild(avatar);
-          headerWrap.appendChild(nameMetaGroup);
-
-          const content = document.createElement('p');
-          content.className = 'text-[15px] font-medium text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap';
-          content.textContent = post.content;
-
-          const commentList = document.createElement('div');
-          const postComments = comments.filter((c) => c.post_id === post.id);
-
-          if (postComments.length > 0) {
-            commentList.className = 'mt-6 space-y-3.5 border-t border-[var(--border-subtle)] pt-4';
-            postComments.forEach((comment) => {
-              const line = document.createElement('div');
-              line.className = 'flex items-start gap-2.5';
-
-              const cHue = ((comment.full_name || '').length * 15) % 360;
-              const cAvatar = document.createElement('div');
-              cAvatar.className = 'w-6 h-6 rounded-full flex-shrink-0 mt-0.5';
-              cAvatar.style.background = `linear-gradient(135deg, hsl(${cHue}, 60%, 50%), hsl(${(cHue + 40) % 360}, 60%, 30%))`;
-
-              const cContent = document.createElement('div');
-              cContent.className = 'bg-[var(--bg-base)] rounded-xl px-3 py-2 text-[13px] border border-[var(--border-strong)] flex items-start flex-wrap content-start';
-
-              const nameSpan = document.createElement('span');
-              nameSpan.className = 'font-bold text-[var(--text-primary)] mr-2';
-              nameSpan.textContent = comment.full_name;
-
-              const commentSpan = document.createElement('span');
-              commentSpan.className = 'text-[var(--text-secondary)] font-medium leading-snug break-all sm:break-normal';
-              commentSpan.textContent = comment.comment;
-
-              cContent.appendChild(nameSpan);
-              cContent.appendChild(commentSpan);
-
-              line.appendChild(cAvatar);
-              line.appendChild(cContent);
-              commentList.appendChild(line);
-            });
-          }
-
-          const commentForm = document.createElement('form');
-          commentForm.className = `flex gap-2 relative ${postComments.length === 0 ? 'mt-6 pt-4 border-t border-[var(--border-subtle)]' : 'mt-4'}`;
-
-          const commentInput = document.createElement('input');
-          commentInput.className = 'input-field font-medium py-2 px-4 shadow-inner text-sm flex-1 bg-[var(--bg-base)]';
-          commentInput.placeholder = 'Write a reply...';
-
-          const commentButton = document.createElement('button');
-          commentButton.className = 'btn btn-secondary px-4 py-2 shadow-sm text-sm';
-          commentButton.textContent = 'Reply';
-
-          commentForm.appendChild(commentInput);
-          commentForm.appendChild(commentButton);
-
-          commentForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const val = commentInput.value.trim();
-            if (!val) return;
-            try {
-              commentButton.disabled = true;
-              await apiFetch(`/social/${post.id}/comments`, { method: 'POST', body: JSON.stringify({ comment: val }) });
-              commentInput.value = '';
-              loadPosts();
-            } catch (err) {
-              setStatus(normalizeError(err) || 'Comment failed', false);
-            } finally {
-              commentButton.disabled = false;
-            }
-          });
-
-          card.appendChild(headerWrap);
-          card.appendChild(content);
-          if (commentList.children.length) card.appendChild(commentList);
-          card.appendChild(commentForm);
-          postsEl.appendChild(card);
-        });
-      } catch (err) {
-        console.error('Failed to load social posts:', err);
-        postsEl.innerHTML = '';
-        emptyEl.querySelector('p.font-semibold').textContent = 'Failed to load posts.';
-        emptyEl.querySelector('p.text-xs').textContent = 'Please try again later.';
-        emptyEl.classList.remove('hidden');
-      }
-    };
-
-    apiFetch('/auth/me')
-      .then((response) => {
-        const entities = response?.data?.entities || [];
-        entitySelect.innerHTML = '';
-        entities.forEach((entity) => {
-          const option = document.createElement('option');
-          option.value = entity.id;
-          option.textContent = entity.name;
-          entitySelect.appendChild(option);
-        });
-        if (entities.length) {
-          entitySelect.value = entities[0].id;
-          loadPosts();
-        }
-      })
-      .catch((err) => {
-        if (err.status === 401 || err.status === 403 || String(err.message).includes('401') || String(err.message).includes('Unauthorized') || String(err.message).includes('Forbidden')) {
-          window.location.replace('/login.html');
-          return;
-        }
-        console.error('Failed to load entities:', err);
-        entitySelect.innerHTML = '';
-        emptyEl.querySelector('p.font-semibold').textContent = 'Unable to load posts without access.';
-        emptyEl.querySelector('p.text-xs').textContent = '';
-        emptyEl.classList.remove('hidden');
-      });
-
-    entitySelect.addEventListener('change', loadPosts);
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const submitBtn = form.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
-      try {
-        await apiFetch('/social', { method: 'POST', body: JSON.stringify({ entity_id: entitySelect.value, content: form.content.value }) });
-
-        statusEl.textContent = 'Post published successfully.';
-        statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]`;
-        statusEl.classList.remove('hidden');
-        setTimeout(() => statusEl.classList.add('hidden'), 3000);
-
-        form.reset();
-        loadPosts();
-      } catch (err) {
-        setStatus(normalizeError(err), false);
-      } finally {
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    });
-  </script>
+  <div id="delete-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="card w-full max-w-sm shadow-2xl border-[var(--color-danger)] border animate-fade-in">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold">Confirm delete</h2>
+        <button id="delete-close" aria-label="Close" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      <p id="delete-message" class="mt-3 text-sm font-medium text-[var(--text-secondary)]">Delete this item?</p>
+      <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
+        <button id="delete-cancel" type="button" class="btn btn-ghost px-5">Cancel</button>
+        <button id="delete-confirm" type="button" class="btn btn-danger font-semibold px-6 bg-[rgba(239,68,68,0.15)]">Delete</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/assets/social.js"></script>
 </body>
 
 </html>

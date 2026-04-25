@@ -100,10 +100,10 @@ const renderDeadlines = (listEl, deadlines) => {
         validDeadlines.forEach((deadline) => {
             const daysUntil = Number(deadline.days_until);
             const item = document.createElement('li');
-            item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
+            item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 gap-3';
 
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-slate-200';
+            left.className = 'text-sm font-medium text-slate-200 truncate flex-1';
             left.textContent = deadline.name;
 
             const right = document.createElement('span');
@@ -125,7 +125,7 @@ const renderDeadlines = (listEl, deadlines) => {
                 badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
             }
 
-            right.className = badgeClass;
+            right.className = badgeClass + ' shrink-0 whitespace-normal text-right max-w-[50%] overflow-hidden';
             item.appendChild(left);
             item.appendChild(right);
             listEl.appendChild(item);

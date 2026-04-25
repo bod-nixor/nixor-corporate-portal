@@ -76,7 +76,47 @@ function handle_social(string $method, array $segments): void {
         respond(['ok' => true, 'data' => ['id' => $commentId]]);
     }
 
-    if ($method === 'DELETE' && $id) {
+    if ($method === 'PUT' && $id && $action === '') {
+        $postId = (int)$id;
+        $check = db()->prepare('SELECT * FROM social_posts WHERE id = ?');
+        $check->execute([$postId]);
+        $post = $check->fetch();
+        if (!$post) {
+            respond(['ok' => false, 'error' => 'Post not found'], 404);
+        }
+        ensure_entity_access((int)$post['entity_id'], []);
+        if ($user['global_role'] !== 'admin' && (int)$post['user_id'] !== (int)$user['id']) {
+            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+        $data = read_json();
+        $content = require_non_empty($data['content'] ?? $post['content'], 'content', 2000);
+        $stmt = db()->prepare('UPDATE social_posts SET content = ? WHERE id = ?');
+        $stmt->execute([$content, $postId]);
+        log_activity($user['id'], 'social_post', $postId, 'updated', 'Social post updated');
+        emit_ws_event('social.updated', ['id' => $postId]);
+        respond(['ok' => true]);
+    }
+
+    if ($method === 'DELETE' && $id === 'comments' && $action) {
+        $commentId = (int)$action;
+        $check = db()->prepare('SELECT sc.*, sp.entity_id FROM social_comments sc JOIN social_posts sp ON sc.post_id = sp.id WHERE sc.id = ?');
+        $check->execute([$commentId]);
+        $comment = $check->fetch();
+        if (!$comment) {
+            respond(['ok' => false, 'error' => 'Comment not found'], 404);
+        }
+        ensure_entity_access((int)$comment['entity_id'], []);
+        if ($user['global_role'] !== 'admin' && (int)$comment['user_id'] !== (int)$user['id']) {
+            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+        $del = db()->prepare('DELETE FROM social_comments WHERE id = ?');
+        $del->execute([$commentId]);
+        log_activity($user['id'], 'social_post', $comment['post_id'], 'comment_deleted', 'Social comment deleted');
+        emit_ws_event('social.comment_deleted', ['post_id' => $comment['post_id']]);
+        respond(['ok' => true]);
+    }
+
+    if ($method === 'DELETE' && $id && $action === '') {
         $postId = (int)$id;
         $check = db()->prepare('SELECT * FROM social_posts WHERE id = ?');
         $check->execute([$postId]);
@@ -97,3 +137,4 @@ function handle_social(string $method, array $segments): void {
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
 }
+
