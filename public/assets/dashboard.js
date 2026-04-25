@@ -88,8 +88,12 @@ const renderMeetings = (listEl, meetings) => {
 
 const renderDeadlines = (listEl, deadlines) => {
     listEl.innerHTML = '';
-    if (deadlines?.length) {
-        deadlines.forEach((deadline) => {
+    const validDeadlines = (deadlines || []).filter((deadline) => {
+        const daysUntil = Number(deadline?.days_until);
+        return deadline?.deadline_label && Number.isFinite(daysUntil);
+    });
+    if (validDeadlines.length) {
+        validDeadlines.forEach((deadline) => {
             const item = document.createElement('li');
             item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
 
@@ -101,10 +105,7 @@ const renderDeadlines = (listEl, deadlines) => {
             const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
 
             let badgeClass = 'badge ';
-            if (deadline.days_until === null) {
-                right.textContent = `${label}TBD`;
-                badgeClass += 'badge-info';
-            } else if (deadline.days_until === 0) {
+            if (deadline.days_until === 0) {
                 right.textContent = `${label}Due today`;
                 badgeClass += 'badge-danger';
             } else if (deadline.days_until < 0) {
@@ -142,7 +143,11 @@ const loadDashboard = async (entityId) => {
         const response = await apiFetch(`/dashboard?entity_id=${encodeURIComponent(entityId)}`);
         const data = response?.data || {};
         docProgress.textContent = `${data.doc_progress || 0}%`;
-        docSummary.textContent = `Tracking ${data.total_endeavours || 0} endeavours.`;
+        const approvedDocs = Number(data.doc_progress_approved || 0);
+        const totalDocs = Number(data.doc_progress_total || 0);
+        docSummary.textContent = totalDocs > 0
+            ? `${approvedDocs} of ${totalDocs} docs approved across ${data.total_endeavours || 0} endeavours.`
+            : `Tracking ${data.total_endeavours || 0} endeavours. No document approvals are active yet.`;
 
         if (data.announcements?.length) {
             data.announcements.forEach((announcement) => {

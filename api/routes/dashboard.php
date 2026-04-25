@@ -12,12 +12,27 @@ function handle_dashboard(string $method, array $_segments): void {
     $endeavourStmt->execute([$entityId]);
     $totalEndeavours = (int)$endeavourStmt->fetch()['total'];
 
-    $docStmt = db()->prepare('SELECT COUNT(*) as total FROM endeavour_documents ed JOIN endeavours e ON ed.endeavour_id = e.id WHERE e.entity_id = ?');
-    $docStmt->execute([$entityId]);
-    $totalDocs = (int)$docStmt->fetch()['total'];
-
-    $docTarget = max(1, $totalEndeavours * 3);
-    $docProgress = min(100, (int)round(($totalDocs / $docTarget) * 100));
+    $approvalMetricStmt = db()->prepare('SELECT eda.endeavour_id, eda.doc_type, eda.status FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ?');
+    $approvalMetricStmt->execute([$entityId]);
+    $docGroups = [];
+    foreach ($approvalMetricStmt->fetchAll() as $approvalRow) {
+        $key = $approvalRow['endeavour_id'] . ':' . $approvalRow['doc_type'];
+        if (!isset($docGroups[$key])) {
+            $docGroups[$key] = ['total' => 0, 'approved' => 0];
+        }
+        $docGroups[$key]['total'] += 1;
+        if ($approvalRow['status'] === 'approved') {
+            $docGroups[$key]['approved'] += 1;
+        }
+    }
+    $totalDocs = count($docGroups);
+    $approvedDocs = 0;
+    foreach ($docGroups as $docGroup) {
+        if ($docGroup['total'] > 0 && $docGroup['approved'] === $docGroup['total']) {
+            $approvedDocs += 1;
+        }
+    }
+    $docProgress = $totalDocs > 0 ? min(100, (int)round(($approvedDocs / $totalDocs) * 100)) : 0;
 
     $pendingStmt = db()->prepare('SELECT e.id, e.name, eda.doc_type, eda.approver_group FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ? AND eda.status = "pending" ORDER BY e.created_at DESC');
     $pendingStmt->execute([$entityId]);
@@ -85,7 +100,10 @@ function handle_dashboard(string $method, array $_segments): void {
                 }
             }
         }
-        $days = $nextTs ? (int)round(($nextTs - time()) / 86400) : null;
+        if ($nextTs === null) {
+            continue;
+        }
+        $days = (int)round(($nextTs - time()) / 86400);
         $deadlines[] = [
             'id' => (int)$row['id'],
             'name' => $row['name'],
@@ -125,6 +143,8 @@ function handle_dashboard(string $method, array $_segments): void {
         'ok' => true,
         'data' => [
             'doc_progress' => $docProgress,
+            'doc_progress_approved' => $approvedDocs,
+            'doc_progress_total' => $totalDocs,
             'total_endeavours' => $totalEndeavours,
             'pending_docs' => array_values($pendingDocs),
             'calendar' => $calendarStmt->fetchAll(),
