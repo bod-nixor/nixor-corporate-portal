@@ -16,7 +16,7 @@ function handle_auth(string $method, array $segments): void {
             if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
             }
-            $stmt = db()->prepare('SELECT * FROM users WHERE LOWER(email) = ?');
+            $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             if (!$user || !verify_password($password, $user['password_hash'] ?? null)) {

@@ -118,7 +118,7 @@ function handle_endeavours(string $method, array $segments): void {
         $eventStart = validate_datetime($data['event_start_at'] ?? null, 'event_start_at');
         $eventEnd = validate_datetime($data['event_end_at'] ?? null, 'event_end_at');
         if ($eventStart && $eventEnd && strtotime($eventEnd) < strtotime($eventStart)) {
-            respond(['ok' => false, 'error' => 'event_end_at must be after event_start_at'], 400);
+            respond(['ok' => false, 'error' => 'event_end_at must not be before event_start_at'], 400);
         }
         $startDate = $eventStart ? substr($eventStart, 0, 10) : null;
         $endDate = $eventEnd ? substr($eventEnd, 0, 10) : null;
@@ -203,7 +203,7 @@ function handle_endeavours(string $method, array $segments): void {
         $eventStart = validate_datetime($data['event_start_at'] ?? $endeavour['event_start_at'] ?? null, 'event_start_at');
         $eventEnd = validate_datetime($data['event_end_at'] ?? $endeavour['event_end_at'] ?? null, 'event_end_at');
         if ($eventStart && $eventEnd && strtotime($eventEnd) < strtotime($eventStart)) {
-            respond(['ok' => false, 'error' => 'event_end_at must be after event_start_at'], 400);
+            respond(['ok' => false, 'error' => 'event_end_at must not be before event_start_at'], 400);
         }
         $startDate = $eventStart ? substr($eventStart, 0, 10) : ($data['start_date'] ?? $endeavour['start_date']);
         $endDate = $eventEnd ? substr($eventEnd, 0, 10) : ($data['end_date'] ?? $endeavour['end_date']);

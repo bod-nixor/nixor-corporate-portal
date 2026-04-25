@@ -89,11 +89,16 @@ const renderMeetings = (listEl, meetings) => {
 const renderDeadlines = (listEl, deadlines) => {
     listEl.innerHTML = '';
     const validDeadlines = (deadlines || []).filter((deadline) => {
-        const daysUntil = Number(deadline?.days_until);
-        return deadline?.deadline_label && Number.isFinite(daysUntil);
+        const rawDaysUntil = deadline?.days_until;
+        if (!deadline?.deadline_label || rawDaysUntil === null || rawDaysUntil === '') {
+            return false;
+        }
+        const daysUntil = Number(rawDaysUntil);
+        return Number.isFinite(daysUntil);
     });
     if (validDeadlines.length) {
         validDeadlines.forEach((deadline) => {
+            const daysUntil = Number(deadline.days_until);
             const item = document.createElement('li');
             item.className = 'flex justify-between items-center p-3 bg-slate-800/50 rounded-lg border border-slate-700/50';
 
@@ -105,18 +110,18 @@ const renderDeadlines = (listEl, deadlines) => {
             const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
 
             let badgeClass = 'badge ';
-            if (deadline.days_until === 0) {
+            if (daysUntil === 0) {
                 right.textContent = `${label}Due today`;
                 badgeClass += 'badge-danger';
-            } else if (deadline.days_until < 0) {
-                const overdueDays = Math.abs(deadline.days_until);
+            } else if (daysUntil < 0) {
+                const overdueDays = Math.abs(daysUntil);
                 right.textContent = `${label}Overdue (${overdueDays}d)`;
                 badgeClass += 'badge-danger';
-            } else if (deadline.days_until <= 3) {
-                right.textContent = `${label}${deadline.days_until}d left`;
+            } else if (daysUntil <= 3) {
+                right.textContent = `${label}${daysUntil}d left`;
                 badgeClass += 'badge-warning';
             } else {
-                right.textContent = `${label}${deadline.days_until}d left`;
+                right.textContent = `${label}${daysUntil}d left`;
                 badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
             }
 

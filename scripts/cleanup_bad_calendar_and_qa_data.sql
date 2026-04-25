@@ -78,7 +78,7 @@ WHERE title IN ('asd', 'a', 'adwd', 'awdwd')
 SELECT id, entity_id, LEFT(content, 200) AS content_preview, created_at
 FROM social_posts
 WHERE content IN ('asd', 'a', 'adwd', 'awdwd')
-   OR content LIKE '%script%';
+   OR LOWER(content) REGEXP '<[[:space:]]*/?[[:space:]]*script([[:space:]>]|$)';
 
 ROLLBACK;
 -- COMMIT;

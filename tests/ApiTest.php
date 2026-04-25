@@ -206,11 +206,23 @@ final class ApiTest extends TestCase {
         ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
         $this->assertSame(200, $entity['status']);
 
+        $secondEntity = $adminClient->request('POST', '/api/admin/entities', [
+            'name' => 'Second Admin Entity',
+            'description' => 'Created for rename collision'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(200, $secondEntity['status']);
+
         $duplicateEntity = $adminClient->request('POST', '/api/admin/entities', [
             'name' => 'admin alias entity',
             'description' => 'Duplicate casing'
         ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
         $this->assertSame(409, $duplicateEntity['status']);
+
+        $duplicateRename = $adminClient->request('PUT', '/api/admin/entities/' . (int)$secondEntity['data']['data']['id'], [
+            'name' => 'ADMIN ALIAS ENTITY',
+            'description' => 'Duplicate rename'
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(409, $duplicateRename['status']);
 
         $user = $adminClient->request('POST', '/api/admin/users', [
             'email' => 'new-user@example.com',
@@ -278,9 +290,16 @@ final class ApiTest extends TestCase {
         $valid = $client->request('POST', '/api/calendar', [
             'entity_id' => $entityId,
             'title' => 'Valid Calendar Event',
-            'event_date' => '2026-05-01T12:00'
+            'event_date' => '2026-05-01T12:00',
+            'end_date' => '2026-05-01T13:00'
         ], ["X-CSRF-Token: {$client->csrfToken}"]);
         $this->assertSame(200, $valid['status']);
+        $eventId = (int)$valid['data']['data']['id'];
+        $stored = db()->prepare('SELECT event_date, end_date FROM calendar_events WHERE id = ?');
+        $stored->execute([$eventId]);
+        $storedEvent = $stored->fetch();
+        $this->assertSame('2026-05-01 12:00:00', $storedEvent['event_date']);
+        $this->assertSame('2026-05-01 13:00:00', $storedEvent['end_date']);
 
         $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, event_date, created_by) VALUES (?, ?, ?, ?)');
         $stmt->execute([$entityId, 'Legacy Bad Event', '1111-11-01 11:11:00', $adminId]);
@@ -290,6 +309,8 @@ final class ApiTest extends TestCase {
         $titles = array_column($list['data']['data'], 'title');
         $this->assertContains('Valid Calendar Event', $titles);
         $this->assertNotContains('Legacy Bad Event', $titles);
+        $validEvent = array_values(array_filter($list['data']['data'], fn($event) => $event['title'] === 'Valid Calendar Event'))[0] ?? null;
+        $this->assertSame('2026-05-01 13:00:00', $validEvent['end_date'] ?? null);
     }
 
     public function testVolunteeringOnlyReturnsVisibleRegistrationOpportunities(): void {
@@ -327,6 +348,7 @@ final class ApiTest extends TestCase {
         $this->assertSame(50, $dashboard['data']['data']['doc_progress']);
         $deadlineNames = array_column($dashboard['data']['data']['deadlines'], 'name');
         $this->assertContains('Approved Docs', $deadlineNames);
+        $this->assertNotContains('Pending Docs', $deadlineNames);
         $this->assertNotContains('No Dates', $deadlineNames);
     }
 

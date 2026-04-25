@@ -26,13 +26,14 @@ function handle_calendar(string $method, array $segments): void {
         $dateTime = parse_calendar_datetime($eventDate, 'event_date', true);
         $endDate = parse_calendar_datetime($data['end_date'] ?? ($data['event_end_at'] ?? null), 'end_date', false);
         if ($endDate && $endDate < $dateTime) {
-            respond(['ok' => false, 'error' => 'end_date must be after event_date'], 400);
+            respond(['ok' => false, 'error' => 'end_date must not be before event_date'], 400);
         }
         $normalizedDate = $dateTime->format('Y-m-d H:i:s');
+        $normalizedEndDate = $endDate ? $endDate->format('Y-m-d H:i:s') : null;
         $description = sanitize_text($data['description'] ?? '', 2000);
         $location = sanitize_text($data['location'] ?? '', 190);
-        $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$entityId, $title, $description, $normalizedDate, $location, $user['id']]);
+        $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, end_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$entityId, $title, $description, $normalizedDate, $normalizedEndDate, $location, $user['id']]);
         $eventId = (int)db()->lastInsertId();
         log_activity($user['id'], 'calendar_event', $eventId, 'created', 'Calendar event created');
         emit_ws_event('calendar.created', ['id' => $eventId]);

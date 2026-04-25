@@ -23,16 +23,19 @@ function handle_admin(string $method, array $segments): void {
     if ($action === 'entities') {
         require_once __DIR__ . '/entities.php';
         handle_entities($method, array_merge(['entities'], array_slice($segments, 2)));
+        return;
     }
 
     if ($action === 'users') {
         require_once __DIR__ . '/users.php';
         handle_users($method, array_merge(['users'], array_slice($segments, 2)));
+        return;
     }
 
     if ($action === 'members') {
         require_once __DIR__ . '/members.php';
         handle_members($method, array_merge(['members'], array_slice($segments, 2)));
+        return;
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);

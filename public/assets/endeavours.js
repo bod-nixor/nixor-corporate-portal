@@ -243,7 +243,7 @@ const loadNotifications = async () => {
         updateNotificationBadge();
     } catch (err) {
         unreadNotificationCount = 0;
-        notificationBadge.classList.add('hidden');
+        updateNotificationBadge();
     }
 };
 

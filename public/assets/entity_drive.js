@@ -1154,6 +1154,9 @@ async function loadItems({ preserveSelection = true, preserveActive = true } = {
   el.skeleton.classList.remove('hidden');
   setStatus('Loading drive...', 'muted');
 
+  let restoredItem = null;
+  let loadError = null;
+
   try {
     const params = new URLSearchParams({ entity_id: String(state.entityId) });
     if (state.parentId) {
@@ -1169,20 +1172,9 @@ async function loadItems({ preserveSelection = true, preserveActive = true } = {
     state.selection = new Set(
       [...previousSelection].filter((id) => state.items.some((item) => normalizeId(item.id) === normalizeId(id)))
     );
-    state.loading = false;
-    el.skeleton.classList.add('hidden');
-    renderBreadcrumbs();
-    renderLocation();
-    renderItems();
-
-    const restoredItem = previousActiveId
+    restoredItem = previousActiveId
       ? state.items.find((item) => Number(item.id) === previousActiveId) || null
       : null;
-    await openInspector(restoredItem);
-    if (!restoredItem) {
-      renderInspector();
-    }
-    setStatus(state.query ? `Filtering current folder by "${state.query}".` : 'Drive loaded.', 'success');
   } catch (error) {
     if (state.loadToken !== token) {
       return;
@@ -1192,19 +1184,33 @@ async function loadItems({ preserveSelection = true, preserveActive = true } = {
     state.activeId = null;
     state.activeItem = null;
     state.activePreview = null;
-    state.loading = false;
-    el.skeleton.classList.add('hidden');
-    renderBreadcrumbs();
-    renderLocation();
-    renderItems();
-    renderInspector();
-    setStatus(normalizeError(error), 'error');
+    loadError = error;
   } finally {
     if (state.loadToken === token) {
       state.loading = false;
       el.skeleton.classList.add('hidden');
     }
   }
+
+  if (state.loadToken !== token) {
+    return;
+  }
+
+  renderBreadcrumbs();
+  renderLocation();
+  renderItems();
+
+  if (loadError) {
+    renderInspector();
+    setStatus(normalizeError(loadError), 'error');
+    return;
+  }
+
+  await openInspector(restoredItem);
+  if (!restoredItem) {
+    renderInspector();
+  }
+  setStatus(state.query ? `Filtering current folder by "${state.query}".` : 'Drive loaded.', 'success');
 }
 
 function closeNewMenu() {

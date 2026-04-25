@@ -113,15 +113,7 @@ function handle_dashboard(string $method, array $_segments): void {
             'days_until' => $days
         ];
     }
-    usort($deadlines, static function ($a, $b) {
-        if ($a['days_until'] === null) {
-            return 1;
-        }
-        if ($b['days_until'] === null) {
-            return -1;
-        }
-        return $a['days_until'] <=> $b['days_until'];
-    });
+    usort($deadlines, static fn($a, $b) => $a['days_until'] <=> $b['days_until']);
     $deadlines = array_slice($deadlines, 0, 5);
 
     $announcementStmt = db()->prepare('SELECT a.*, u.full_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 5');
