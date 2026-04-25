@@ -475,10 +475,14 @@ const renderEndeavours = (rows, driveFiles) => {
         const card = document.createElement('div');
         card.className = 'card animate-fade-in flex flex-col shadow-lg border-[var(--border-strong)] p-0! overflow-hidden mb-10 transition-transform duration-300 hover:border-[#3b82f640]';
 
+        const bodyContainer = document.createElement('div');
+        bodyContainer.id = `endeavour-body-${row.id}`;
+        bodyContainer.className = 'hidden flex-col';
+
         const header = document.createElement('button');
         header.className = 'flex w-full text-left flex-wrap items-center justify-between gap-3 px-6 md:px-8 py-6 bg-[rgba(255,255,255,0.015)] border-b border-[var(--border-subtle)] hover:bg-[rgba(255,255,255,0.03)] transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[var(--color-primary)]';
         header.setAttribute('aria-expanded', 'false');
-    header.setAttribute('aria-controls', bodyContainer.id);
+        header.setAttribute('aria-controls', bodyContainer.id);
 
         const titleContent = document.createElement('div');
         titleContent.className = 'flex items-center gap-4';
@@ -509,9 +513,6 @@ const renderEndeavours = (rows, driveFiles) => {
         toggleIcon.innerHTML = `<svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>`;
         header.appendChild(toggleIcon);
 
-        const bodyContainer = document.createElement('div');
-        bodyContainer.className = 'hidden flex-col';
-
         header.addEventListener('click', () => {
             const isExpanded = bodyContainer.classList.contains('hidden');
             if (isExpanded) {
@@ -524,7 +525,6 @@ const renderEndeavours = (rows, driveFiles) => {
                 bodyContainer.classList.remove('flex');
                 toggleIcon.classList.remove('rotate-180');
                 header.setAttribute('aria-expanded', 'false');
-    header.setAttribute('aria-controls', bodyContainer.id);
             }
         });
 
