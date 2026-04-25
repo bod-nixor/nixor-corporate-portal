@@ -91,6 +91,17 @@ const nextDeadlineSummary = (row) => {
     return upcoming ? `${upcoming.label}: ${formatDateTime(upcoming.date)}` : 'No deadline set';
 };
 
+const showRegistrationActionError = (container, message) => {
+    let status = container.querySelector('[data-registration-status]');
+    if (!status) {
+        status = document.createElement('p');
+        status.dataset.registrationStatus = 'true';
+        status.className = 'text-xs font-semibold text-[var(--color-danger)] bg-[var(--color-danger-bg)] border border-[rgba(239,68,68,0.2)] rounded-lg px-3 py-2';
+        container.prepend(status);
+    }
+    status.textContent = message;
+};
+
 const renderRegistrations = async (container, endeavourId, phase, transportFeeRequired = false) => {
     container.innerHTML = '<p class="text-xs text-[var(--text-tertiary)] font-medium">Loading registrations...</p>';
     try {
@@ -107,14 +118,14 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
             row.className = 'flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--text-primary)] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] rounded-lg p-3 shadow-sm transition-all hover:bg-[rgba(255,255,255,0.04)]';
 
             const nameContent = document.createElement('div');
-            nameContent.className = 'flex flex-col min-w-[120px]';
-            const nameStr = `<span class="font-semibold">${escapeHtml(reg.full_name)}</span>`;
+            nameContent.className = 'flex flex-col min-w-0 flex-1';
+            const nameStr = `<span class="font-semibold break-words">${escapeHtml(reg.full_name)}</span>`;
             const statusStr = `<span class="text-xs text-[var(--text-tertiary)] uppercase tracking-wide mt-0.5">${escapeHtml(status || 'pending')}</span>`;
             nameContent.innerHTML = nameStr + statusStr;
 
             row.appendChild(nameContent);
             const actions = document.createElement('div');
-            actions.className = 'flex gap-2';
+            actions.className = 'flex flex-wrap gap-2 justify-start sm:justify-end';
 
             if (phase === 'VOLUNTEER_SHORTLISTING') {
                 if (status !== 'shortlisted') {
@@ -127,7 +138,7 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
                             await apiFetch(`/endeavours/${endeavourId}/registrations/shortlist`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
                             await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
-                            alert(err?.message || 'Unable to shortlist volunteer.');
+                            showRegistrationActionError(container, err?.message || 'Unable to shortlist volunteer.');
                             console.error(err);
                         } finally {
                             shortlist.disabled = false;
@@ -146,7 +157,7 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
                             await apiFetch(`/endeavours/${endeavourId}/registrations/reject`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
                             await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
-                            alert(err?.message || 'Unable to reject volunteer.');
+                            showRegistrationActionError(container, err?.message || 'Unable to reject volunteer.');
                             console.error(err);
                         } finally {
                             reject.disabled = false;
@@ -166,7 +177,7 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
                             await apiFetch(`/endeavours/${endeavourId}/registrations/attendance`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id, attendance_status: 'present' }) });
                             await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
-                            alert(err?.message || 'Unable to mark attendance.');
+                            showRegistrationActionError(container, err?.message || 'Unable to mark attendance.');
                             console.error(err);
                         } finally {
                             present.disabled = false;
@@ -185,7 +196,7 @@ const renderRegistrations = async (container, endeavourId, phase, transportFeeRe
                             await apiFetch(`/endeavours/${endeavourId}/registrations/transport_fee`, { method: 'POST', body: JSON.stringify({ registration_id: reg.id }) });
                             await renderRegistrations(container, endeavourId, phase, transportFeeRequired);
                         } catch (err) {
-                            alert(err?.message || 'Unable to mark transport fee.');
+                            showRegistrationActionError(container, err?.message || 'Unable to mark transport fee.');
                             console.error(err);
                         } finally {
                             paid.disabled = false;

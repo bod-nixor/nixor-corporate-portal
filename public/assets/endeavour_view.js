@@ -191,7 +191,7 @@ const initEndeavourView = () => {
           row.className = 'hover:bg-[rgba(255,255,255,0.02)] transition-colors';
 
           const nameCell = document.createElement('td');
-          nameCell.className = 'px-6 py-3 font-bold text-[var(--text-primary)]';
+          nameCell.className = 'px-6 py-3 font-bold text-[var(--text-primary)] break-words';
           nameCell.textContent = app.full_name;
 
           const statusCell = document.createElement('td');
@@ -246,23 +246,51 @@ const initEndeavourView = () => {
           const paymentBtn = document.createElement('button');
           paymentBtn.className = btnClass;
           paymentBtn.textContent = 'Mark Paid';
-          paymentBtn.addEventListener('click', async () => {
-            const receiptRef = window.prompt('Enter receipt reference');
-            if (!receiptRef?.trim()) {
+
+          const paymentForm = document.createElement('form');
+          paymentForm.className = 'hidden mt-3 flex flex-col sm:flex-row gap-2 w-full max-w-sm';
+          const receiptInput = document.createElement('input');
+          receiptInput.className = 'input-field py-1.5 text-xs flex-1 min-w-0';
+          receiptInput.placeholder = 'Receipt reference';
+          receiptInput.setAttribute('aria-label', `Receipt reference for ${app.full_name}`);
+          const savePaymentBtn = document.createElement('button');
+          savePaymentBtn.type = 'submit';
+          savePaymentBtn.className = 'btn btn-secondary px-3 py-1.5 text-xs';
+          savePaymentBtn.textContent = 'Save';
+          const cancelPaymentBtn = document.createElement('button');
+          cancelPaymentBtn.type = 'button';
+          cancelPaymentBtn.className = 'btn btn-ghost px-3 py-1.5 text-xs';
+          cancelPaymentBtn.textContent = 'Cancel';
+          paymentForm.append(receiptInput, savePaymentBtn, cancelPaymentBtn);
+
+          paymentBtn.addEventListener('click', () => {
+            paymentForm.classList.remove('hidden');
+            receiptInput.focus();
+          });
+          cancelPaymentBtn.addEventListener('click', () => {
+            paymentForm.classList.add('hidden');
+            receiptInput.value = '';
+          });
+          paymentForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const receiptRef = receiptInput.value.trim();
+            if (!receiptRef) {
               setStatus(actionStatus, 'Receipt reference is required.', false);
+              receiptInput.focus();
               return;
             }
             paymentBtn.disabled = true;
-            const originalText = paymentBtn.textContent;
-            paymentBtn.textContent = '...';
+            savePaymentBtn.disabled = true;
+            savePaymentBtn.textContent = '...';
             try {
-              await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef.trim() }) });
+              await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef }) });
               loadEndeavour();
             } catch (err) {
               setStatus(actionStatus, normalizeError(err) || 'Payment update failed', false);
             } finally {
               paymentBtn.disabled = false;
-              paymentBtn.textContent = originalText;
+              savePaymentBtn.disabled = false;
+              savePaymentBtn.textContent = 'Save';
             }
           });
           const attendanceBtn = document.createElement('button');
@@ -289,6 +317,7 @@ const initEndeavourView = () => {
           actions.appendChild(attendanceBtn);
 
           actionCell.appendChild(actions);
+          actionCell.appendChild(paymentForm);
           row.appendChild(nameCell);
           row.appendChild(statusCell);
           row.appendChild(actionCell);

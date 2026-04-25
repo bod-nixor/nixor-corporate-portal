@@ -148,10 +148,10 @@ const loadEvents = async () => {
       const card = document.createElement('div');
       card.className = 'bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl p-5 hover:border-[var(--border-strong)] transition-colors shadow-sm relative group focus-within:border-[var(--border-strong)]';
       const title = document.createElement('p');
-      title.className = 'font-bold text-[var(--text-primary)] text-base leading-tight pr-20';
+      title.className = 'font-bold text-[var(--text-primary)] text-base leading-tight pr-20 break-words';
       title.textContent = event.title;
       const meta = document.createElement('p');
-      meta.className = 'text-[10px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-2 flex items-center gap-2';
+      meta.className = 'text-[10px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-2 flex flex-wrap items-center gap-2 min-w-0';
       const timeSpan = document.createElement('span');
       timeSpan.textContent = new Date(event.event_date).toLocaleString();
 
@@ -160,7 +160,7 @@ const loadEvents = async () => {
       separatorSpan.textContent = '|';
 
       const locSpan = document.createElement('span');
-      locSpan.className = 'truncate';
+      locSpan.className = 'min-w-0 max-w-full truncate';
       locSpan.textContent = event.location || 'TBD';
 
       meta.innerHTML = `<svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`;
@@ -183,7 +183,7 @@ const loadEvents = async () => {
       const canManage = Boolean(event.can_manage);
       if (canManage) {
         const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity';
+        actionsDiv.className = 'absolute top-4 right-4 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity';
         
         const editBtn = document.createElement('button');
         editBtn.type = 'button';

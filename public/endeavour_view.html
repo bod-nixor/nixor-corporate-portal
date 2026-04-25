@@ -12,11 +12,11 @@
 
 <body
   class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
-  <div class="flex w-full min-h-screen">
-    <div id="sidebar-container" class="shrink-0"></div>
-    <main class="flex-1 p-5 md:p-8 lg:p-10 min-w-0 max-w-7xl mx-auto">
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
+    <main class="app-main app-main--wide">
       <header
-        class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-10 pb-6 border-b border-[var(--border-subtle)]">
+        class="app-page-header flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
         <div>
           <p id="endeavour-status"
             class="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border border-[rgba(16,185,129,0.2)] mb-3">
@@ -165,7 +165,7 @@
         <aside class="space-y-8">
 
           <div
-            class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] sticky top-6">
+            class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] xl:sticky xl:top-6">
             <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
               <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Approvals</h2>
             </div>
