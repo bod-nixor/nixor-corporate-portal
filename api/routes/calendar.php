@@ -70,10 +70,10 @@ function parse_calendar_datetime($value, string $field, bool $required): ?DateTi
         return null;
     }
 
-    $value = (string)$value;
+    $value = trim((string)$value);
     $formats = ['Y-m-d\\TH:i', DateTime::ATOM, 'Y-m-d H:i:s'];
     foreach ($formats as $format) {
-        $dt = DateTime::createFromFormat($format, $value);
+        $dt = DateTime::createFromFormat('!' . $format, $value);
         $errors = DateTime::getLastErrors();
         $isValid = $dt
             && ($errors === false || (($errors['warning_count'] ?? 0) === 0 && ($errors['error_count'] ?? 0) === 0))

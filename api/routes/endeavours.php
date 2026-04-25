@@ -414,6 +414,23 @@ function handle_endeavours(string $method, array $segments): void {
         respond(['ok' => true]);
     }
 
+    if ($id && $action === 'registrations' && $method === 'GET') {
+        $endeavour = fetch_endeavour($id);
+        if (!$endeavour) {
+            respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
+        }
+        ensure_entity_access((int)$endeavour['entity_id'], []);
+        $stmt = db()->prepare(
+            'SELECT vr.*, u.full_name, u.email
+             FROM volunteer_registrations vr
+             JOIN users u ON vr.user_id = u.id
+             WHERE vr.endeavour_id = ?
+             ORDER BY vr.registered_at DESC'
+        );
+        $stmt->execute([$id]);
+        respond(['ok' => true, 'data' => $stmt->fetchAll()]);
+    }
+
     if ($id && $action === 'registrations' && $method === 'POST') {
         $endeavour = fetch_endeavour($id);
         if (!$endeavour) {
@@ -477,7 +494,7 @@ function handle_endeavours(string $method, array $segments): void {
         respond(['ok' => false, 'error' => 'Invalid registration action'], 400);
     }
 
-    if ($id && $action === 'submit_ops_plan' && $method === 'POST') {
+    if ($id && in_array($action, ['submit_ops_plan', 'submit_operational_plan'], true) && $method === 'POST') {
         $user = ensure_entity_access(fetch_entity_id($id), ['operations']);
         handle_doc_upload($id, 'ops_plan', 'ops_plan_pending_board_approval', $user['id']);
     }
@@ -551,7 +568,11 @@ function handle_endeavours(string $method, array $segments): void {
     }
 
     if ($id && $action === 'applications' && $method === 'GET') {
-        require_role(['admin', 'board', 'hr']);
+        $user = require_auth();
+        $entityId = fetch_entity_id($id);
+        if (!in_array($user['global_role'], ['admin', 'board'], true)) {
+            ensure_entity_access($entityId, ['hr']);
+        }
         $stmt = db()->prepare('SELECT va.*, s.student_id, u.full_name FROM volunteer_applications va JOIN students s ON va.student_id = s.id JOIN users u ON s.user_id = u.id WHERE va.volunteer_post_id IN (SELECT id FROM volunteer_posts WHERE endeavour_id = ?)');
         $stmt->execute([$id]);
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
@@ -709,12 +730,8 @@ function handle_endeavours(string $method, array $segments): void {
         if (!$endeavour) {
             respond(['ok' => false, 'error' => 'Endeavour not found'], 404);
         }
-        $allowed = ['admin'];
-        if ($endeavour['type_id']) {
-            $allowed = ['admin', 'board', 'hr'];
-        }
-        if (!in_array($user['global_role'], $allowed, true)) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        if (!in_array($user['global_role'], ['admin', 'board'], true)) {
+            ensure_entity_access((int)$endeavour['entity_id'], ['hr']);
         }
         $check = db()->prepare('SELECT va.id FROM volunteer_applications va JOIN volunteer_posts vp ON va.volunteer_post_id = vp.id WHERE va.id = ? AND vp.endeavour_id = ?');
         $check->execute([$applicationId, $id]);
@@ -763,14 +780,24 @@ function validate_datetime(?string $value, string $field): ?string {
     if ($value === null || $value === '') {
         return null;
     }
-    $dt = DateTime::createFromFormat('Y-m-d\\TH:i:s', $value)
-        ?: DateTime::createFromFormat('Y-m-d H:i:s', $value)
-        ?: DateTime::createFromFormat('Y-m-d\\TH:i', $value)
-        ?: DateTime::createFromFormat('Y-m-d', $value);
-    if (!$dt) {
-        respond(['ok' => false, 'error' => "Invalid datetime for {$field}"], 400);
+    $value = trim($value);
+    $formats = ['Y-m-d\\TH:i:s', 'Y-m-d H:i:s', 'Y-m-d\\TH:i', 'Y-m-d'];
+    foreach ($formats as $format) {
+        $parseFormat = '!' . $format;
+        $dt = DateTime::createFromFormat($parseFormat, $value);
+        $errors = DateTime::getLastErrors();
+        $hasErrors = $errors !== false && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0);
+        if (!$dt || $hasErrors || $dt->format($format) !== $value) {
+            continue;
+        }
+        $year = (int)$dt->format('Y');
+        if ($year < 2000 || $year > 2100) {
+            respond(['ok' => false, 'error' => "{$field} must be between years 2000 and 2100"], 400);
+        }
+        return $dt->format('Y-m-d H:i:s');
     }
-    return $dt->format('Y-m-d H:i:s');
+
+    respond(['ok' => false, 'error' => "Invalid datetime for {$field}"], 400);
 }
 
 function phase_precedes(string $current, string $target): bool {
