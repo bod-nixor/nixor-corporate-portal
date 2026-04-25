@@ -244,6 +244,7 @@ function getItemById(id) {
 }
 
 function setNodeHidden(node, hidden) {
+  if (!node) return;
   node.hidden = hidden;
   node.classList.toggle('hidden', hidden);
 }
@@ -349,22 +350,30 @@ function syncViewMode() {
 
 function renderBulkToolbar(items) {
   const selectedCount = state.selection.size;
-  el.bulkToolbar.classList.toggle('hidden', selectedCount === 0);
-  el.bulkCount.textContent = `${selectedCount} selected`;
-  el.bulkShare.disabled = selectedCount !== 1;
-  el.bulkDelete.disabled = selectedCount === 0;
+  el.bulkToolbar?.classList.toggle('hidden', selectedCount === 0);
+  if (el.bulkCount) {
+    el.bulkCount.textContent = `${selectedCount} selected`;
+  }
+  if (el.bulkShare) {
+    el.bulkShare.disabled = selectedCount !== 1;
+  }
+  if (el.bulkDelete) {
+    el.bulkDelete.disabled = selectedCount === 0;
+  }
   if (selectedCount === 0) {
-    el.bulkNote.textContent = 'Select items to share or delete them.';
+    if (el.bulkNote) el.bulkNote.textContent = 'Select items to share or delete them.';
   } else if (selectedCount === 1) {
-    el.bulkNote.textContent = '';
+    if (el.bulkNote) el.bulkNote.textContent = '';
   } else {
-    el.bulkNote.textContent = 'Share is limited to one selected item at a time.';
+    if (el.bulkNote) el.bulkNote.textContent = 'Share is limited to one selected item at a time.';
   }
 
   const visibleIds = items.map((item) => normalizeId(item.id));
   const selectedVisible = visibleIds.filter((id) => state.selection.has(id)).length;
-  el.selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
-  el.selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+  if (el.selectAll) {
+    el.selectAll.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+    el.selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+  }
 }
 
 function createIconContainer(itemType) {
@@ -1160,6 +1169,8 @@ async function loadItems({ preserveSelection = true, preserveActive = true } = {
     state.selection = new Set(
       [...previousSelection].filter((id) => state.items.some((item) => normalizeId(item.id) === normalizeId(id)))
     );
+    state.loading = false;
+    el.skeleton.classList.add('hidden');
     renderBreadcrumbs();
     renderLocation();
     renderItems();
@@ -1181,6 +1192,8 @@ async function loadItems({ preserveSelection = true, preserveActive = true } = {
     state.activeId = null;
     state.activeItem = null;
     state.activePreview = null;
+    state.loading = false;
+    el.skeleton.classList.add('hidden');
     renderBreadcrumbs();
     renderLocation();
     renderItems();
