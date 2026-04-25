@@ -26,12 +26,12 @@
         Portal</p>
       <h1 class="text-2xl font-bold tracking-tight mb-2">Welcome back</h1>
       <p class="text-sm text-[var(--text-secondary)]">Sign in to securely access your workspace.</p>
-      <form id="login-form" class="space-y-4 text-left">
+      <form id="login-form" class="space-y-4 text-left" novalidate>
         <div class="space-y-1.5">
           <label for="email-input" class="block text-sm font-medium text-[var(--text-secondary)]">Email address</label>
           <div class="relative">
             <input id="email-input" type="email" name="email" autocomplete="email" class="input-field pl-10"
-              placeholder="name@nixor.io" required />
+              placeholder="name@nixor.io" required aria-describedby="email-error" />
             <svg
               class="w-4 h-4 text-[var(--text-tertiary)] absolute top-1/2 left-3.5 -translate-y-1/2 pointer-events-none"
               fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,6 +39,7 @@
                 d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
             </svg>
           </div>
+          <p id="email-error" class="hidden text-xs font-semibold text-[#fca5a5]"></p>
         </div>
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
@@ -48,7 +49,7 @@
           </div>
           <div class="relative">
             <input id="password-input" type="password" name="password" autocomplete="current-password"
-              class="input-field pl-10" placeholder="Enter your password" required />
+              class="input-field pl-10" placeholder="Enter your password" required aria-describedby="password-error" />
             <svg
               class="w-4 h-4 text-[var(--text-tertiary)] absolute top-1/2 left-3.5 -translate-y-1/2 pointer-events-none"
               fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -56,6 +57,7 @@
                 d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
+          <p id="password-error" class="hidden text-xs font-semibold text-[#fca5a5]"></p>
         </div>
         <div id="error-message" role="alert" aria-live="assertive"
           class="hidden text-sm text-[var(--color-danger)] bg-[var(--color-danger-bg)] border border-[#ef444433] rounded-lg px-4 py-3 pb-3 mt-4 flex items-start gap-2">
@@ -107,18 +109,87 @@
     import { apiFetch, bootstrapCsrf } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
+    const emailInput = document.getElementById('email-input');
+    const passwordInput = document.getElementById('password-input');
+    const emailError = document.getElementById('email-error');
+    const passwordError = document.getElementById('password-error');
     const submitBtn = form.querySelector('button[type="submit"]');
     const googlePlaceholder = document.getElementById('google-login');
     const googleButton = document.getElementById('google-button');
-    const disableForm = (message) => {
-      if (submitBtn) {
-        submitBtn.disabled = true;
-      }
+    const defaultSubmitText = submitBtn?.textContent || 'Sign In to Dashboard';
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const showLoginError = (message) => {
       const errText = errorEl.querySelector('span');
       if (errText) errText.textContent = message;
       else errorEl.textContent = message;
       errorEl.classList.remove('hidden');
     };
+
+    const friendlyError = (err, fallback = 'Something went wrong. Please try again.') => {
+      if (err?.status >= 500 || /^HTTP 5\d\d$/.test(err?.message || '')) {
+        return fallback;
+      }
+      return err?.message || fallback;
+    };
+
+    const setFieldError = (input, errorNode, message) => {
+      if (!input || !errorNode) return;
+      errorNode.textContent = message;
+      errorNode.classList.remove('hidden');
+      input.setAttribute('aria-invalid', 'true');
+      input.classList.add('border-[#ef4444]');
+    };
+
+    const clearFieldError = (input, errorNode) => {
+      if (!input || !errorNode) return;
+      errorNode.textContent = '';
+      errorNode.classList.add('hidden');
+      input.removeAttribute('aria-invalid');
+      input.classList.remove('border-[#ef4444]');
+    };
+
+    const validateLoginForm = () => {
+      clearFieldError(emailInput, emailError);
+      clearFieldError(passwordInput, passwordError);
+      errorEl.classList.add('hidden');
+
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+      let firstInvalid = null;
+
+      if (!email) {
+        setFieldError(emailInput, emailError, 'Email is required.');
+        firstInvalid = firstInvalid || emailInput;
+      } else if (!emailPattern.test(email)) {
+        setFieldError(emailInput, emailError, 'Enter a valid email address.');
+        firstInvalid = firstInvalid || emailInput;
+      }
+
+      if (!password) {
+        setFieldError(passwordInput, passwordError, 'Password is required.');
+        firstInvalid = firstInvalid || passwordInput;
+      }
+
+      if (firstInvalid) {
+        showLoginError('Please fix the highlighted fields.');
+        firstInvalid.focus();
+        return null;
+      }
+
+      return { email, password };
+    };
+
+    const disableForm = (message) => {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+      }
+      showLoginError(message);
+    };
+
+    emailInput.addEventListener('input', () => clearFieldError(emailInput, emailError));
+    passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
+
     bootstrapCsrf()
       .catch(() => {
         disableForm('Unable to start login. Please refresh the page.');
@@ -152,9 +223,7 @@
             });
             window.location.href = '/dashboard.html';
           } catch (err) {
-            const errText = errorEl.querySelector('span');
-            if (errText) errText.textContent = err.message || 'Google sign-in failed.';
-            errorEl.classList.remove('hidden');
+            showLoginError(friendlyError(err, 'Google sign-in failed. Please try again.'));
           }
         }
       });
@@ -185,9 +254,11 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const formData = new FormData(form);
-      const payload = Object.fromEntries(formData.entries());
       if (submitBtn?.disabled) {
+        return;
+      }
+      const payload = validateLoginForm();
+      if (!payload) {
         return;
       }
       submitBtn.disabled = true;
@@ -197,11 +268,9 @@
         errorEl.classList.add('hidden');
         window.location.href = '/dashboard.html';
       } catch (err) {
-        const errText = errorEl.querySelector('span');
-        if (errText) errText.textContent = err.message || 'Login failed';
-        errorEl.classList.remove('hidden');
+        showLoginError(friendlyError(err));
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Sign In to Dashboard';
+        submitBtn.textContent = defaultSubmitText;
       }
     });
   </script>

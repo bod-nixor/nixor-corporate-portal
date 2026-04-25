@@ -147,6 +147,9 @@ function buildApiError(message, status, url, body) {
 
 export const normalizeError = (err) => {
   const message = err?.message || '';
+  if (err?.status >= 500 || /^HTTP 5\d\d$/.test(message)) {
+    return 'Something went wrong. Please try again.';
+  }
   return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
 };
 

@@ -67,9 +67,14 @@ function ensure_entity_role(int $entityId, array $roles): array {
     return $user;
 }
 
-function verify_password(string $password, string $hash): bool {
-    if (str_starts_with($hash, '$2y$')) {
-        return password_verify($password, $hash);
+function verify_password(string $password, ?string $hash): bool {
+    $hash = trim((string)$hash);
+    if ($hash === '') {
+        return false;
     }
-    return false;
+    $info = password_get_info($hash);
+    if (($info['algoName'] ?? 'unknown') === 'unknown') {
+        return false;
+    }
+    return password_verify($password, $hash);
 }
