@@ -502,7 +502,6 @@ tbody tr:hover {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  align-self: start;
   width: 100%;
   border: 1px solid var(--border-strong);
   border-radius: 1rem;

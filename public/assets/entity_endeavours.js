@@ -512,7 +512,7 @@ const renderEndeavours = (rows, driveFiles) => {
 
         const bodyContainer = document.createElement('div');
         bodyContainer.id = `endeavour-body-${row.id}`;
-        bodyContainer.className = 'workflow-body hidden';
+        bodyContainer.className = 'workflow-body';
 
         const header = document.createElement('button');
         header.className = 'workflow-summary';
@@ -569,9 +569,8 @@ const renderEndeavours = (rows, driveFiles) => {
         header.appendChild(toggleWrap);
 
         header.addEventListener('click', () => {
-            const isExpanded = bodyContainer.classList.contains('hidden');
-            if (isExpanded) {
-                bodyContainer.classList.remove('hidden');
+            const isExpanded = bodyContainer.classList.contains('is-open');
+            if (!isExpanded) {
                 bodyContainer.classList.add('is-open');
                 toggleIcon.classList.add('rotate-180');
                 toggleText.textContent = 'Collapse';
@@ -579,7 +578,6 @@ const renderEndeavours = (rows, driveFiles) => {
                 header.setAttribute('aria-label', `Collapse workflow ${row.name}`);
                 card.classList.add('is-expanded');
             } else {
-                bodyContainer.classList.add('hidden');
                 bodyContainer.classList.remove('is-open');
                 toggleIcon.classList.remove('rotate-180');
                 toggleText.textContent = 'Expand';
