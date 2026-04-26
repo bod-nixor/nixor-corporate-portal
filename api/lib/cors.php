@@ -22,8 +22,7 @@ function cors_normalize_origin(?string $origin): string {
 function cors_allowed_origins(): array {
     $origins = [
         'https://ncp.nixorcorporate.com',
-        'capacitor://localhost',
-        'http://localhost',
+        ...cors_native_origins(),
     ];
 
     $baseUrl = env_value('BASE_URL', '');
@@ -51,14 +50,20 @@ function cors_allowed_origins(): array {
     return array_values(array_unique(array_map('cors_normalize_origin', $origins)));
 }
 
-function cors_is_loopback_dev_origin(string $origin): bool {
-    $parts = parse_url($origin);
-    if (!$parts) {
+function cors_native_origins(): array {
+    return [
+        'capacitor://localhost',
+        'http://localhost',
+        'https://localhost',
+    ];
+}
+
+function cors_is_native_origin(?string $origin): bool {
+    $origin = cors_normalize_origin($origin);
+    if ($origin === '') {
         return false;
     }
-    $scheme = strtolower((string)($parts['scheme'] ?? ''));
-    $host = strtolower((string)($parts['host'] ?? ''));
-    return $scheme === 'http' && in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+    return in_array($origin, cors_native_origins(), true);
 }
 
 function cors_is_trusted_origin(?string $origin): bool {
@@ -66,10 +71,7 @@ function cors_is_trusted_origin(?string $origin): bool {
     if ($origin === '') {
         return false;
     }
-    if (in_array($origin, cors_allowed_origins(), true)) {
-        return true;
-    }
-    return cors_is_loopback_dev_origin($origin);
+    return in_array($origin, cors_allowed_origins(), true);
 }
 
 function cors_origin_requires_cross_site_session(?string $origin): bool {
@@ -79,8 +81,7 @@ function cors_origin_requires_cross_site_session(?string $origin): bool {
     }
 
     $parts = parse_url($origin);
-    $scheme = strtolower((string)($parts['scheme'] ?? ''));
-    if ($scheme === 'capacitor') {
+    if (cors_is_native_origin($origin)) {
         return true;
     }
 
@@ -103,7 +104,7 @@ function apply_cors_headers(): void {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Access-Control-Allow-Credentials: true');
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Accept, Content-Type, X-CSRF-Token, X-Requested-With');
+    header('Access-Control-Allow-Headers: Accept, Content-Type, X-CSRF-Token, X-Requested-With, Authorization');
     header('Access-Control-Max-Age: 600');
     header('Vary: Origin');
 }
