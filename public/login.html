@@ -9,7 +9,6 @@
   <link rel="stylesheet" href="/assets/app.css" />
   <!-- Theme Init Script to prevent FOUC -->
   <script src="/assets/theme-init.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 
 <body
@@ -106,7 +105,7 @@
     </div>
   </div>
   <script type="module">
-    import { apiFetch, bootstrapCsrf } from '/assets/app.js';
+    import { apiFetch, bootstrapCsrf, isNativeRuntime, startNativeGoogleLogin } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
     const emailInput = document.getElementById('email-input');
@@ -118,6 +117,7 @@
     const googleButton = document.getElementById('google-button');
     const defaultSubmitText = submitBtn?.textContent || 'Sign In to Dashboard';
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let googleNativeBusy = false;
 
     const showLoginError = (message) => {
       const errText = errorEl.querySelector('span');
@@ -195,6 +195,53 @@
         disableForm('Unable to start login. Please refresh the page.');
       });
 
+    const resetGoogleNativeBusy = () => {
+      googleNativeBusy = false;
+      googlePlaceholder.classList.remove('opacity-70');
+      googlePlaceholder.setAttribute('aria-busy', 'false');
+    };
+
+    window.addEventListener('ncp:mobile-auth-error', (event) => {
+      showLoginError(event?.detail?.message || 'Google sign-in failed. Please try again.');
+      resetGoogleNativeBusy();
+    });
+    if (window.NCP_MOBILE_AUTH_ERROR) {
+      showLoginError(window.NCP_MOBILE_AUTH_ERROR);
+    }
+
+    const enableNativeGoogleLogin = () => {
+      googleButton.classList.add('hidden');
+      googlePlaceholder.classList.remove('cursor-not-allowed', 'opacity-50');
+      googlePlaceholder.classList.add('cursor-pointer');
+      googlePlaceholder.setAttribute('aria-disabled', 'false');
+      googlePlaceholder.setAttribute('role', 'button');
+      googlePlaceholder.setAttribute('tabindex', '0');
+
+      const openGoogleAuth = async () => {
+        if (googleNativeBusy) {
+          return;
+        }
+        googleNativeBusy = true;
+        errorEl.classList.add('hidden');
+        googlePlaceholder.classList.add('opacity-70');
+        googlePlaceholder.setAttribute('aria-busy', 'true');
+        try {
+          await startNativeGoogleLogin();
+        } catch (err) {
+          resetGoogleNativeBusy();
+          showLoginError(friendlyError(err, 'Unable to open Google sign-in. Please try again.'));
+        }
+      };
+
+      googlePlaceholder.addEventListener('click', openGoogleAuth);
+      googlePlaceholder.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openGoogleAuth();
+        }
+      });
+    };
+
     const enableGoogleLogin = async () => {
       let config;
       try {
@@ -236,21 +283,48 @@
       googleButton.classList.remove('hidden');
     };
 
-    const waitForGoogleClient = () => {
+    const loadGoogleClient = () => new Promise((resolve, reject) => {
       if (window.google?.accounts?.id) {
-        enableGoogleLogin();
+        resolve();
         return;
       }
-      const interval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          clearInterval(interval);
-          enableGoogleLogin();
-        }
-      }, 200);
-      setTimeout(() => clearInterval(interval), 5000);
+      const existing = document.querySelector('script[data-google-gsi="true"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Google sign-in unavailable')), { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.dataset.googleGsi = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Google sign-in unavailable'));
+      document.head.appendChild(script);
+    });
+
+    const waitForGoogleClient = async () => {
+      try {
+        await loadGoogleClient();
+      } catch (err) {
+        return;
+      }
+      if (window.google?.accounts?.id) {
+        enableGoogleLogin();
+      }
     };
 
-    waitForGoogleClient();
+    const urlError = new URLSearchParams(window.location.search).get('error');
+    if (urlError === 'google_auth_failed') {
+      showLoginError('Google sign-in could not be completed. Please try again.');
+    }
+
+    if (isNativeRuntime()) {
+      enableNativeGoogleLogin();
+    } else {
+      waitForGoogleClient();
+    }
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();

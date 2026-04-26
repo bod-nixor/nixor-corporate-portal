@@ -10,6 +10,9 @@ const WEBSITE_API_BASE = '/api';
 const DEFAULT_NATIVE_API_BASE = 'https://ncp.nixorcorporate.com/api';
 const NATIVE_API_BASE = window.NATIVE_API_BASE || import.meta.env?.VITE_NATIVE_API_BASE || DEFAULT_NATIVE_API_BASE;
 const NATIVE_PLATFORMS = new Set(['ios', 'android']);
+const MOBILE_AUTH_CALLBACK_PROTOCOL = 'ncp:';
+const MOBILE_AUTH_CALLBACK_HOST = 'auth';
+const MOBILE_AUTH_CALLBACK_PATH = '/callback';
 
 export function isNativeRuntime() {
   const capacitor = window.Capacitor;
@@ -38,6 +41,10 @@ let portalConfig = {
 };
 let csrfToken = '';
 let csrfBootstrapPromise = null;
+let mobileAuthListenerPromise = null;
+let mobileAuthListenerHandle = null;
+let mobileAuthCleanupRegistered = false;
+let mobileAuthExchangePromise = null;
 
 export function setCsrfToken(token) {
   csrfToken = token || '';
@@ -107,6 +114,190 @@ export function buildApiUrl(path, base = preferredBase) {
     return value;
   }
   return `${base}${normalizeApiPath(value)}`;
+}
+
+function withQueryParams(url, params) {
+  const absoluteUrl = new URL(url, window.location.origin);
+  Object.entries(params).forEach(([key, value]) => {
+    absoluteUrl.searchParams.set(key, value);
+  });
+  if (isAbsoluteUrl(url)) {
+    return absoluteUrl.href;
+  }
+  return `${absoluteUrl.pathname}${absoluteUrl.search}${absoluteUrl.hash}`;
+}
+
+function getCapacitorPlugin(name) {
+  const capacitor = window.Capacitor;
+  if (!capacitor) {
+    return null;
+  }
+  if (capacitor.Plugins?.[name]) {
+    return capacitor.Plugins[name];
+  }
+  if (typeof capacitor.registerPlugin === 'function' && typeof capacitor.isPluginAvailable === 'function' && capacitor.isPluginAvailable(name)) {
+    return capacitor.registerPlugin(name);
+  }
+  // getCapacitorPlugin intentionally falls back for known native plugins when
+  // capacitor.isPluginAvailable is missing or conservative but isNativeRuntime is true.
+  if (typeof capacitor.registerPlugin === 'function' && isNativeRuntime()) {
+    return capacitor.registerPlugin(name);
+  }
+  return null;
+}
+
+function cleanupMobileAuthListener() {
+  const handle = mobileAuthListenerHandle;
+  mobileAuthListenerHandle = null;
+  mobileAuthListenerPromise = null;
+  if (!handle?.remove) {
+    return;
+  }
+  try {
+    const removed = handle.remove();
+    if (removed?.catch) {
+      removed.catch(() => {});
+    }
+  } catch (err) {
+    // Listener removal is best-effort during page unload.
+  }
+}
+
+function registerMobileAuthListenerCleanup() {
+  if (mobileAuthCleanupRegistered) {
+    return;
+  }
+  mobileAuthCleanupRegistered = true;
+  window.addEventListener('pagehide', cleanupMobileAuthListener);
+  window.addEventListener('beforeunload', cleanupMobileAuthListener);
+}
+
+function emitMobileAuthError(message) {
+  window.NCP_MOBILE_AUTH_ERROR = message;
+  window.dispatchEvent(new CustomEvent('ncp:mobile-auth-error', {
+    detail: { message }
+  }));
+}
+
+function isMobileAuthCallback(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === MOBILE_AUTH_CALLBACK_PROTOCOL
+      && parsed.hostname === MOBILE_AUTH_CALLBACK_HOST
+      && parsed.pathname === MOBILE_AUTH_CALLBACK_PATH;
+  } catch (err) {
+    return false;
+  }
+}
+
+async function closeNativeBrowser() {
+  const Browser = getCapacitorPlugin('Browser');
+  if (!Browser?.close) {
+    return;
+  }
+  try {
+    await Browser.close();
+  } catch (err) {
+    // Android Custom Tabs may already be gone when the deep link returns.
+  }
+}
+
+async function handleMobileAuthUrl(url) {
+  if (!url || !isMobileAuthCallback(url)) {
+    return false;
+  }
+
+  await closeNativeBrowser();
+  const parsed = new URL(url);
+  if (parsed.searchParams.get('error')) {
+    emitMobileAuthError('Google sign-in could not be completed. Please try again.');
+    return true;
+  }
+
+  const code = parsed.searchParams.get('code') || '';
+  if (!code) {
+    emitMobileAuthError('Google sign-in returned without an authorization code. Please try again.');
+    return true;
+  }
+
+  if (mobileAuthExchangePromise) {
+    return true;
+  }
+
+  mobileAuthExchangePromise = (async () => {
+    try {
+      await apiFetch('/auth/mobile/exchange', {
+        method: 'POST',
+        body: JSON.stringify({ code })
+      });
+      window.location.replace('/dashboard.html');
+    } catch (err) {
+      emitMobileAuthError(normalizeError(err) || 'Google sign-in failed. Please try again.');
+    } finally {
+      mobileAuthExchangePromise = null;
+    }
+  })();
+
+  return true;
+}
+
+export async function initMobileAuthListener() {
+  if (!isNativeRuntime()) {
+    return false;
+  }
+  if (mobileAuthListenerPromise) {
+    return mobileAuthListenerPromise;
+  }
+
+  mobileAuthListenerPromise = (async () => {
+    const App = getCapacitorPlugin('App');
+    if (!App?.addListener) {
+      mobileAuthListenerPromise = null;
+      return false;
+    }
+
+    try {
+      const handle = await App.addListener('appUrlOpen', (event) => {
+        handleMobileAuthUrl(event?.url);
+      });
+      mobileAuthListenerHandle = handle;
+      registerMobileAuthListenerCleanup();
+
+      if (typeof App.getLaunchUrl === 'function') {
+        try {
+          const launch = await App.getLaunchUrl();
+          if (launch?.url) {
+            await handleMobileAuthUrl(launch.url);
+          }
+        } catch (err) {
+          // Launch URL is best-effort; the appUrlOpen listener handles active sessions.
+        }
+      }
+
+      return true;
+    } catch (err) {
+      mobileAuthListenerPromise = null;
+      return false;
+    }
+  })();
+
+  return mobileAuthListenerPromise;
+}
+
+export async function startNativeGoogleLogin() {
+  if (!isNativeRuntime()) {
+    return false;
+  }
+
+  await initMobileAuthListener();
+  const Browser = getCapacitorPlugin('Browser');
+  if (!Browser?.open) {
+    throw new Error('Native browser is unavailable. Please update the app and try again.');
+  }
+
+  const url = withQueryParams(buildApiUrl('/auth/google/start'), { platform: 'mobile' });
+  await Browser.open({ url });
+  return true;
 }
 
 export async function apiFetch(path, options = {}) {
@@ -368,3 +559,5 @@ export async function subscribeUpdates(onEvent) {
     socket.close();
   };
 }
+
+initMobileAuthListener();

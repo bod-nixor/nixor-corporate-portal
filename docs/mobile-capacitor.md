@@ -34,6 +34,8 @@ npm run cap:ios
 
 The Android project is in `android/`. Generated copied web assets under `android/app/src/main/assets/public` are intentionally ignored and are refreshed by `npx cap sync`.
 
+`android/app/src/main/AndroidManifest.xml` must keep the mobile auth intent filter for `ncp://auth/callback` with scheme `ncp`, host `auth`, and path prefix `/callback`.
+
 ## iOS
 1. Use macOS with Xcode installed.
 2. Run `npm install`.
@@ -43,6 +45,12 @@ The Android project is in `android/`. Generated copied web assets under `android
 6. Configure signing, build, archive, and distribute from Xcode.
 
 The iOS project is in `ios/`. Generated copied web assets under `ios/App/App/public` are intentionally ignored and are refreshed by `npx cap sync`.
+
+For the Google mobile login callback, add an iOS URL scheme before shipping iOS:
+- In Xcode, open the app target Info settings.
+- Add a URL Type with identifier `com.nixorcorporate.portal`.
+- Add the URL scheme `ncp`.
+- Verify `ncp://auth/callback?code=...` wakes the app and reaches the shared Capacitor `App.addListener('appUrlOpen', ...)` handler.
 
 ## API And CORS
 The shared frontend helper in `public/assets/app.js` selects the API base at runtime:
@@ -64,7 +72,21 @@ The portal still treats the PHP session cookie as the source of truth. For trust
 
 Remaining limitation: WebView cookie behavior can vary by OS version, embedded browser engine, and privacy settings. If production device testing shows unreliable cookie persistence, add a dedicated token-based mobile session design with revocation, expiry, secure storage, CSRF-equivalent protections, and backend RBAC checks. Do not bypass existing permission checks or CSRF requirements.
 
-Google Identity Services may not work from `capacitor://localhost` without a dedicated native OAuth flow and Google Cloud configuration for the mobile clients. Password login is the expected first mobile auth path until native OAuth is designed.
+Google login in native Capacitor does not use Google Identity Services inside the local WebView. The native button opens `https://ncp.nixorcorporate.com/api/auth/google/start?platform=mobile` with `@capacitor/browser`, the PHP callback creates a short-lived one-time code, and the app receives `ncp://auth/callback?code=...` through `@capacitor/app`. The WebView exchanges that code at `/api/auth/mobile/exchange`, which creates the normal PHP session cookie for subsequent API requests.
+
+Production hardening note: custom URL schemes can be claimed by another app on some platforms. Prefer adding an HTTPS callback bridge with Android App Links and iOS Universal Links (`assetlinks.json` and `apple-app-site-association`) that validates the request and 302s to the app callback when the platform setup is ready.
+
+Configure Google Cloud with the web OAuth redirect URI used by the backend:
+```text
+https://ncp.nixorcorporate.com/api/auth/google/callback
+```
+
+Set the matching environment values:
+```text
+GOOGLE_REDIRECT_URI=https://ncp.nixorcorporate.com/api/auth/google/callback
+OAUTH_STATE_SECRET=<long-random-secret>
+MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback
+```
 
 ## Deployment Process
 1. Deploy the PHP API and website normally to `https://ncp.nixorcorporate.com`.

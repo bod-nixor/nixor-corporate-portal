@@ -1,0 +1,14 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+/modules.xml
+/vcs.xml
+/.name
+/compiler.xml
+/libraries/
+/caches/
+*.iml
+local.properties
+.gradle/
+build/
+app/build/
