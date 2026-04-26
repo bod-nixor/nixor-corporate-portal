@@ -1,12 +1,14 @@
 /**
  * API base URL resolution:
  * - Uses window.API_BASE if set (e.g., for custom deployments)
- * - Uses the hosted API when running inside a bundled Capacitor app
+ * - Uses window.NATIVE_API_BASE/import.meta.env.VITE_NATIVE_API_BASE, then the hosted API,
+ *   when running inside a bundled Capacitor app
  * - Falls back to WEBSITE_API_BASE (/api) for the normal website
  * - Automatic fallback to /api/index.php applies when API_BASE ends with /api
  */
 const WEBSITE_API_BASE = '/api';
-const NATIVE_API_BASE = 'https://ncp.nixorcorporate.com/api';
+const DEFAULT_NATIVE_API_BASE = 'https://ncp.nixorcorporate.com/api';
+const NATIVE_API_BASE = window.NATIVE_API_BASE || import.meta.env?.VITE_NATIVE_API_BASE || DEFAULT_NATIVE_API_BASE;
 const NATIVE_PLATFORMS = new Set(['ios', 'android']);
 
 export function isNativeRuntime() {
@@ -213,28 +215,30 @@ export async function bootstrapCsrf() {
     return csrfBootstrapPromise;
   }
   const request = async (base) => {
-    const res = await fetch(`${base}/auth/csrf`, {
+    const url = buildApiUrl('/auth/csrf', base);
+    const res = await fetch(url, {
       credentials: 'include',
       headers: { 'Accept': 'application/json' }
     });
     const data = await res.json().catch(() => ({}));
-    return { res, data };
+    return { res, data, url };
   };
   csrfBootstrapPromise = (async () => {
     try {
-      let { res, data } = await request(preferredBase);
+      let { res, data, url } = await request(preferredBase);
       const fallbackBase = resolveFallbackBase(preferredBase);
       const shouldFallback = fallbackBase && !res.ok && res.status === 404;
       if (shouldFallback) {
         const fallbackResponse = await request(fallbackBase);
         res = fallbackResponse.res;
         data = fallbackResponse.data;
+        url = fallbackResponse.url;
         if (res.ok) {
           preferredBase = fallbackBase;
         }
       }
       if (!res.ok) {
-        throw buildApiError(data?.error || `HTTP ${res.status}`, res.status, `${preferredBase}/auth/csrf`);
+        throw buildApiError(data?.error || `HTTP ${res.status}`, res.status, url || buildApiUrl('/auth/csrf', preferredBase));
       }
       setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
       return getCsrfToken();

@@ -12,7 +12,11 @@ function cors_origin_from_url(string $url): ?string {
 }
 
 function cors_normalize_origin(?string $origin): string {
-    return rtrim(trim((string)$origin), '/');
+    $origin = rtrim(trim((string)$origin), '/');
+    if ($origin === '') {
+        return '';
+    }
+    return cors_origin_from_url($origin) ?? $origin;
 }
 
 function cors_allowed_origins(): array {
@@ -32,9 +36,13 @@ function cors_allowed_origins(): array {
 
     $configured = env_value('CORS_ALLOWED_ORIGINS', '');
     if ($configured !== '') {
-        foreach (explode(',', $configured) as $origin) {
-            $origin = cors_normalize_origin($origin);
-            if ($origin !== '') {
+        foreach (explode(',', $configured) as $rawOrigin) {
+            $rawOrigin = trim($rawOrigin);
+            if ($rawOrigin === '') {
+                continue;
+            }
+            $origin = cors_origin_from_url($rawOrigin);
+            if ($origin) {
                 $origins[] = $origin;
             }
         }

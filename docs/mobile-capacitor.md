@@ -49,6 +49,8 @@ The shared frontend helper in `public/assets/app.js` selects the API base at run
 - Browser website: `/api`.
 - Capacitor native runtime: `https://ncp.nixorcorporate.com/api`.
 
+For staging or QA native shells, set `window.NATIVE_API_BASE` before loading `public/assets/app.js`, or provide `import.meta.env.VITE_NATIVE_API_BASE` when using a bundler that injects `import.meta.env`. If neither override is present, native builds use the production API above.
+
 The PHP API allows credentialed CORS only for trusted origins:
 - `https://ncp.nixorcorporate.com`
 - `capacitor://localhost`
@@ -79,6 +81,8 @@ After frontend edits:
 npm run build
 npm run cap:sync
 ```
+
+`public/assets/app.css` is a committed generated artifact for static hosting. Regenerate it from `public/assets/global.css` with `npm run build:css` before committing visual changes.
 
 Then smoke-test:
 - Website root `/` routes logged-in users to `dashboard.html` and logged-out users to `login.html`.

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="root" path="app_webview/Default/Cookies" />
+    <exclude domain="root" path="app_webview/Default/Local Storage/" />
+    <exclude domain="root" path="app_webview/Default/IndexedDB/" />
+    <exclude domain="root" path="app_webview/Default/Cache/" />
+    <exclude domain="root" path="cache/" />
+    <exclude domain="root" path="code_cache/" />
+    <exclude domain="database" path="Cookies" />
+    <exclude domain="database" path="Cookies-journal" />
+</full-backup-content>
