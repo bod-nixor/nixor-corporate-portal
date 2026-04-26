@@ -27,7 +27,7 @@ function handle_auth(string $method, array $segments): void {
             }
             complete_login($user);
         } catch (Throwable $e) {
-            error_log('Password login failed unexpectedly: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            error_log('Password login failed unexpectedly: ' . auth_sanitized_exception_message($e));
             respond(['ok' => false, 'error' => 'Internal server error'], 500);
         }
     }
@@ -119,10 +119,10 @@ function handle_auth(string $method, array $segments): void {
         } catch (AuthRouteException $e) {
             respond(['ok' => false, 'error' => $e->getMessage()], $e->status());
         } catch (PDOException $e) {
-            error_log('Google Identity Services database error: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            error_log('Google Identity Services database error: ' . auth_sanitized_exception_message($e));
             respond(['ok' => false, 'error' => 'Google sign-in failed'], 500);
         } catch (Throwable $e) {
-            error_log('Google Identity Services failed unexpectedly: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            error_log('Google Identity Services failed unexpectedly: ' . auth_sanitized_exception_message($e));
             respond(['ok' => false, 'error' => 'Google sign-in failed'], 500);
         }
     }
@@ -301,7 +301,7 @@ function handle_google_oauth_callback(): void {
         redirect_to('/login.html?error=google_auth_failed');
     } catch (PDOException $e) {
         auth_log_exception_event('oauth_callback_database_error', $e, ['platform' => $platform]);
-        error_log('Google OAuth callback database error: ' . auth_sanitized_exception_message($e) . "\n" . $e->getTraceAsString());
+        error_log('Google OAuth callback database error: ' . auth_sanitized_exception_message($e));
         if ($platform === 'mobile') {
             redirect_to_mobile_auth_failure();
             return;
@@ -309,7 +309,7 @@ function handle_google_oauth_callback(): void {
         redirect_to('/login.html?error=google_auth_failed');
     } catch (Throwable $e) {
         auth_log_exception_event('oauth_callback_unexpected_error', $e, ['platform' => $platform]);
-        error_log('Google OAuth callback failed unexpectedly: ' . auth_sanitized_exception_message($e) . "\n" . $e->getTraceAsString());
+        error_log('Google OAuth callback failed unexpectedly: ' . auth_sanitized_exception_message($e));
         if ($platform === 'mobile') {
             redirect_to_mobile_auth_failure();
             return;
@@ -344,10 +344,10 @@ function handle_mobile_auth_exchange(): void {
     } catch (AuthRouteException $e) {
         respond(['ok' => false, 'error' => $e->getMessage()], $e->status());
     } catch (PDOException $e) {
-        error_log('Mobile auth exchange database error: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+        error_log('Mobile auth exchange database error: ' . auth_sanitized_exception_message($e));
         respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
     } catch (Throwable $e) {
-        error_log('Mobile auth exchange failed unexpectedly: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+        error_log('Mobile auth exchange failed unexpectedly: ' . auth_sanitized_exception_message($e));
         respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
     }
 }
@@ -718,7 +718,7 @@ function google_auto_provision_enabled(array $allowedDomains): bool {
         return false;
     }
     if (!$allowedDomains) {
-        error_log('Google auto-provisioning is enabled but ignored because GOOGLE_ALLOWED_DOMAIN is not configured');
+        error_log('Google auto-provisioning is enabled but ignored because neither GOOGLE_ALLOWED_DOMAIN nor GOOGLE_ALLOWED_DOMAINS is configured');
         return false;
     }
     return true;
@@ -867,8 +867,7 @@ function redirect_to_mobile_auth_failure(string $error = 'callback_failed'): voi
         $error = 'callback_failed';
     }
     redirect_to(build_redirect_url(mobile_auth_callback_url(), [
-        'error' => $error,
-        'message' => 'Google sign-in could not be completed'
+        'error' => $error
     ]));
 }
 
