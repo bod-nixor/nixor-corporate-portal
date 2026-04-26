@@ -195,11 +195,15 @@
         disableForm('Unable to start login. Please refresh the page.');
       });
 
-    window.addEventListener('ncp:mobile-auth-error', (event) => {
-      showLoginError(event?.detail?.message || 'Google sign-in failed. Please try again.');
+    const resetGoogleNativeBusy = () => {
       googleNativeBusy = false;
       googlePlaceholder.classList.remove('opacity-70');
       googlePlaceholder.setAttribute('aria-busy', 'false');
+    };
+
+    window.addEventListener('ncp:mobile-auth-error', (event) => {
+      showLoginError(event?.detail?.message || 'Google sign-in failed. Please try again.');
+      resetGoogleNativeBusy();
     });
     if (window.NCP_MOBILE_AUTH_ERROR) {
       showLoginError(window.NCP_MOBILE_AUTH_ERROR);
@@ -224,9 +228,7 @@
         try {
           await startNativeGoogleLogin();
         } catch (err) {
-          googleNativeBusy = false;
-          googlePlaceholder.classList.remove('opacity-70');
-          googlePlaceholder.setAttribute('aria-busy', 'false');
+          resetGoogleNativeBusy();
           showLoginError(friendlyError(err, 'Unable to open Google sign-in. Please try again.'));
         }
       };
@@ -310,15 +312,7 @@
       }
       if (window.google?.accounts?.id) {
         enableGoogleLogin();
-        return;
       }
-      const interval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          clearInterval(interval);
-          enableGoogleLogin();
-        }
-      }, 200);
-      setTimeout(() => clearInterval(interval), 5000);
     };
 
     const urlError = new URLSearchParams(window.location.search).get('error');

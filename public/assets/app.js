@@ -42,6 +42,8 @@ let portalConfig = {
 let csrfToken = '';
 let csrfBootstrapPromise = null;
 let mobileAuthListenerPromise = null;
+let mobileAuthListenerHandle = null;
+let mobileAuthCleanupRegistered = false;
 let mobileAuthExchangePromise = null;
 
 export function setCsrfToken(token) {
@@ -136,10 +138,38 @@ function getCapacitorPlugin(name) {
   if (typeof capacitor.registerPlugin === 'function' && typeof capacitor.isPluginAvailable === 'function' && capacitor.isPluginAvailable(name)) {
     return capacitor.registerPlugin(name);
   }
+  // getCapacitorPlugin intentionally falls back for known native plugins when
+  // capacitor.isPluginAvailable is missing or conservative but isNativeRuntime is true.
   if (typeof capacitor.registerPlugin === 'function' && isNativeRuntime()) {
     return capacitor.registerPlugin(name);
   }
   return null;
+}
+
+function cleanupMobileAuthListener() {
+  const handle = mobileAuthListenerHandle;
+  mobileAuthListenerHandle = null;
+  mobileAuthListenerPromise = null;
+  if (!handle?.remove) {
+    return;
+  }
+  try {
+    const removed = handle.remove();
+    if (removed?.catch) {
+      removed.catch(() => {});
+    }
+  } catch (err) {
+    // Listener removal is best-effort during page unload.
+  }
+}
+
+function registerMobileAuthListenerCleanup() {
+  if (mobileAuthCleanupRegistered) {
+    return;
+  }
+  mobileAuthCleanupRegistered = true;
+  window.addEventListener('pagehide', cleanupMobileAuthListener);
+  window.addEventListener('beforeunload', cleanupMobileAuthListener);
 }
 
 function emitMobileAuthError(message) {
@@ -227,9 +257,11 @@ export async function initMobileAuthListener() {
     }
 
     try {
-      await App.addListener('appUrlOpen', (event) => {
+      const handle = await App.addListener('appUrlOpen', (event) => {
         handleMobileAuthUrl(event?.url);
       });
+      mobileAuthListenerHandle = handle;
+      registerMobileAuthListenerCleanup();
 
       if (typeof App.getLaunchUrl === 'function') {
         try {

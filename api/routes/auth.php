@@ -195,6 +195,7 @@ function handle_google_oauth_callback(): void {
         if ($platform === 'mobile') {
             $mobileCode = create_mobile_auth_code((int)$user['id']);
             redirect_to(build_redirect_url(mobile_auth_callback_url(), ['code' => $mobileCode]));
+            return;
         }
 
         establish_login_session($user);
@@ -203,12 +204,14 @@ function handle_google_oauth_callback(): void {
         error_log('Google OAuth callback failed: ' . $e->getMessage());
         if ($platform === 'mobile') {
             redirect_to(build_redirect_url(mobile_auth_callback_url(), ['error' => 'google_auth_failed']));
+            return;
         }
         redirect_to('/login.html?error=google_auth_failed');
     } catch (Throwable $e) {
         error_log('Google OAuth callback failed unexpectedly: ' . $e->getMessage());
         if ($platform === 'mobile') {
             redirect_to(build_redirect_url(mobile_auth_callback_url(), ['error' => 'google_auth_failed']));
+            return;
         }
         redirect_to('/login.html?error=google_auth_failed');
     }
@@ -311,6 +314,7 @@ function google_oauth_redirect_uri(): string {
 }
 
 function google_state_secret_or_fail(): string {
+    // Prefer a dedicated state-signing key so OAuth state HMACs do not reuse the Google client secret.
     $secret = (string)(env_value('OAUTH_STATE_SECRET')
         ?: env_value('APP_KEY')
         ?: env_value('GOOGLE_CLIENT_SECRET')
@@ -481,50 +485,50 @@ function consume_mobile_auth_code(string $code): array {
         $stmt = $pdo->prepare(
             'SELECT
                 mac.id AS auth_code_id,
+                mac.user_id AS auth_code_user_id,
                 mac.expires_at AS auth_code_expires_at,
                 mac.used_at AS auth_code_used_at,
-                (mac.expires_at <= UTC_TIMESTAMP()) AS auth_code_expired,
-                u.*
+                (mac.expires_at <= UTC_TIMESTAMP()) AS auth_code_expired
              FROM mobile_auth_codes mac
-             JOIN users u ON u.id = mac.user_id
              WHERE mac.code_hash = ?
              LIMIT 1
              FOR UPDATE'
         );
         $stmt->execute([$codeHash]);
-        $user = $stmt->fetch();
+        $authCode = $stmt->fetch();
 
-        if (!$user) {
+        if (!$authCode) {
             $pdo->commit();
             throw new AuthRouteException('Invalid mobile auth code', 401);
         }
-        if (!empty($user['auth_code_used_at'])) {
+        if (!empty($authCode['auth_code_used_at'])) {
             $pdo->commit();
             throw new AuthRouteException('Mobile auth code already used', 401);
         }
-        if ((int)($user['auth_code_expired'] ?? 0) === 1) {
+        if ((int)($authCode['auth_code_expired'] ?? 0) === 1) {
             $pdo->commit();
             throw new AuthRouteException('Mobile auth code expired', 401);
         }
 
         $markUsed = $pdo->prepare('UPDATE mobile_auth_codes SET used_at = UTC_TIMESTAMP() WHERE id = ? AND used_at IS NULL');
-        $markUsed->execute([$user['auth_code_id']]);
+        $markUsed->execute([$authCode['auth_code_id']]);
         if ($markUsed->rowCount() !== 1) {
             $pdo->commit();
             throw new AuthRouteException('Mobile auth code already used', 401);
         }
 
+        $userStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $userStmt->execute([$authCode['auth_code_user_id']]);
+        $user = $userStmt->fetch();
+        if (!$user) {
+            $pdo->commit();
+            throw new AuthRouteException('Google account not found', 404);
+        }
         if (($user['status'] ?? 'active') !== 'active') {
             $pdo->commit();
             throw new AuthRouteException('Account inactive', 403);
         }
 
-        unset(
-            $user['auth_code_id'],
-            $user['auth_code_expires_at'],
-            $user['auth_code_used_at'],
-            $user['auth_code_expired']
-        );
         $pdo->commit();
         return $user;
     } catch (Throwable $e) {

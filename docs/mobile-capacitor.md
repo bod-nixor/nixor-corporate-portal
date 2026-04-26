@@ -74,6 +74,8 @@ Remaining limitation: WebView cookie behavior can vary by OS version, embedded b
 
 Google login in native Capacitor does not use Google Identity Services inside the local WebView. The native button opens `https://ncp.nixorcorporate.com/api/auth/google/start?platform=mobile` with `@capacitor/browser`, the PHP callback creates a short-lived one-time code, and the app receives `ncp://auth/callback?code=...` through `@capacitor/app`. The WebView exchanges that code at `/api/auth/mobile/exchange`, which creates the normal PHP session cookie for subsequent API requests.
 
+Production hardening note: custom URL schemes can be claimed by another app on some platforms. Prefer adding an HTTPS callback bridge with Android App Links and iOS Universal Links (`assetlinks.json` and `apple-app-site-association`) that validates the request and 302s to the app callback when the platform setup is ready.
+
 Configure Google Cloud with the web OAuth redirect URI used by the backend:
 ```text
 https://ncp.nixorcorporate.com/api/auth/google/callback
@@ -82,6 +84,7 @@ https://ncp.nixorcorporate.com/api/auth/google/callback
 Set the matching environment values:
 ```text
 GOOGLE_REDIRECT_URI=https://ncp.nixorcorporate.com/api/auth/google/callback
+OAUTH_STATE_SECRET=<long-random-secret>
 MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback
 ```
 
