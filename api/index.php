@@ -1,4 +1,5 @@
 <?php
+ob_start();
 require_once __DIR__ . '/lib/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'];

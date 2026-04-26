@@ -191,8 +191,10 @@
     passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
 
     bootstrapCsrf()
-      .catch(() => {
-        disableForm('Unable to start login. Please refresh the page.');
+      .catch((err) => {
+        console.error('CSRF bootstrap failed:', err);
+        const msg = err?.status ? `Unable to start login (HTTP ${err.status}). Please refresh the page.` : 'Unable to start login. Please check your connection or refresh the page.';
+        disableForm(msg);
       });
 
     const resetGoogleNativeBusy = () => {

@@ -410,6 +410,7 @@ export async function bootstrapCsrf() {
   }
   const request = async (base) => {
     const url = buildApiUrl('/auth/csrf', base);
+    console.log('[NCP CSRF] Bootstrapping from:', url);
     const res = await fetch(url, {
       credentials: 'include',
       headers: { 'Accept': 'application/json' }
