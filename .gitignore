@@ -11,6 +11,7 @@ vendor/
 package-lock.json
 *.lock
 .playwright-cli/
+output/
 
 # Uploads
 uploads/
