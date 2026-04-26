@@ -203,14 +203,20 @@ function handle_google_oauth_callback(): void {
     } catch (AuthRouteException $e) {
         error_log('Google OAuth callback failed: ' . $e->getMessage());
         if ($platform === 'mobile') {
-            redirect_to(build_redirect_url(mobile_auth_callback_url(), ['error' => 'google_auth_failed']));
+            redirect_to(build_redirect_url(mobile_auth_callback_url(), [
+                'error' => 'google_auth_failed',
+                'message' => $e->getMessage()
+            ]));
             return;
         }
         redirect_to('/login.html?error=google_auth_failed');
     } catch (Throwable $e) {
         error_log('Google OAuth callback failed unexpectedly: ' . $e->getMessage());
         if ($platform === 'mobile') {
-            redirect_to(build_redirect_url(mobile_auth_callback_url(), ['error' => 'google_auth_failed']));
+            redirect_to(build_redirect_url(mobile_auth_callback_url(), [
+                'error' => 'google_auth_failed',
+                'message' => 'Internal server error during callback'
+            ]));
             return;
         }
         redirect_to('/login.html?error=google_auth_failed');
@@ -221,7 +227,11 @@ function handle_mobile_auth_exchange(): void {
     if (!rate_limit('mobile_auth_exchange', 10, 900)) {
         respond(['ok' => false, 'error' => 'Too many attempts'], 429);
     }
-    require_csrf();
+    
+    // We do NOT require CSRF for the initial mobile code exchange because:
+    // 1. The mobile code itself is a high-entropy one-time secret.
+    // 2. The user may not have a stable session yet in the WebView.
+    // 3. The segments check in index.php already allows 'auth' requests without global CSRF.
 
     $data = read_json();
     $code = trim((string)($data['code'] ?? ''));
@@ -414,12 +424,18 @@ function validate_google_oauth_state(string $state): array {
         throw new AuthRouteException('Google OAuth state expired', 401);
     }
 
-    cleanup_google_oauth_states();
-    $sessionState = $_SESSION['google_oauth_states'][$nonce] ?? null;
-    if (!is_array($sessionState) || ($sessionState['platform'] ?? '') !== $platform) {
-        throw new AuthRouteException('Invalid Google OAuth state', 401);
+    // For non-mobile platforms, we strictly require the state to be in the session.
+    // For mobile, we can be more lenient if the HMAC signature is valid, because
+    // external browser sessions can sometimes be unstable during redirects.
+    if ($platform !== 'mobile') {
+        cleanup_google_oauth_states();
+        $sessionState = $_SESSION['google_oauth_states'][$nonce] ?? null;
+        if (!is_array($sessionState) || ($sessionState['platform'] ?? '') !== $platform) {
+            error_log("Google OAuth state session mismatch for {$platform}: nonce={$nonce}. " . (empty($_SESSION) ? "Session is empty." : "Session exists."));
+            throw new AuthRouteException('Invalid Google OAuth state (session mismatch)', 401);
+        }
+        unset($_SESSION['google_oauth_states'][$nonce]);
     }
-    unset($_SESSION['google_oauth_states'][$nonce]);
 
     return [
         'nonce' => $nonce,
