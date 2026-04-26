@@ -132,14 +132,20 @@ function handle_auth(string $method, array $segments): void {
 
 class AuthRouteException extends RuntimeException {
     private int $httpStatus;
+    private string $clientErrorCode;
 
-    public function __construct(string $message, int $httpStatus = 400) {
+    public function __construct(string $message, int $httpStatus = 400, string $clientErrorCode = 'callback_failed') {
         parent::__construct($message);
         $this->httpStatus = $httpStatus;
+        $this->clientErrorCode = $clientErrorCode;
     }
 
     public function status(): int {
         return $this->httpStatus;
+    }
+
+    public function clientErrorCode(): string {
+        return $this->clientErrorCode;
     }
 }
 
@@ -179,6 +185,24 @@ function auth_email_domain(string $email): string {
     return substr($email, $atPos + 1);
 }
 
+function auth_sanitized_exception_message(Throwable $e): string {
+    $message = $e->getMessage();
+    $message = preg_replace('/\\b(code|access_token|refresh_token|id_token|client_secret|mobile_auth_code|cookie|phpsessid)=([^\\s&]+)/i', '$1=[redacted]', $message) ?? $message;
+    $message = preg_replace('/[A-Za-z0-9_-]{80,}/', '[redacted]', $message) ?? $message;
+    $message = preg_replace('/\\s+/', ' ', $message) ?? $message;
+    return substr(trim($message), 0, 180);
+}
+
+function auth_log_exception_event(string $event, Throwable $e, array $context = []): void {
+    $context['error_class'] = get_class($e);
+    if ($e instanceof AuthRouteException) {
+        $context['http_status'] = $e->status();
+        $context['client_error'] = $e->clientErrorCode();
+    }
+    $context['message'] = auth_sanitized_exception_message($e);
+    auth_log_event($event, $context);
+}
+
 function handle_google_oauth_start(): void {
     if (!rate_limit('google_oauth_start', 20, 900)) {
         respond(['ok' => false, 'error' => 'Too many attempts'], 429);
@@ -215,6 +239,10 @@ function handle_google_oauth_callback(): void {
 
         $state = validate_google_oauth_state($stateRaw);
         $platform = $state['platform'];
+        auth_log_event('state_validated', [
+            'platform' => $platform,
+            'state_age_sec' => max(0, time() - (int)$state['iat']),
+        ]);
 
         $authCode = trim((string)($_GET['code'] ?? ''));
         if ($authCode === '') {
@@ -226,6 +254,7 @@ function handle_google_oauth_callback(): void {
         if (!is_array($token) || isset($token['error'])) {
             throw new AuthRouteException('Google authorization failed', 401);
         }
+        auth_log_event('google_token_exchange_ok', ['platform' => $platform]);
 
         $idToken = (string)($token['id_token'] ?? '');
         if ($idToken === '') {
@@ -239,6 +268,11 @@ function handle_google_oauth_callback(): void {
             'email_domain' => auth_email_domain((string)($tokenInfo['email'] ?? '')),
             'email_verified' => google_profile_email_verified($tokenInfo) ? '1' : '0',
         ]);
+        auth_log_event('local_user_resolve_started', [
+            'platform' => $platform,
+            'email_hash' => auth_email_hash((string)($tokenInfo['email'] ?? '')),
+            'email_domain' => auth_email_domain((string)($tokenInfo['email'] ?? '')),
+        ]);
         $user = find_or_create_google_user($tokenInfo);
         $userId = local_user_id_from_row($user);
         auth_log_event('local_user_resolved', [
@@ -248,8 +282,9 @@ function handle_google_oauth_callback(): void {
         ]);
 
         if ($platform === 'mobile') {
+            auth_log_event('mobile_auth_code_create_started', ['user_id' => $userId]);
             $mobileCode = create_mobile_auth_code($userId, $user);
-            auth_log_event('mobile_callback_redirected', ['user_id' => $userId]);
+            auth_log_event('mobile_redirect_sent', ['user_id' => $userId]);
             redirect_to(build_redirect_url(mobile_auth_callback_url(), ['code' => $mobileCode]));
             return;
         }
@@ -257,22 +292,24 @@ function handle_google_oauth_callback(): void {
         establish_login_session($user);
         redirect_to('/dashboard.html');
     } catch (AuthRouteException $e) {
-        error_log('Google OAuth callback failed: ' . $e->getMessage());
+        auth_log_exception_event('oauth_callback_failed', $e, ['platform' => $platform]);
+        error_log('Google OAuth callback failed: ' . auth_sanitized_exception_message($e));
         if ($platform === 'mobile') {
-            redirect_to_mobile_auth_failure();
+            redirect_to_mobile_auth_failure($e->clientErrorCode());
             return;
         }
         redirect_to('/login.html?error=google_auth_failed');
     } catch (PDOException $e) {
-        error_log('Google OAuth callback database error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        auth_log_exception_event('oauth_callback_database_error', $e, ['platform' => $platform]);
+        error_log('Google OAuth callback database error: ' . auth_sanitized_exception_message($e) . "\n" . $e->getTraceAsString());
         if ($platform === 'mobile') {
             redirect_to_mobile_auth_failure();
             return;
         }
         redirect_to('/login.html?error=google_auth_failed');
     } catch (Throwable $e) {
-        $msg = $e->getMessage();
-        error_log('Google OAuth callback failed unexpectedly: ' . $msg . "\n" . $e->getTraceAsString());
+        auth_log_exception_event('oauth_callback_unexpected_error', $e, ['platform' => $platform]);
+        error_log('Google OAuth callback failed unexpectedly: ' . auth_sanitized_exception_message($e) . "\n" . $e->getTraceAsString());
         if ($platform === 'mobile') {
             redirect_to_mobile_auth_failure();
             return;
@@ -531,7 +568,7 @@ function find_or_create_google_user(array $tokenInfo): array {
 
     $allowedDomains = allowed_google_domains();
     if ($allowedDomains && !email_domain_allowed($email, $allowedDomains)) {
-        throw new AuthRouteException('Google account not in allowed domain', 403);
+        throw new AuthRouteException('Google account not in allowed domain', 403, 'domain_not_allowed');
     }
 
     $pdo = db();
@@ -668,7 +705,10 @@ function google_profile_full_name(array $tokenInfo, string $email): string {
         $localPart = (string)strstr($email, '@', true);
         $name = $localPart !== '' ? $localPart : 'Google User';
     }
-    return mb_substr($name, 0, 190);
+    if (function_exists('mb_substr')) {
+        return mb_substr($name, 0, 190);
+    }
+    return substr($name, 0, 190);
 }
 
 function google_auto_provision_enabled(array $allowedDomains): bool {
@@ -723,7 +763,8 @@ function create_mobile_auth_code(int $userId, ?array $user = null): string {
         }
     }
     $user = assert_active_local_user($user);
-    if ((int)$user['id'] !== $userId) {
+    $resolvedUserId = local_user_id_from_row($user);
+    if ($resolvedUserId !== $userId) {
         throw new AuthRouteException('Invalid user id in database row', 500);
     }
 
@@ -733,22 +774,23 @@ function create_mobile_auth_code(int $userId, ?array $user = null): string {
 
     try {
         $stmt = db()->prepare(
-            'INSERT INTO mobile_auth_codes (user_id, code_hash, expires_at, created_at)
-             VALUES (?, ?, ?, UTC_TIMESTAMP())'
+            'INSERT INTO mobile_auth_codes (user_id, code_hash, expires_at)
+             VALUES (?, ?, ?)'
         );
         $stmt->execute([$userId, $codeHash, $expiresAt]);
     } catch (PDOException $e) {
+        auth_log_exception_event('mobile_auth_code_create_failed', $e, ['user_id' => $userId]);
         if ($e->getCode() === '42S02') { // Table not found
             throw new AuthRouteException('Mobile auth system is not fully initialized (missing table). Please run migrations.', 500);
         }
         if ($e->getCode() === '23000') {
-            error_log('Mobile auth code insert failed for user_id=' . $userId . ': ' . $e->getMessage());
+            error_log('Mobile auth code insert failed for user_id=' . $userId . ': ' . auth_sanitized_exception_message($e));
             throw new AuthRouteException('Mobile sign-in could not be completed', 500);
         }
         throw $e;
     }
 
-    auth_log_event('mobile_code_created', ['user_id' => $userId, 'expires_at' => $expiresAt]);
+    auth_log_event('mobile_auth_code_created', ['user_id' => $userId, 'expires_at' => $expiresAt]);
     return $code;
 }
 
@@ -819,9 +861,13 @@ function mobile_auth_callback_url(): string {
     return $configured !== '' ? $configured : 'ncp://auth/callback';
 }
 
-function redirect_to_mobile_auth_failure(): void {
+function redirect_to_mobile_auth_failure(string $error = 'callback_failed'): void {
+    $allowedErrors = ['callback_failed', 'domain_not_allowed'];
+    if (!in_array($error, $allowedErrors, true)) {
+        $error = 'callback_failed';
+    }
     redirect_to(build_redirect_url(mobile_auth_callback_url(), [
-        'error' => 'callback_failed',
+        'error' => $error,
         'message' => 'Google sign-in could not be completed'
     ]));
 }
@@ -841,7 +887,11 @@ function redirect_to(string $url): void {
 }
 
 function allowed_google_domains(): array {
-    $raw = env_value('GOOGLE_ALLOWED_DOMAIN', '');
+    $raw = trim((string)env_value('GOOGLE_ALLOWED_DOMAIN', ''));
+    $pluralRaw = trim((string)env_value('GOOGLE_ALLOWED_DOMAINS', ''));
+    if ($pluralRaw !== '') {
+        $raw = $raw === '' ? $pluralRaw : $raw . ',' . $pluralRaw;
+    }
     if (!$raw) {
         return [];
     }
@@ -861,7 +911,7 @@ function email_domain_allowed(string $email, array $domains): bool {
     if ($atPos === false) {
         return false;
     }
-    $emailDomain = substr($email, $atPos + 1);
+    $emailDomain = strtolower(substr($email, $atPos + 1));
     if ($emailDomain === '') {
         return false;
     }
