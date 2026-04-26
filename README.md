@@ -220,3 +220,4 @@ Authenticated pages should render the shared shell from `public/assets/sidebar.j
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)
 - [QA_CHECKLIST.md](QA_CHECKLIST.md)
 - [PRODUCTION_READINESS_REPORT.md](PRODUCTION_READINESS_REPORT.md)
+- [docs/mobile-capacitor.md](docs/mobile-capacitor.md)

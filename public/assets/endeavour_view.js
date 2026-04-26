@@ -1,4 +1,4 @@
-import { apiFetch } from '/assets/app.js';
+import { apiFetch, buildApiUrl } from '/assets/app.js';
 import { renderSidebar } from '/assets/sidebar.js';
 
 document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_endeavours');
@@ -115,7 +115,7 @@ const initEndeavourView = () => {
 
           const right = document.createElement('a');
           const dlParams = new URLSearchParams({ type: 'endeavour_document', id: String(doc.id) });
-          right.href = `/api/files/download?${dlParams.toString()}`;
+          right.href = buildApiUrl(`/files/download?${dlParams.toString()}`);
           right.className = 'text-[11px] font-bold uppercase tracking-widest text-[#7dd3fc] px-3 py-1 rounded-md bg-[rgba(14,165,233,0.1)] border border-[rgba(14,165,233,0.2)] hover:bg-[rgba(14,165,233,0.2)] transition-colors transform shrink-0';
           right.textContent = 'Download';
 

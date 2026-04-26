@@ -9,6 +9,11 @@
 @source "../../api/**/*.php";
 
 :root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+
   /* Spacing Rhythm */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -183,6 +188,32 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+main,
+section,
+article,
+header,
+footer,
+aside,
+nav,
+.card {
+  min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 @supports not (min-height: 100dvh) {
   body {
     min-height: 100vh;
@@ -207,7 +238,7 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   width: 100%;
-  padding: 5rem 1rem 1.25rem;
+  padding: calc(5rem + var(--safe-area-top)) max(1rem, var(--safe-area-right)) calc(1.25rem + var(--safe-area-bottom)) max(1rem, var(--safe-area-left));
 }
 
 .app-main--wide {
@@ -239,7 +270,7 @@ body {
 
 .app-drive-header {
   flex-shrink: 0;
-  padding: 5rem 1.25rem 1.25rem;
+  padding: calc(5rem + var(--safe-area-top)) max(1.25rem, var(--safe-area-right)) 1.25rem max(1.25rem, var(--safe-area-left));
 }
 
 .app-drive-content {
@@ -247,7 +278,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  padding: 0 1.25rem 1.25rem;
+  padding: 0 max(1.25rem, var(--safe-area-right)) calc(1.25rem + var(--safe-area-bottom)) max(1.25rem, var(--safe-area-left));
 }
 
 .app-page-header {
@@ -258,12 +289,14 @@ body {
 
 .app-mobile-menu-button {
   position: fixed;
-  top: 1.25rem;
-  right: 1.25rem;
+  top: calc(1rem + var(--safe-area-top));
+  right: calc(1rem + var(--safe-area-right));
   z-index: 50;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: 0.5rem;
   color: var(--text-primary);
   background: var(--bg-surface);
@@ -289,7 +322,7 @@ body {
   height: 100dvh;
   max-height: 100dvh;
   min-height: 0;
-  padding: 1.5rem;
+  padding: calc(1.5rem + var(--safe-area-top)) 1.5rem calc(1.5rem + var(--safe-area-bottom));
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -322,7 +355,7 @@ body {
 
 @media (min-width: 768px) {
   .app-main {
-    padding: 2rem;
+    padding: max(2rem, var(--safe-area-top)) max(2rem, var(--safe-area-right)) max(2rem, var(--safe-area-bottom)) 2rem;
   }
 
   .app-main--drive {
@@ -330,11 +363,11 @@ body {
   }
 
   .app-drive-header {
-    padding: 2rem 2rem 1.25rem;
+    padding: max(2rem, var(--safe-area-top)) max(2rem, var(--safe-area-right)) 1.25rem 2rem;
   }
 
   .app-drive-content {
-    padding: 0 2rem 2rem;
+    padding: 0 max(2rem, var(--safe-area-right)) max(2rem, var(--safe-area-bottom)) 2rem;
   }
 
   .app-mobile-menu-button {
@@ -347,12 +380,13 @@ body {
     width: 16rem;
     flex-basis: 16rem;
     align-self: flex-start;
+    padding-left: max(1.5rem, var(--safe-area-left));
   }
 }
 
 @media (min-width: 1024px) {
   .app-main {
-    padding: 2.5rem;
+    padding: max(2.5rem, var(--safe-area-top)) max(2.5rem, var(--safe-area-right)) max(2.5rem, var(--safe-area-bottom)) 2.5rem;
   }
 
   .app-main--drive {
@@ -360,11 +394,11 @@ body {
   }
 
   .app-drive-header {
-    padding: 2.5rem 2.5rem 1.25rem;
+    padding: max(2.5rem, var(--safe-area-top)) max(2.5rem, var(--safe-area-right)) 1.25rem 2.5rem;
   }
 
   .app-drive-content {
-    padding: 0 2.5rem 2.5rem;
+    padding: 0 max(2.5rem, var(--safe-area-right)) max(2.5rem, var(--safe-area-bottom)) 2.5rem;
   }
 }
 
@@ -386,6 +420,7 @@ body {
   cursor: pointer;
   border: 1px solid transparent;
   user-select: none;
+  touch-action: manipulation;
 }
 
 .btn:focus-visible {
@@ -741,6 +776,52 @@ tbody tr:hover {
 }
 
 @media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 1rem;
+  }
+
+  .btn {
+    min-height: 2.75rem;
+  }
+
+  .card {
+    border-radius: 0.75rem;
+  }
+
+  .app-page-header {
+    margin-bottom: 1.75rem;
+  }
+
+  #bulk-toolbar {
+    inset-inline: max(0.75rem, var(--safe-area-left)) max(0.75rem, var(--safe-area-right));
+    left: auto;
+    width: auto;
+    max-width: none;
+    transform: none;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  #drive-search,
+  #drive-sort,
+  #drive-entity {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #drive-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #toast {
+    inset-inline: max(1rem, var(--safe-area-left)) max(1rem, var(--safe-area-right));
+    bottom: calc(1rem + var(--safe-area-bottom));
+    width: auto;
+    max-width: none;
+  }
+
   .workflow-summary {
     align-items: stretch;
     flex-direction: column;

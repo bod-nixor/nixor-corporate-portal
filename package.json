@@ -2,11 +2,22 @@
   "name": "nixor-corporate-portal",
   "private": true,
   "scripts": {
+    "build": "npm run build:css",
     "build:css": "tailwindcss --cwd . -c ./tailwind.config.js -i public/assets/global.css -o public/assets/app.css",
-    "dev:css": "tailwindcss -i public/assets/global.css -o public/assets/app.css --watch"
+    "dev:css": "tailwindcss -i public/assets/global.css -o public/assets/app.css --watch",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.1",
     "@tailwindcss/cli": "^4.0.0",
-    "tailwindcss": "^4.0.0"
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1"
   }
 }
