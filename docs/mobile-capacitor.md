@@ -88,6 +88,8 @@ OAUTH_STATE_SECRET=<long-random-secret>
 MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback
 ```
 
+If mobile Google login should create users on first verified-domain sign-in, set `GOOGLE_ALLOWED_DOMAIN` and explicitly enable `GOOGLE_AUTO_PROVISION=true`. Without that flag, Google login links to existing portal users only.
+
 ## Deployment Process
 1. Deploy the PHP API and website normally to `https://ncp.nixorcorporate.com`.
 2. Verify `/api/auth/csrf` responds with JSON and CORS headers for trusted origins.

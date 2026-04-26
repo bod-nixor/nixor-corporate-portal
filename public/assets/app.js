@@ -206,12 +206,12 @@ async function handleMobileAuthUrl(url) {
   if (!url || !isMobileAuthCallback(url)) {
     return false;
   }
-  console.log('[NCP Mobile Auth] Handling URL:', url);
+  console.log('[NCP Mobile Auth] Handling callback URL');
   await closeNativeBrowser();
   const parsed = new URL(url);
   if (parsed.searchParams.get('error')) {
-    const msg = parsed.searchParams.get('message') || 'Google sign-in could not be completed. Please try again.';
-    emitMobileAuthError(msg);
+    console.warn('[NCP Mobile Auth] Callback returned error:', parsed.searchParams.get('error'));
+    emitMobileAuthError('Google sign-in could not be completed. Please try again.');
     return true;
   }
 
@@ -259,7 +259,7 @@ export async function initMobileAuthListener() {
 
     try {
       const handle = await App.addListener('appUrlOpen', (event) => {
-        console.log('[NCP Mobile Auth] appUrlOpen event:', event?.url);
+        console.log('[NCP Mobile Auth] appUrlOpen event received');
         handleMobileAuthUrl(event?.url);
       });
       mobileAuthListenerHandle = handle;
@@ -398,7 +398,11 @@ function buildApiError(message, status, url, body) {
 
 export const normalizeError = (err) => {
   const message = err?.message || '';
-  if (err?.status >= 500 || /^HTTP 5\d\d$/.test(message)) {
+  if (
+    err?.status >= 500
+    || /^HTTP 5\d\d$/.test(message)
+    || /SQLSTATE|PDOException|Integrity constraint/i.test(message)
+  ) {
     return 'Something went wrong. Please try again.';
   }
   return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');

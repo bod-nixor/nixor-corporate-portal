@@ -33,6 +33,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - `LOG_PATH` (absolute path, e.g. `/home/<cpanel_user>/portal_logs`)
    - `TRUSTED_PROXIES` (Cloudflare or other proxies if used)
    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+   - `GOOGLE_ALLOWED_DOMAIN` and, only if domain-restricted self-provisioning is intended, `GOOGLE_AUTO_PROVISION=true`
    - `OAUTH_STATE_SECRET` (dedicated random HMAC key for Google OAuth state signing; falls back to `APP_KEY` and then `GOOGLE_CLIENT_SECRET` if unset)
    - `MOBILE_AUTH_REDIRECT_URI` (defaults to `ncp://auth/callback`; set explicitly if changing the app scheme or using Universal/App Links)
    - `SETUP_TOKEN` (required in production to call `/api/admin/setup`)
@@ -56,6 +57,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - Production mobile/web OAuth callback: `https://ncp.nixorcorporate.com/api/auth/google/callback`
    - Capacitor deep link after backend verification: `MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback`
    - Set `OAUTH_STATE_SECRET` to a long random value so `google_state_secret_or_fail()` does not rely on `GOOGLE_CLIENT_SECRET` for state signing.
+   - Keep `GOOGLE_AUTO_PROVISION=false` unless `GOOGLE_ALLOWED_DOMAIN` is set and verified-domain Google users should be created automatically with the default `volunteer` role.
 
 ## 7) Configure cron jobs
 Add a cPanel cron entry that calls:

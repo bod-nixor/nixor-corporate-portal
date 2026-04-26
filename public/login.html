@@ -127,10 +127,11 @@
     };
 
     const friendlyError = (err, fallback = 'Something went wrong. Please try again.') => {
-      if (err?.status >= 500 || /^HTTP 5\d\d$/.test(err?.message || '')) {
+      const message = err?.message || '';
+      if (err?.status >= 500 || /^HTTP 5\d\d$/.test(message) || /SQLSTATE|PDOException|Integrity constraint/i.test(message)) {
         return fallback;
       }
-      return err?.message || fallback;
+      return message || fallback;
     };
 
     const setFieldError = (input, errorNode, message) => {
