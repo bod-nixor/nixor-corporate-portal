@@ -51,6 +51,8 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 ## 6) Configure Google OAuth
 1. In Google Cloud Console, set the **Authorized JavaScript origins** to your production `BASE_URL`.
 2. Set the **Authorized redirect URI** to `GOOGLE_REDIRECT_URI` in your `.env`.
+   - Production mobile/web OAuth callback: `https://ncp.nixorcorporate.com/api/auth/google/callback`
+   - Capacitor deep link after backend verification: `MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback`
 
 ## 7) Configure cron jobs
 Add a cPanel cron entry that calls:
