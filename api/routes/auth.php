@@ -114,10 +114,16 @@ function handle_auth(string $method, array $segments): void {
         }
         try {
             $tokenInfo = verify_google_id_token_or_fail($idToken);
-            $user = google_user_from_token_info($tokenInfo);
+            $user = find_or_create_google_user($tokenInfo);
             complete_login($user);
         } catch (AuthRouteException $e) {
             respond(['ok' => false, 'error' => $e->getMessage()], $e->status());
+        } catch (PDOException $e) {
+            error_log('Google Identity Services database error: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            respond(['ok' => false, 'error' => 'Google sign-in failed'], 500);
+        } catch (Throwable $e) {
+            error_log('Google Identity Services failed unexpectedly: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+            respond(['ok' => false, 'error' => 'Google sign-in failed'], 500);
         }
     }
 
@@ -135,6 +141,42 @@ class AuthRouteException extends RuntimeException {
     public function status(): int {
         return $this->httpStatus;
     }
+}
+
+function auth_log_event(string $event, array $context = []): void {
+    $parts = ['auth_event=' . preg_replace('/[^A-Za-z0-9_.:-]/', '_', $event)];
+    foreach ($context as $key => $value) {
+        if ($value === null || $value === '') {
+            continue;
+        }
+        if (is_bool($value)) {
+            $value = $value ? '1' : '0';
+        } elseif (is_int($value) || is_float($value)) {
+            $value = (string)$value;
+        } elseif (is_string($value)) {
+            $value = substr($value, 0, 120);
+        } else {
+            continue;
+        }
+        $safeKey = preg_replace('/[^A-Za-z0-9_.:-]/', '_', (string)$key);
+        $safeValue = preg_replace('/[^A-Za-z0-9_.:@-]/', '_', (string)$value);
+        $parts[] = $safeKey . '=' . $safeValue;
+    }
+    error_log(implode(' ', $parts));
+}
+
+function auth_email_hash(string $email): string {
+    $email = strtolower(trim($email));
+    return $email === '' ? '' : substr(hash('sha256', $email), 0, 16);
+}
+
+function auth_email_domain(string $email): string {
+    $email = strtolower(trim($email));
+    $atPos = strrpos($email, '@');
+    if ($atPos === false) {
+        return '';
+    }
+    return substr($email, $atPos + 1);
 }
 
 function handle_google_oauth_start(): void {
@@ -164,6 +206,7 @@ function handle_google_oauth_start(): void {
 function handle_google_oauth_callback(): void {
     $stateRaw = (string)($_GET['state'] ?? '');
     $platform = google_oauth_state_platform_hint($stateRaw);
+    auth_log_event('oauth_callback_started', ['platform' => $platform]);
 
     try {
         if (isset($_GET['error'])) {
@@ -190,10 +233,23 @@ function handle_google_oauth_callback(): void {
         }
 
         $tokenInfo = verify_google_id_token_or_fail($idToken);
-        $user = google_user_from_token_info($tokenInfo);
+        auth_log_event('google_profile_received', [
+            'platform' => $platform,
+            'email_hash' => auth_email_hash((string)($tokenInfo['email'] ?? '')),
+            'email_domain' => auth_email_domain((string)($tokenInfo['email'] ?? '')),
+            'email_verified' => google_profile_email_verified($tokenInfo) ? '1' : '0',
+        ]);
+        $user = find_or_create_google_user($tokenInfo);
+        $userId = local_user_id_from_row($user);
+        auth_log_event('local_user_resolved', [
+            'platform' => $platform,
+            'user_id' => $userId,
+            'email_hash' => auth_email_hash((string)($user['email'] ?? '')),
+        ]);
 
         if ($platform === 'mobile') {
-            $mobileCode = create_mobile_auth_code((int)$user['id']);
+            $mobileCode = create_mobile_auth_code($userId, $user);
+            auth_log_event('mobile_callback_redirected', ['user_id' => $userId]);
             redirect_to(build_redirect_url(mobile_auth_callback_url(), ['code' => $mobileCode]));
             return;
         }
@@ -203,11 +259,14 @@ function handle_google_oauth_callback(): void {
     } catch (AuthRouteException $e) {
         error_log('Google OAuth callback failed: ' . $e->getMessage());
         if ($platform === 'mobile') {
-            if (ob_get_length()) ob_clean();
-            redirect_to(build_redirect_url(mobile_auth_callback_url(), [
-                'error' => 'google_auth_failed',
-                'message' => $e->getMessage()
-            ]));
+            redirect_to_mobile_auth_failure();
+            return;
+        }
+        redirect_to('/login.html?error=google_auth_failed');
+    } catch (PDOException $e) {
+        error_log('Google OAuth callback database error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+        if ($platform === 'mobile') {
+            redirect_to_mobile_auth_failure();
             return;
         }
         redirect_to('/login.html?error=google_auth_failed');
@@ -215,13 +274,7 @@ function handle_google_oauth_callback(): void {
         $msg = $e->getMessage();
         error_log('Google OAuth callback failed unexpectedly: ' . $msg . "\n" . $e->getTraceAsString());
         if ($platform === 'mobile') {
-            // Include a sanitized version of the error message for debugging
-            $debugMsg = 'Internal server error: ' . substr($msg, 0, 100);
-            if (ob_get_length()) ob_clean();
-            redirect_to(build_redirect_url(mobile_auth_callback_url(), [
-                'error' => 'google_auth_failed',
-                'message' => $debugMsg
-            ]));
+            redirect_to_mobile_auth_failure();
             return;
         }
         redirect_to('/login.html?error=google_auth_failed');
@@ -249,11 +302,15 @@ function handle_mobile_auth_exchange(): void {
 
     try {
         $user = consume_mobile_auth_code($code);
+        auth_log_event('mobile_exchange_success', ['user_id' => local_user_id_from_row($user)]);
         complete_login($user);
     } catch (AuthRouteException $e) {
         respond(['ok' => false, 'error' => $e->getMessage()], $e->status());
+    } catch (PDOException $e) {
+        error_log('Mobile auth exchange database error: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
+        respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
     } catch (Throwable $e) {
-        error_log('Mobile auth exchange failed unexpectedly: ' . $e->getMessage());
+        error_log('Mobile auth exchange failed unexpectedly: ' . $e->getMessage() . ' ' . $e->getTraceAsString());
         respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
     }
 }
@@ -282,6 +339,9 @@ function verify_google_id_token_or_fail(string $idToken): array {
     $payload = $client->verifyIdToken($idToken);
     if (!$payload) {
         throw new AuthRouteException('Invalid token', 401);
+    }
+    if (!google_profile_email_verified($payload)) {
+        throw new AuthRouteException('Google account email is not verified', 403);
     }
     return $payload;
 }
@@ -459,11 +519,14 @@ function google_oauth_state_platform_hint(string $state): string {
     return is_array($payload) && ($payload['platform'] ?? '') === 'mobile' ? 'mobile' : 'web';
 }
 
-function google_user_from_token_info(array $tokenInfo): array {
+function find_or_create_google_user(array $tokenInfo): array {
     $googleId = trim((string)($tokenInfo['sub'] ?? ''));
     $email = strtolower(trim((string)($tokenInfo['email'] ?? '')));
     if ($googleId === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         throw new AuthRouteException('Invalid Google account', 401);
+    }
+    if (!google_profile_email_verified($tokenInfo)) {
+        throw new AuthRouteException('Google account email is not verified', 403);
     }
 
     $allowedDomains = allowed_google_domains();
@@ -471,29 +534,199 @@ function google_user_from_token_info(array $tokenInfo): array {
         throw new AuthRouteException('Google account not in allowed domain', 403);
     }
 
-    $stmt = db()->prepare('SELECT * FROM users WHERE google_id = ?');
-    $stmt->execute([$googleId]);
-    $user = $stmt->fetch();
-    if (!$user) {
-        $stmt = db()->prepare('SELECT * FROM users WHERE email = ? AND (google_id IS NULL OR google_id = "")');
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
-        if ($user) {
-            $link = db()->prepare('UPDATE users SET google_id = ? WHERE id = ?');
-            $link->execute([$googleId, $user['id']]);
-            $user['google_id'] = $googleId;
-        }
+    $pdo = db();
+    $startedTransaction = !$pdo->inTransaction();
+    if ($startedTransaction) {
+        $pdo->beginTransaction();
     }
+
+    try {
+        $user = fetch_google_user_by_google_id($pdo, $googleId, true);
+        if ($user) {
+            $user = assert_active_local_user($user);
+            if ($startedTransaction) {
+                $pdo->commit();
+            }
+            return $user;
+        }
+
+        $user = fetch_google_user_by_email($pdo, $email, true);
+        if ($user) {
+            $user = assert_google_user_resolved($user);
+            $linkedGoogleId = trim((string)($user['google_id'] ?? ''));
+            if ($linkedGoogleId !== '' && !hash_equals($linkedGoogleId, $googleId)) {
+                throw new AuthRouteException('Google account is already linked to another user', 409);
+            }
+
+            if ($linkedGoogleId === '') {
+                $link = $pdo->prepare(
+                    'UPDATE users
+                     SET google_id = ?, email_verified_at = COALESCE(email_verified_at, UTC_TIMESTAMP())
+                     WHERE id = ?'
+                );
+                $link->execute([$googleId, local_user_id_from_row($user)]);
+                $user = fetch_google_user_by_email($pdo, $email, true);
+                $user = assert_google_user_resolved($user);
+            }
+
+            if ($startedTransaction) {
+                $pdo->commit();
+            }
+            return $user;
+        }
+
+        if (!google_auto_provision_enabled($allowedDomains)) {
+            throw new AuthRouteException('Google account not found', 404);
+        }
+
+        $fullName = google_profile_full_name($tokenInfo, $email);
+        $insert = $pdo->prepare(
+            'INSERT INTO users (email, password_hash, full_name, google_id, global_role, status, email_verified_at)
+             VALUES (?, NULL, ?, ?, ?, ?, UTC_TIMESTAMP())'
+        );
+        try {
+            $insert->execute([$email, $fullName, $googleId, 'volunteer', 'active']);
+        } catch (PDOException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+            $user = fetch_google_user_by_google_id($pdo, $googleId, true)
+                ?: fetch_google_user_by_email($pdo, $email, true);
+            if (!$user) {
+                throw $e;
+            }
+            $user = assert_active_local_user($user);
+            if ($startedTransaction) {
+                $pdo->commit();
+            }
+            return $user;
+        }
+
+        $userId = (int)$pdo->lastInsertId();
+        $user = fetch_google_user_by_id($pdo, $userId, true);
+        $user = assert_google_user_resolved($user);
+        if ($startedTransaction) {
+            $pdo->commit();
+        }
+        return $user;
+    } catch (Throwable $e) {
+        if ($startedTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function fetch_google_user_by_google_id(PDO $pdo, string $googleId, bool $forUpdate = false): ?array {
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE google_id = ? LIMIT 2' . ($forUpdate ? ' FOR UPDATE' : ''));
+    $stmt->execute([$googleId]);
+    $users = $stmt->fetchAll();
+    if (count($users) > 1) {
+        throw new AuthRouteException('Google account matches multiple portal users', 500);
+    }
+    return $users[0] ?? null;
+}
+
+function fetch_google_user_by_email(PDO $pdo, string $email, bool $forUpdate = false): ?array {
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ? LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : ''));
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+    return $user ?: null;
+}
+
+function fetch_google_user_by_id(PDO $pdo, int $userId, bool $forUpdate = false): ?array {
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ? LIMIT 1' . ($forUpdate ? ' FOR UPDATE' : ''));
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    return $user ?: null;
+}
+
+function google_profile_email_verified(array $tokenInfo): bool {
+    if (!array_key_exists('email_verified', $tokenInfo)) {
+        return false;
+    }
+    $verified = $tokenInfo['email_verified'];
+    if (is_bool($verified)) {
+        return $verified;
+    }
+    if (is_string($verified)) {
+        return in_array(strtolower($verified), ['1', 'true', 'yes'], true);
+    }
+    return (bool)$verified;
+}
+
+function google_profile_full_name(array $tokenInfo, string $email): string {
+    $name = trim(strip_tags((string)($tokenInfo['name'] ?? '')));
+    if ($name === '') {
+        $name = trim(
+            strip_tags((string)($tokenInfo['given_name'] ?? '')) . ' ' .
+            strip_tags((string)($tokenInfo['family_name'] ?? ''))
+        );
+    }
+    $name = preg_replace('/\s+/', ' ', $name ?? '') ?? '';
+    if ($name === '') {
+        $localPart = (string)strstr($email, '@', true);
+        $name = $localPart !== '' ? $localPart : 'Google User';
+    }
+    return mb_substr($name, 0, 190);
+}
+
+function google_auto_provision_enabled(array $allowedDomains): bool {
+    $raw = env_value('GOOGLE_AUTO_PROVISION', null);
+    $enabled = filter_var($raw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+    if ($enabled !== true) {
+        return false;
+    }
+    if (!$allowedDomains) {
+        error_log('Google auto-provisioning is enabled but ignored because GOOGLE_ALLOWED_DOMAIN is not configured');
+        return false;
+    }
+    return true;
+}
+
+function local_user_id_from_row(array $user): int {
+    $id = $user['id'] ?? null;
+    if (is_int($id)) {
+        $userId = $id;
+    } elseif (is_string($id) && ctype_digit($id)) {
+        $userId = (int)$id;
+    } else {
+        $userId = 0;
+    }
+    if ($userId <= 0) {
+        throw new AuthRouteException('Invalid user id in database row', 500);
+    }
+    return $userId;
+}
+
+function assert_google_user_resolved(?array $user): array {
     if (!$user) {
         throw new AuthRouteException('Google account not found', 404);
     }
+    return assert_active_local_user($user);
+}
+
+function assert_active_local_user(array $user): array {
+    local_user_id_from_row($user);
     if (($user['status'] ?? 'active') !== 'active') {
         throw new AuthRouteException('Account inactive', 403);
     }
     return $user;
 }
 
-function create_mobile_auth_code(int $userId): string {
+function create_mobile_auth_code(int $userId, ?array $user = null): string {
+    if ($user === null) {
+        $user = fetch_google_user_by_id(db(), $userId);
+        if (!$user) {
+            auth_log_event('mobile_code_user_missing', ['user_id' => $userId]);
+            throw new AuthRouteException('Google account not found', 404);
+        }
+    }
+    $user = assert_active_local_user($user);
+    if ((int)$user['id'] !== $userId) {
+        throw new AuthRouteException('Invalid user id in database row', 500);
+    }
+
     $code = base64url_encode(random_bytes(32));
     $codeHash = hash('sha256', $code);
     $expiresAt = gmdate('Y-m-d H:i:s', time() + 300);
@@ -508,9 +741,14 @@ function create_mobile_auth_code(int $userId): string {
         if ($e->getCode() === '42S02') { // Table not found
             throw new AuthRouteException('Mobile auth system is not fully initialized (missing table). Please run migrations.', 500);
         }
+        if ($e->getCode() === '23000') {
+            error_log('Mobile auth code insert failed for user_id=' . $userId . ': ' . $e->getMessage());
+            throw new AuthRouteException('Mobile sign-in could not be completed', 500);
+        }
         throw $e;
     }
 
+    auth_log_event('mobile_code_created', ['user_id' => $userId, 'expires_at' => $expiresAt]);
     return $code;
 }
 
@@ -581,6 +819,13 @@ function mobile_auth_callback_url(): string {
     return $configured !== '' ? $configured : 'ncp://auth/callback';
 }
 
+function redirect_to_mobile_auth_failure(): void {
+    redirect_to(build_redirect_url(mobile_auth_callback_url(), [
+        'error' => 'callback_failed',
+        'message' => 'Google sign-in could not be completed'
+    ]));
+}
+
 function build_redirect_url(string $baseUrl, array $params): string {
     $separator = str_contains($baseUrl, '?') ? '&' : '?';
     return $baseUrl . $separator . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
@@ -629,10 +874,11 @@ function email_domain_allowed(string $email, array $domains): bool {
 }
 
 function establish_login_session(array $user): void {
+    $userId = local_user_id_from_row($user);
     $update = db()->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
-    $update->execute([$user['id']]);
+    $update->execute([$userId]);
     session_regenerate_id(true);
-    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['user_id'] = $userId;
 }
 
 function complete_login(array $user): void {
