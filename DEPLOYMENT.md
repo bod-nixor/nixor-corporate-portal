@@ -13,7 +13,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 3. Note the database host (often `localhost`), DB name, username, and password.
 
 ## 3) Apply migrations
-1. Ensure `config/.env` (or exported `DB_*` env vars) is set before running migrations.
+1. Ensure `config/.env` or the repository root `.env` (or exported `DB_*` env vars) is set before running migrations. The project resolves `config/.env` with higher precedence.
 2. Upload the repo and run the migration script from SSH:
    ```bash
    /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/migrate.php

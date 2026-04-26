@@ -328,7 +328,7 @@ function google_state_secret_or_fail(): string {
         ?: env_value('GOOGLE_CLIENT_SECRET')
         ?: '');
     if ($secret === '') {
-        error_log('Google OAuth is not configured. Missing variables: OAUTH_STATE_SECRET, APP_KEY, or GOOGLE_CLIENT_SECRET');
+        error_log('No state secret configured: none of OAUTH_STATE_SECRET, APP_KEY, or GOOGLE_CLIENT_SECRET are set');
         throw new AuthRouteException('Google OAuth is not configured', 500);
     }
     return $secret;

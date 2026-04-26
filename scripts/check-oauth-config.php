@@ -11,22 +11,12 @@ require_once dirname(__DIR__) . '/api/routes/auth.php'; // Includes google_oauth
 echo "OAuth Configuration Check\n";
 echo "=======================\n\n";
 
-$root = dirname(__DIR__);
-$defaultPath = $root . '/.env';
-$configPath = $root . '/config/.env';
+$path = env_resolved_path();
 
-$path = $_SERVER['ENV_FILE_PATH'] ?? $_ENV['ENV_FILE_PATH'] ?? getenv('ENV_FILE_PATH');
-if (!$path) {
-    $path = file_exists($configPath) ? $configPath : $defaultPath;
-}
-if ($path && !env_is_absolute_path($path)) {
-    $path = $root . '/' . ltrim($path, '/\\');
-}
-
-if ($path && file_exists($path)) {
+if ($path) {
     echo "Loaded .env file: {$path}\n";
 } else {
-    echo "No .env file found at {$path}. Relying on server environment variables.\n";
+    echo "No .env file found. Relying on server environment variables.\n";
 }
 
 echo "\nVariables:\n";
@@ -49,7 +39,8 @@ echo "\nRedirect URI Configuration:\n";
 try {
     $redirectUri = google_oauth_redirect_uri();
     echo " - Effective Google Redirect URI: " . ($redirectUri ?: 'MISSING') . "\n";
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    $redirectUri = '';
     echo " - Effective Google Redirect URI: ERROR (" . $e->getMessage() . ")\n";
 }
 
@@ -61,14 +52,13 @@ try {
     } else {
         echo " - " . implode(', ', $domains) . "\n";
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
     echo " - ERROR (" . $e->getMessage() . ")\n";
 }
 
 echo "\nStatus: ";
 $clientId = env_value('GOOGLE_CLIENT_ID');
 $clientSecret = env_value('GOOGLE_CLIENT_SECRET');
-$redirectUri = google_oauth_redirect_uri();
 $secret = env_value('OAUTH_STATE_SECRET') ?: env_value('APP_KEY') ?: env_value('GOOGLE_CLIENT_SECRET');
 
 if (!$clientId || !$clientSecret || !$redirectUri || !$secret) {
