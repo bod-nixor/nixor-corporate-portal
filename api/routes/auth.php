@@ -248,7 +248,7 @@ function handle_google_oauth_callback(): void {
         ]);
 
         if ($platform === 'mobile') {
-            $mobileCode = create_mobile_auth_code($userId);
+            $mobileCode = create_mobile_auth_code($userId, $user);
             auth_log_event('mobile_callback_redirected', ['user_id' => $userId]);
             redirect_to(build_redirect_url(mobile_auth_callback_url(), ['code' => $mobileCode]));
             return;
@@ -339,6 +339,9 @@ function verify_google_id_token_or_fail(string $idToken): array {
     $payload = $client->verifyIdToken($idToken);
     if (!$payload) {
         throw new AuthRouteException('Invalid token', 401);
+    }
+    if (!google_profile_email_verified($payload)) {
+        throw new AuthRouteException('Google account email is not verified', 403);
     }
     return $payload;
 }
@@ -516,10 +519,6 @@ function google_oauth_state_platform_hint(string $state): string {
     return is_array($payload) && ($payload['platform'] ?? '') === 'mobile' ? 'mobile' : 'web';
 }
 
-function google_user_from_token_info(array $tokenInfo): array {
-    return find_or_create_google_user($tokenInfo);
-}
-
 function find_or_create_google_user(array $tokenInfo): array {
     $googleId = trim((string)($tokenInfo['sub'] ?? ''));
     $email = strtolower(trim((string)($tokenInfo['email'] ?? '')));
@@ -553,6 +552,7 @@ function find_or_create_google_user(array $tokenInfo): array {
 
         $user = fetch_google_user_by_email($pdo, $email, true);
         if ($user) {
+            $user = assert_google_user_resolved($user);
             $linkedGoogleId = trim((string)($user['google_id'] ?? ''));
             if ($linkedGoogleId !== '' && !hash_equals($linkedGoogleId, $googleId)) {
                 throw new AuthRouteException('Google account is already linked to another user', 409);
@@ -566,9 +566,9 @@ function find_or_create_google_user(array $tokenInfo): array {
                 );
                 $link->execute([$googleId, local_user_id_from_row($user)]);
                 $user = fetch_google_user_by_email($pdo, $email, true);
+                $user = assert_google_user_resolved($user);
             }
 
-            $user = assert_active_local_user($user ?: []);
             if ($startedTransaction) {
                 $pdo->commit();
             }
@@ -604,7 +604,7 @@ function find_or_create_google_user(array $tokenInfo): array {
 
         $userId = (int)$pdo->lastInsertId();
         $user = fetch_google_user_by_id($pdo, $userId, true);
-        $user = assert_active_local_user($user ?: []);
+        $user = assert_google_user_resolved($user);
         if ($startedTransaction) {
             $pdo->commit();
         }
@@ -643,7 +643,7 @@ function fetch_google_user_by_id(PDO $pdo, int $userId, bool $forUpdate = false)
 
 function google_profile_email_verified(array $tokenInfo): bool {
     if (!array_key_exists('email_verified', $tokenInfo)) {
-        return true;
+        return false;
     }
     $verified = $tokenInfo['email_verified'];
     if (is_bool($verified)) {
@@ -694,9 +694,16 @@ function local_user_id_from_row(array $user): int {
         $userId = 0;
     }
     if ($userId <= 0) {
-        throw new AuthRouteException('Google account not found', 404);
+        throw new AuthRouteException('Invalid user id in database row', 500);
     }
     return $userId;
+}
+
+function assert_google_user_resolved(?array $user): array {
+    if (!$user) {
+        throw new AuthRouteException('Google account not found', 404);
+    }
+    return assert_active_local_user($user);
 }
 
 function assert_active_local_user(array $user): array {
@@ -707,13 +714,18 @@ function assert_active_local_user(array $user): array {
     return $user;
 }
 
-function create_mobile_auth_code(int $userId): string {
-    $user = fetch_google_user_by_id(db(), $userId);
-    if (!$user) {
-        auth_log_event('mobile_code_user_missing', ['user_id' => $userId]);
-        throw new AuthRouteException('Google account not found', 404);
+function create_mobile_auth_code(int $userId, ?array $user = null): string {
+    if ($user === null) {
+        $user = fetch_google_user_by_id(db(), $userId);
+        if (!$user) {
+            auth_log_event('mobile_code_user_missing', ['user_id' => $userId]);
+            throw new AuthRouteException('Google account not found', 404);
+        }
     }
-    assert_active_local_user($user);
+    $user = assert_active_local_user($user);
+    if ((int)$user['id'] !== $userId) {
+        throw new AuthRouteException('Invalid user id in database row', 500);
+    }
 
     $code = base64url_encode(random_bytes(32));
     $codeHash = hash('sha256', $code);
