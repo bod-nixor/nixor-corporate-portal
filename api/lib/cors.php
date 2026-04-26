@@ -94,6 +94,9 @@ function cors_origin_requires_cross_site_session(?string $origin): bool {
 function apply_cors_headers(): void {
     $origin = cors_normalize_origin($_SERVER['HTTP_ORIGIN'] ?? '');
     if (!cors_is_trusted_origin($origin)) {
+        if ($origin !== '') {
+            error_log("CORS: Untrusted origin rejected: " . $origin);
+        }
         return;
     }
 

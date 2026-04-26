@@ -41,6 +41,17 @@ function request_scheme(): string {
             }
         }
     }
+
+    // Fallback hint for some proxies/balancers even if not formally trusted
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    if ($forwarded) {
+        $parts = explode(',', $forwarded);
+        $candidate = strtolower(trim($parts[0] ?? ''));
+        if ($candidate === 'https') {
+            return 'https';
+        }
+    }
+
     return 'http';
 }
 

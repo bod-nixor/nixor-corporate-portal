@@ -203,6 +203,7 @@ function handle_google_oauth_callback(): void {
     } catch (AuthRouteException $e) {
         error_log('Google OAuth callback failed: ' . $e->getMessage());
         if ($platform === 'mobile') {
+            if (ob_get_length()) ob_clean();
             redirect_to(build_redirect_url(mobile_auth_callback_url(), [
                 'error' => 'google_auth_failed',
                 'message' => $e->getMessage()
@@ -211,11 +212,15 @@ function handle_google_oauth_callback(): void {
         }
         redirect_to('/login.html?error=google_auth_failed');
     } catch (Throwable $e) {
-        error_log('Google OAuth callback failed unexpectedly: ' . $e->getMessage());
+        $msg = $e->getMessage();
+        error_log('Google OAuth callback failed unexpectedly: ' . $msg . "\n" . $e->getTraceAsString());
         if ($platform === 'mobile') {
+            // Include a sanitized version of the error message for debugging
+            $debugMsg = 'Internal server error: ' . substr($msg, 0, 100);
+            if (ob_get_length()) ob_clean();
             redirect_to(build_redirect_url(mobile_auth_callback_url(), [
                 'error' => 'google_auth_failed',
-                'message' => 'Internal server error during callback'
+                'message' => $debugMsg
             ]));
             return;
         }
@@ -273,7 +278,7 @@ function verify_google_id_token_or_fail(string $idToken): array {
         throw new AuthRouteException('Google OAuth is not configured', 500);
     }
     require_google_autoload_or_fail();
-    $client = new Google_Client(['client_id' => $clientId]);
+    $client = new Google\Client(['client_id' => $clientId]);
     $payload = $client->verifyIdToken($idToken);
     if (!$payload) {
         throw new AuthRouteException('Invalid token', 401);
@@ -305,7 +310,7 @@ function google_oauth_client_or_fail() {
     }
 
     require_google_autoload_or_fail();
-    $client = new Google_Client();
+    $client = new Google\Client();
     $client->setClientId($clientId);
     $client->setClientSecret($clientSecret);
     $client->setRedirectUri($redirectUri);
@@ -493,11 +498,18 @@ function create_mobile_auth_code(int $userId): string {
     $codeHash = hash('sha256', $code);
     $expiresAt = gmdate('Y-m-d H:i:s', time() + 300);
 
-    $stmt = db()->prepare(
-        'INSERT INTO mobile_auth_codes (user_id, code_hash, expires_at, created_at)
-         VALUES (?, ?, ?, UTC_TIMESTAMP())'
-    );
-    $stmt->execute([$userId, $codeHash, $expiresAt]);
+    try {
+        $stmt = db()->prepare(
+            'INSERT INTO mobile_auth_codes (user_id, code_hash, expires_at, created_at)
+             VALUES (?, ?, ?, UTC_TIMESTAMP())'
+        );
+        $stmt->execute([$userId, $codeHash, $expiresAt]);
+    } catch (PDOException $e) {
+        if ($e->getCode() === '42S02') { // Table not found
+            throw new AuthRouteException('Mobile auth system is not fully initialized (missing table). Please run migrations.', 500);
+        }
+        throw $e;
+    }
 
     return $code;
 }
@@ -575,6 +587,9 @@ function build_redirect_url(string $baseUrl, array $params): string {
 }
 
 function redirect_to(string $url): void {
+    if (ob_get_level() > 0) {
+        ob_clean();
+    }
     header_remove('Content-Type');
     header('Location: ' . $url, true, 302);
     exit;

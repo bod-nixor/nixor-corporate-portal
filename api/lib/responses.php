@@ -1,7 +1,12 @@
 <?php
 function respond(array $payload, int $status = 200): void {
-    header('Content-Type: application/json');
-    http_response_code($status);
+    if (!headers_sent()) {
+        if (ob_get_level() > 0) {
+            ob_clean();
+        }
+        header('Content-Type: application/json');
+        http_response_code($status);
+    }
     $json = json_encode($payload);
     if ($json === false) {
         http_response_code(500);
