@@ -35,6 +35,11 @@ function require_csrf(): void {
     }
     $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
     if (!$token || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
-        respond(['ok' => false, 'error' => 'Invalid CSRF token'], 403);
+        $reason = !$token ? 'missing_token' : (empty($_SESSION['csrf_token']) ? 'missing_session' : 'mismatch');
+        respond([
+            'ok' => false,
+            'error' => 'Invalid CSRF token',
+            'meta' => ['reason' => $reason]
+        ], 403);
     }
 }

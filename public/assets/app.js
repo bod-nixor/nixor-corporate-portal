@@ -206,11 +206,12 @@ async function handleMobileAuthUrl(url) {
   if (!url || !isMobileAuthCallback(url)) {
     return false;
   }
-
+  console.log('[NCP Mobile Auth] Handling URL:', url);
   await closeNativeBrowser();
   const parsed = new URL(url);
   if (parsed.searchParams.get('error')) {
-    emitMobileAuthError('Google sign-in could not be completed. Please try again.');
+    const msg = parsed.searchParams.get('message') || 'Google sign-in could not be completed. Please try again.';
+    emitMobileAuthError(msg);
     return true;
   }
 
@@ -258,9 +259,11 @@ export async function initMobileAuthListener() {
 
     try {
       const handle = await App.addListener('appUrlOpen', (event) => {
+        console.log('[NCP Mobile Auth] appUrlOpen event:', event?.url);
         handleMobileAuthUrl(event?.url);
       });
       mobileAuthListenerHandle = handle;
+      console.log('[NCP Mobile Auth] Listener registered successfully');
       registerMobileAuthListenerCleanup();
 
       if (typeof App.getLaunchUrl === 'function') {
