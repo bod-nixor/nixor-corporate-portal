@@ -23,3 +23,22 @@ DirectoryIndex index.html
 
 # Disable directory browsing at the repo root
 Options -Indexes
+
+# Block access to hidden files and directories (like .env, .git, etc.)
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_URI} "!(^|/)\.well-known/?" [NC]
+    RewriteRule "(^|/)(\.|\%2e)" - [F,NC]
+</IfModule>
+
+# Fallback for servers without mod_rewrite
+<IfModule !mod_rewrite.c>
+    <FilesMatch "^\.">
+        Require all denied
+    </FilesMatch>
+    <IfModule !mod_authz_core.c>
+        <FilesMatch "^\.">
+            Order allow,deny
+            Deny from all
+        </FilesMatch>
+    </IfModule>
+</IfModule>

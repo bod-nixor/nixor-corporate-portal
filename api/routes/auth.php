@@ -259,7 +259,8 @@ function verify_google_id_token(string $idToken): array {
 function verify_google_id_token_or_fail(string $idToken): array {
     $clientId = env_value('GOOGLE_CLIENT_ID');
     if (!$clientId) {
-        throw new AuthRouteException('Google OAuth not configured', 500);
+        error_log('Google OAuth is not configured. Missing variable: GOOGLE_CLIENT_ID');
+        throw new AuthRouteException('Google OAuth is not configured', 500);
     }
     require_google_autoload_or_fail();
     $client = new Google_Client(['client_id' => $clientId]);
@@ -282,8 +283,15 @@ function google_oauth_client_or_fail() {
     $clientId = env_value('GOOGLE_CLIENT_ID');
     $clientSecret = env_value('GOOGLE_CLIENT_SECRET');
     $redirectUri = google_oauth_redirect_uri();
-    if (!$clientId || !$clientSecret || !$redirectUri) {
-        throw new AuthRouteException('Google OAuth not configured', 500);
+    
+    $missing = [];
+    if (!$clientId) $missing[] = 'GOOGLE_CLIENT_ID';
+    if (!$clientSecret) $missing[] = 'GOOGLE_CLIENT_SECRET';
+    if (!$redirectUri) $missing[] = 'GOOGLE_REDIRECT_URI';
+    
+    if (!empty($missing)) {
+        error_log('Google OAuth is not configured. Missing variables: ' . implode(', ', $missing));
+        throw new AuthRouteException('Google OAuth is not configured', 500);
     }
 
     require_google_autoload_or_fail();
@@ -320,7 +328,8 @@ function google_state_secret_or_fail(): string {
         ?: env_value('GOOGLE_CLIENT_SECRET')
         ?: '');
     if ($secret === '') {
-        throw new AuthRouteException('Google OAuth not configured', 500);
+        error_log('No state secret configured: none of OAUTH_STATE_SECRET, APP_KEY, or GOOGLE_CLIENT_SECRET are set');
+        throw new AuthRouteException('Google OAuth is not configured', 500);
     }
     return $secret;
 }
