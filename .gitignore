@@ -17,3 +17,4 @@ output/
 # Uploads
 uploads/
 ws/events.queue
+package-lock.json
