@@ -32,20 +32,27 @@ function env_value($key, $default = null) {
         $configPath = $root . '/config/.env';
 
         // Prioritize $_SERVER/$_ENV because they contain the variables passed explicitly via proc_open/php-S
-        $path = $_SERVER['ENV_FILE_PATH'] ?? $_ENV['ENV_FILE_PATH'] ?? getenv('ENV_FILE_PATH')
-            ?: (file_exists($configPath) ? $configPath : $defaultPath);
+        $path = $_SERVER['ENV_FILE_PATH'] ?? $_ENV['ENV_FILE_PATH'] ?? getenv('ENV_FILE_PATH');
+        
+        if (!$path) {
+            $path = file_exists($configPath) ? $configPath : $defaultPath;
+        }
 
         // Resolve only relative paths against the project root.
         if ($path && !env_is_absolute_path($path)) {
             $path = $root . '/' . ltrim($path, '/\\');
         }
 
-        if (file_exists($path)) {
+        if ($path && file_exists($path)) {
             $lines = @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
             if ($lines === false) {
                 error_log("Warning: Failed to read .env file at {$path}");
                 $lines = [];
             }
+        } else {
+            error_log("Warning: No .env file found at {$path}. Using environment variables only.");
+            $lines = [];
+        }
             foreach ($lines as $line) {
                 $line = trim($line);
                 if ($line === '' || str_starts_with($line, '#')) {
@@ -66,8 +73,7 @@ function env_value($key, $default = null) {
                 }
                 $env[$k] = $v;
             }
-        }
-    }
+            }
     if (array_key_exists($key, $env)) {
         return $env[$key];
     }

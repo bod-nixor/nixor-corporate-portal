@@ -24,7 +24,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    ```
 
 ## 4) Configure `.env`
-1. Copy `config/.env.example` to `config/.env`.
+1. Copy `config/.env.example` to `.env` (repository root) or `config/.env`.
 2. Set required values:
    - `BASE_URL` (production URL)
    - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`

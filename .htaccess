@@ -23,3 +23,14 @@ DirectoryIndex index.html
 
 # Disable directory browsing at the repo root
 Options -Indexes
+
+# Block access to hidden files and directories (like .env, .git, etc.)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^\.">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
