@@ -3,14 +3,50 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="refresh" content="0;URL=/login.html" />
-  <title>Redirecting...</title>
-  <script>window.location.replace('/login.html');</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Nixor Corporate Portal</title>
+  <script src="/assets/theme-init.js"></script>
+  <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
-<body>
-  <p>Redirecting to <a href="/login.html">login</a>...</p>
+<body class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen">
+  <main class="min-h-screen flex items-center justify-center px-6 text-center">
+    <section class="max-w-sm">
+      <div class="w-12 h-12 rounded-xl bg-[var(--text-primary)] flex items-center justify-center mx-auto mb-6 shadow-sm">
+        <svg class="w-6 h-6 text-[var(--bg-base)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      </div>
+      <p class="text-[10px] text-[var(--text-tertiary)] uppercase tracking-[0.2em] font-bold mb-3">Nixor Corporate Portal</p>
+      <h1 class="text-xl font-bold tracking-tight">Opening your workspace</h1>
+      <p id="entry-status" class="mt-3 text-sm text-[var(--text-secondary)]">Checking your secure session...</p>
+      <noscript>
+        <p class="mt-4 text-sm text-[var(--text-secondary)]">
+          JavaScript is required. Continue to <a class="text-[var(--text-primary)] underline" href="/login.html">login</a>.
+        </p>
+      </noscript>
+    </section>
+  </main>
+
+  <script type="module">
+    import { apiFetch } from '/assets/app.js';
+
+    const status = document.getElementById('entry-status');
+    const routeTo = (path) => {
+      window.location.replace(path);
+    };
+
+    apiFetch('/auth/me', { skipFallback: true })
+      .then((response) => {
+        routeTo(response?.data?.user ? '/dashboard.html' : '/login.html');
+      })
+      .catch(() => {
+        if (status) {
+          status.textContent = 'Session check failed. Redirecting to sign in...';
+        }
+        routeTo('/login.html');
+      });
+  </script>
 </body>
 
 </html>

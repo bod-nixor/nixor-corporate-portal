@@ -1,4 +1,4 @@
-import { apiFetch, normalizeError } from '/assets/app.js';
+import { apiFetch, buildApiUrl, normalizeError } from '/assets/app.js';
 import { renderSidebar } from '/assets/sidebar.js';
 
 document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_drive');
@@ -657,7 +657,7 @@ function renderInspector() {
   } else if (preview.kind === 'pdf') {
     const frame = document.createElement('iframe');
     frame.className = 'w-full h-full rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)]';
-    frame.src = preview.preview_url;
+    frame.src = buildApiUrl(preview.preview_url);
     el.inspectorPreview.replaceChildren(frame);
   } else if (preview.kind === 'youtube') {
     const frame = document.createElement('iframe');
@@ -674,7 +674,7 @@ function renderInspector() {
     label.textContent = 'External link';
     const anchor = document.createElement('a');
     anchor.className = 'mt-3 inline-block break-all text-sm font-semibold text-[var(--color-primary)] hover:text-white transition-colors';
-    anchor.href = preview.open_url;
+    anchor.href = buildApiUrl(preview.open_url);
     anchor.target = '_blank';
     anchor.rel = 'noopener noreferrer';
     anchor.textContent = preview.open_url;
@@ -688,7 +688,7 @@ function renderInspector() {
     label.textContent = 'External PDF';
     const anchor = document.createElement('a');
     anchor.className = 'mt-3 inline-block break-all text-sm font-semibold text-[var(--color-primary)] hover:text-white transition-colors';
-    anchor.href = preview.open_url;
+    anchor.href = buildApiUrl(preview.open_url);
     anchor.target = '_blank';
     anchor.rel = 'noopener noreferrer';
     anchor.textContent = preview.label || preview.open_url;
@@ -699,11 +699,11 @@ function renderInspector() {
   }
 
   if (preview?.open_url) {
-    el.inspectorOpen.href = preview.open_url;
+    el.inspectorOpen.href = buildApiUrl(preview.open_url);
     setNodeHidden(el.inspectorOpen, false);
   }
   if (preview?.download_url) {
-    el.inspectorDownload.href = preview.download_url;
+    el.inspectorDownload.href = buildApiUrl(preview.download_url);
     setNodeHidden(el.inspectorDownload, false);
   }
 
@@ -1121,7 +1121,7 @@ async function runAction(action, item) {
     }
     const preview = await openInspector(item);
     if (item.item_type === 'link' && item.url) {
-      window.open(preview?.open_url || item.url, '_blank', 'noopener,noreferrer');
+      window.open(buildApiUrl(preview?.open_url || item.url), '_blank', 'noopener,noreferrer');
     }
     return;
   }
