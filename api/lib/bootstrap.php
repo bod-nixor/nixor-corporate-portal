@@ -1,6 +1,17 @@
 <?php
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/http.php';
+require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/security.php';
+
+apply_cors_headers();
+set_security_headers();
+header('Content-Type: application/json');
+
+if (cors_is_preflight_request()) {
+    http_response_code(204);
+    exit;
+}
 
 $secureCookie = is_https();
 $secureOverride = env_value('SESSION_COOKIE_SECURE');
@@ -13,6 +24,10 @@ if ($secureOverride !== null) {
 $cookiePath = env_value('SESSION_COOKIE_PATH', '/');
 $cookieDomain = env_value('SESSION_COOKIE_DOMAIN', '');
 $sameSite = env_value('SESSION_COOKIE_SAMESITE', 'Lax');
+if (cors_origin_requires_cross_site_session($_SERVER['HTTP_ORIGIN'] ?? '')) {
+    $sameSite = 'None';
+    $secureCookie = true;
+}
 
 ini_set('session.use_strict_mode', 1);
 ini_set('session.use_only_cookies', 1);
@@ -38,7 +53,3 @@ require_once __DIR__ . '/drive.php';
 require_once __DIR__ . '/websocket.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/validation.php';
-require_once __DIR__ . '/security.php';
-
-set_security_headers();
-header('Content-Type: application/json');
