@@ -3,9 +3,17 @@
 DirectoryIndex index.php
 Options -Indexes -MultiViews
 
+<IfModule mod_setenvif.c>
+    SetEnvIfNoCase Authorization "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /api/
+
+    # Preserve Authorization: Bearer headers for PHP/FastCGI/cPanel.
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
