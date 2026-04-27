@@ -70,8 +70,8 @@ if (typeof document !== 'undefined') {
       (async () => {
         try {
           if (isNativeRuntime()) {
+            // apiFetch clears the stored mobile token after a successful native logout.
             await apiFetch('/auth/mobile/logout', { method: 'POST', skipCsrf: true });
-            await clearMobileAuthToken();
           } else {
             await apiFetch('/auth/logout', { method: 'POST' });
           }

@@ -180,6 +180,8 @@ final class ApiTest extends TestCase {
 
         $logout = $client->request('POST', '/api/auth/mobile/logout', null, ["Authorization: Bearer {$token}"]);
         $this->assertSame(200, $logout['status']);
+        $secondLogout = $client->request('POST', '/api/auth/mobile/logout', null, ["Authorization: Bearer {$token}"]);
+        $this->assertSame(200, $secondLogout['status']);
         $revoked = db()->prepare('SELECT revoked_at FROM mobile_sessions WHERE token_hash = ?');
         $revoked->execute([hash('sha256', $token)]);
         $this->assertNotEmpty($revoked->fetchColumn());

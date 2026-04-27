@@ -63,6 +63,7 @@ let mobileToken = '';
 let mobileTokenExpiresAt = '';
 let mobileTokenLoaded = false;
 let mobileTokenLoadPromise = null;
+let mobileTokenLoadGen = 0;
 const mobileAuthCallbackKeysSeen = new Set();
 const mobileAuthCallbackStates = new Map();
 const mobileAuthExchangePromises = new Map();
@@ -255,6 +256,7 @@ async function removeNativePreference(key) {
 }
 
 export async function clearMobileAuthToken() {
+  mobileTokenLoadGen += 1;
   mobileToken = '';
   mobileTokenExpiresAt = '';
   mobileTokenLoaded = true;
@@ -274,6 +276,7 @@ export async function setMobileAuthToken(token, expiresAt) {
     await clearMobileAuthToken();
     throw new Error('Mobile sign-in response did not include a valid session token.');
   }
+  mobileTokenLoadGen += 1;
   mobileToken = normalizedToken;
   mobileTokenExpiresAt = normalizedExpiresAt;
   mobileTokenLoaded = true;
@@ -303,24 +306,38 @@ export async function getMobileAuthToken() {
   if (mobileTokenLoadPromise) {
     return mobileTokenLoadPromise;
   }
-  mobileTokenLoadPromise = (async () => {
+  const loadGen = mobileTokenLoadGen;
+  const loadPromise = (async () => {
     try {
       const [storedToken, storedExpiresAt] = await Promise.all([
         readNativePreference(MOBILE_TOKEN_KEY),
         readNativePreference(MOBILE_TOKEN_EXPIRES_AT_KEY)
       ]);
-      mobileToken = String(storedToken || '').trim();
-      mobileTokenExpiresAt = String(storedExpiresAt || '').trim();
+      if (loadGen !== mobileTokenLoadGen) {
+        return mobileToken && !mobileTokenIsExpired(mobileTokenExpiresAt) ? mobileToken : '';
+      }
+      const loadedToken = String(storedToken || '').trim();
+      const loadedExpiresAt = String(storedExpiresAt || '').trim();
+      mobileToken = loadedToken;
+      mobileTokenExpiresAt = loadedExpiresAt;
       mobileTokenLoaded = true;
       if (!mobileToken || mobileTokenIsExpired(mobileTokenExpiresAt)) {
-        await clearMobileAuthToken();
+        mobileToken = '';
+        mobileTokenExpiresAt = '';
+        await Promise.all([
+          removeNativePreference(MOBILE_TOKEN_KEY),
+          removeNativePreference(MOBILE_TOKEN_EXPIRES_AT_KEY)
+        ]);
         return '';
       }
       return mobileToken;
     } finally {
-      mobileTokenLoadPromise = null;
+      if (loadGen === mobileTokenLoadGen) {
+        mobileTokenLoadPromise = null;
+      }
     }
   })();
+  mobileTokenLoadPromise = loadPromise;
   return mobileTokenLoadPromise;
 }
 
@@ -654,8 +671,19 @@ export async function startNativeGoogleLogin() {
 }
 
 function currentPageRequiresAuth() {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  return !['/', '/index.html', '/home.html', '/login.html', '/consent.html'].includes(path);
+  const authenticatedPaths = [
+    '/admin.html',
+    '/calendar.html',
+    '/dashboard.html',
+    '/endeavour_view.html',
+    '/endeavours.html',
+    '/entity_drive.html',
+    '/entity_endeavours.html',
+    '/settings.html',
+    '/social.html'
+  ];
+  const path = (window.location.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+  return authenticatedPaths.includes(path);
 }
 
 export async function apiFetch(path, options = {}) {

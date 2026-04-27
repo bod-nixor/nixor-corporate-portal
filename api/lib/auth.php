@@ -169,13 +169,17 @@ function revoke_mobile_bearer_token(): bool {
     if (!$token) {
         return false;
     }
+    $tokenHash = hash('sha256', $token);
     $stmt = db()->prepare(
         'UPDATE mobile_sessions
          SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
          WHERE token_hash = ?'
     );
-    $stmt->execute([hash('sha256', $token)]);
-    return $stmt->rowCount() > 0;
+    $stmt->execute([$tokenHash]);
+
+    $exists = db()->prepare('SELECT 1 FROM mobile_sessions WHERE token_hash = ? LIMIT 1');
+    $exists->execute([$tokenHash]);
+    return (bool)$exists->fetchColumn();
 }
 
 function require_auth(): array {

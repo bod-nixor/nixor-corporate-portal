@@ -514,7 +514,7 @@ function google_state_secret_or_fail(): string {
 }
 
 function base64url_encode(string $value): string {
-    return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    return auth_base64url_encode($value);
 }
 
 function base64url_decode(string $value): string|false {

@@ -79,8 +79,41 @@ function require_csrf(): void {
 }
 
 function csrf_request_allows_bearer_auth(): bool {
+    $path = csrf_normalized_request_path();
+    foreach (csrf_bearer_auth_allowed_prefixes() as $prefix) {
+        if ($path === $prefix || str_starts_with($path, $prefix . '/')) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function csrf_normalized_request_path(): string {
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    $path = rawurldecode($path);
+    $path = preg_replace('#/+#', '/', $path) ?: '';
+    $path = strtolower($path);
     $path = preg_replace('#^/api(?:/index\.php)?#', '', $path) ?: '';
     $path = '/' . ltrim($path, '/');
-    return !in_array($path, ['/auth/login', '/auth/google_callback', '/auth/logout'], true);
+    $path = rtrim($path, '/');
+    return $path === '' ? '/' : $path;
+}
+
+function csrf_bearer_auth_allowed_prefixes(): array {
+    return [
+        '/auth/mobile',
+        '/admin',
+        '/announcements',
+        '/calendar',
+        '/dashboard',
+        '/drive',
+        '/endeavours',
+        '/entities',
+        '/files',
+        '/members',
+        '/notifications',
+        '/social',
+        '/updates',
+        '/users',
+    ];
 }
