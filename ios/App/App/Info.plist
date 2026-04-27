@@ -54,5 +54,9 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>ncp.nixorcorporate.com</string>
+	</array>
 </dict>
 </plist>

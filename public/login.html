@@ -105,7 +105,7 @@
     </div>
   </div>
   <script type="module">
-    import { apiFetch, bootstrapCsrf, isNativeRuntime, startNativeGoogleLogin } from '/assets/app.js';
+    import { apiFetch, bootstrapCsrf, ensureCsrfToken, isNativeRuntime, startNativeGoogleLogin } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
     const emailInput = document.getElementById('email-input');
@@ -118,6 +118,25 @@
     const defaultSubmitText = submitBtn?.textContent || 'Sign In to Dashboard';
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     let googleNativeBusy = false;
+    const loginDebugEnabled = () => {
+      try {
+        return window.NCP_AUTH_DEBUG === true
+          || window.Capacitor?.DEBUG === true
+          || window.Capacitor?.isLoggingEnabled === true
+          || localStorage.getItem('ncp_auth_debug') === '1'
+          || new URLSearchParams(window.location.search).get('auth_debug') === '1'
+          || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+      } catch (err) {
+        return false;
+      }
+    };
+    const loginDebugLog = (message) => {
+      if (loginDebugEnabled()) console.log(message);
+    };
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Preparing secure session...';
+    }
 
     const showLoginError = (message) => {
       const errText = errorEl.querySelector('span');
@@ -193,6 +212,12 @@
     passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
 
     bootstrapCsrf()
+      .then(() => {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = defaultSubmitText;
+        }
+      })
       .catch((err) => {
         console.error('CSRF bootstrap failed:', err);
         const msg = err?.status ? `Unable to start login (HTTP ${err.status}). Please refresh the page.` : 'Unable to start login. Please check your connection or refresh the page.';
@@ -342,6 +367,8 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Signing in...';
       try {
+        const csrf = await ensureCsrfToken();
+        loginDebugLog(`[NCP Login] submitting with csrf present ${csrf ? 'yes' : 'no'}`);
         await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
         errorEl.classList.add('hidden');
         window.location.href = '/dashboard.html';
