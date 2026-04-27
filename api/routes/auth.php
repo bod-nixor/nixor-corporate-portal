@@ -8,23 +8,7 @@ function handle_auth(string $method, array $segments): void {
             }
             require_csrf();
             $data = read_json();
-            $email = strtolower(trim((string)($data['email'] ?? '')));
-            $password = (string)($data['password'] ?? '');
-            if ($email === '' || $password === '') {
-                respond(['ok' => false, 'error' => 'Email and password are required'], 400);
-            }
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
-            }
-            $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
-            if (!$user || !verify_password($password, $user['password_hash'] ?? null)) {
-                respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
-            }
-            if (($user['status'] ?? 'active') !== 'active') {
-                respond(['ok' => false, 'error' => 'Account inactive'], 403);
-            }
+            $user = authenticate_password_credentials($data);
             complete_login($user);
         } catch (Throwable $e) {
             error_log('Password login failed unexpectedly: ' . auth_sanitized_exception_message($e));
@@ -34,23 +18,7 @@ function handle_auth(string $method, array $segments): void {
 
     if ($action === 'logout' && $method === 'POST') {
         require_csrf();
-        if (session_status() === PHP_SESSION_ACTIVE) {
-            if (isset($_SESSION['user_id'])) {
-                $_SESSION = [];
-                if (ini_get('session.use_cookies')) {
-                    $params = session_get_cookie_params();
-                    setcookie(session_name(), '', [
-                        'expires' => time() - 42000,
-                        'path' => $params['path'] ?? '/',
-                        'domain' => $params['domain'] ?? '',
-                        'secure' => (bool)($params['secure'] ?? false),
-                        'httponly' => (bool)($params['httponly'] ?? true),
-                        'samesite' => $params['samesite'] ?? 'Lax',
-                    ]);
-                }
-            }
-            session_destroy();
-        }
+        destroy_login_session();
         respond(['ok' => true, 'data' => ['message' => 'Logged out']]);
     }
 
@@ -100,6 +68,14 @@ function handle_auth(string $method, array $segments): void {
 
     if ($action === 'mobile' && ($segments[2] ?? '') === 'exchange' && $method === 'POST') {
         handle_mobile_auth_exchange();
+    }
+
+    if ($action === 'mobile' && ($segments[2] ?? '') === 'login' && $method === 'POST') {
+        handle_mobile_password_login();
+    }
+
+    if ($action === 'mobile' && ($segments[2] ?? '') === 'logout' && $method === 'POST') {
+        handle_mobile_logout();
     }
 
     if ($action === 'google_callback' && $method === 'POST') {
@@ -201,6 +177,27 @@ function auth_log_exception_event(string $event, Throwable $e, array $context = 
     }
     $context['message'] = auth_sanitized_exception_message($e);
     auth_log_event($event, $context);
+}
+
+function authenticate_password_credentials(array $data): array {
+    $email = strtolower(trim((string)($data['email'] ?? '')));
+    $password = (string)($data['password'] ?? '');
+    if ($email === '' || $password === '') {
+        respond(['ok' => false, 'error' => 'Email and password are required'], 400);
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
+    }
+    $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+    if (!$user || !verify_password($password, $user['password_hash'] ?? null)) {
+        respond(['ok' => false, 'error' => 'Invalid credentials'], 401);
+    }
+    if (($user['status'] ?? 'active') !== 'active') {
+        respond(['ok' => false, 'error' => 'Account inactive'], 403);
+    }
+    return $user;
 }
 
 function handle_google_oauth_start(): void {
@@ -339,8 +336,18 @@ function handle_mobile_auth_exchange(): void {
 
     try {
         $user = consume_mobile_auth_code($code);
-        auth_log_event('mobile_exchange_success', ['user_id' => local_user_id_from_row($user)]);
-        complete_login($user);
+        $platform = mobile_platform_from_request($data);
+        $session = create_mobile_session_token(local_user_id_from_row($user), $platform);
+        auth_log_event('mobile_exchange_success', ['user_id' => local_user_id_from_row($user), 'platform' => $platform]);
+        establish_login_session($user);
+        respond([
+            'ok' => true,
+            'data' => [
+                'user' => sanitize_user($user),
+                'token' => $session['token'],
+                'expiresAt' => mobile_session_expires_at_for_client($session['expires_at']),
+            ],
+        ]);
     } catch (AuthRouteException $e) {
         respond(['ok' => false, 'error' => $e->getMessage()], $e->status());
     } catch (PDOException $e) {
@@ -350,6 +357,66 @@ function handle_mobile_auth_exchange(): void {
         error_log('Mobile auth exchange failed unexpectedly: ' . auth_sanitized_exception_message($e));
         respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
     }
+}
+
+function handle_mobile_password_login(): void {
+    if (!rate_limit('login', 5, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+
+    $data = read_json();
+    try {
+        $user = authenticate_password_credentials($data);
+        $platform = mobile_platform_from_request($data);
+        $session = create_mobile_session_token(local_user_id_from_row($user), $platform);
+        auth_log_event('mobile_password_login_success', [
+            'user_id' => local_user_id_from_row($user),
+            'platform' => $platform,
+        ]);
+        respond([
+            'ok' => true,
+            'data' => [
+                'user' => sanitize_user($user),
+                'token' => $session['token'],
+                'expiresAt' => mobile_session_expires_at_for_client($session['expires_at']),
+            ],
+        ]);
+    } catch (PDOException $e) {
+        error_log('Mobile password login database error: ' . auth_sanitized_exception_message($e));
+        respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
+    } catch (Throwable $e) {
+        error_log('Mobile password login failed unexpectedly: ' . auth_sanitized_exception_message($e));
+        respond(['ok' => false, 'error' => 'Mobile sign-in failed'], 500);
+    }
+}
+
+function handle_mobile_logout(): void {
+    if (!mobile_bearer_token_from_request()) {
+        respond(['ok' => false, 'error' => 'Unauthorized'], 401);
+    }
+    try {
+        $revoked = revoke_mobile_bearer_token();
+        if (!$revoked) {
+            respond(['ok' => false, 'error' => 'Unauthorized'], 401);
+        }
+        destroy_login_session();
+        respond(['ok' => true, 'data' => ['message' => 'Logged out']]);
+    } catch (PDOException $e) {
+        error_log('Mobile logout database error: ' . auth_sanitized_exception_message($e));
+        respond(['ok' => false, 'error' => 'Mobile logout failed'], 500);
+    }
+}
+
+function mobile_platform_from_request(array $data): string {
+    $platform = (string)($data['platform'] ?? ($_SERVER['HTTP_X_NCP_PLATFORM'] ?? ''));
+    return normalize_mobile_platform($platform);
+}
+
+function mobile_session_expires_at_for_client(string $expiresAt): string {
+    if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $expiresAt)) {
+        return str_replace(' ', 'T', $expiresAt) . 'Z';
+    }
+    return $expiresAt;
 }
 
 function sanitize_user(array $user): array {
@@ -920,6 +987,27 @@ function email_domain_allowed(string $email, array $domains): bool {
         }
     }
     return false;
+}
+
+function destroy_login_session(): void {
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    if (isset($_SESSION['user_id'])) {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', [
+                'expires' => time() - 42000,
+                'path' => $params['path'] ?? '/',
+                'domain' => $params['domain'] ?? '',
+                'secure' => (bool)($params['secure'] ?? false),
+                'httponly' => (bool)($params['httponly'] ?? true),
+                'samesite' => $params['samesite'] ?? 'Lax',
+            ]);
+        }
+    }
+    session_destroy();
 }
 
 function establish_login_session(array $user): void {

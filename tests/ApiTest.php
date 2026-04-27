@@ -126,6 +126,117 @@ final class ApiTest extends TestCase {
         $this->assertSame('Email and password are required', $missing['data']['error']);
     }
 
+    public function testMobilePasswordLoginIssuesBearerTokenAndRevokesIt(): void {
+        $this->createUser('mobile-admin@example.com', 'Password123!', 'admin');
+        $entityId = $this->createEntity('Mobile Token Entity');
+        $client = new TestClient(self::$baseUrl);
+
+        $bad = $client->request('POST', '/api/auth/mobile/login', [
+            'email' => 'mobile-admin@example.com',
+            'password' => 'WrongPassword123!',
+            'platform' => 'ios'
+        ]);
+        $this->assertSame(401, $bad['status']);
+
+        $login = $client->request('POST', '/api/auth/mobile/login', [
+            'email' => 'mobile-admin@example.com',
+            'password' => 'Password123!',
+            'platform' => 'ios'
+        ]);
+        $this->assertSame(200, $login['status']);
+        $token = $login['data']['data']['token'] ?? '';
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]{32,256}$/', $token);
+        $this->assertNotEmpty($login['data']['data']['expiresAt'] ?? '');
+
+        $stored = db()->prepare('SELECT token_hash, platform, revoked_at FROM mobile_sessions WHERE token_hash = ?');
+        $stored->execute([hash('sha256', $token)]);
+        $session = $stored->fetch();
+        $this->assertNotFalse($session);
+        $this->assertSame(hash('sha256', $token), $session['token_hash']);
+        $this->assertSame('ios', $session['platform']);
+        $this->assertNull($session['revoked_at']);
+
+        $rawLookup = db()->prepare('SELECT COUNT(*) FROM mobile_sessions WHERE token_hash = ?');
+        $rawLookup->execute([$token]);
+        $this->assertSame(0, (int)$rawLookup->fetchColumn());
+
+        $me = $client->request('GET', '/api/auth/me', null, ["Authorization: Bearer {$token}"]);
+        $this->assertSame(200, $me['status']);
+        $this->assertSame('mobile-admin@example.com', $me['data']['data']['user']['email'] ?? null);
+
+        $withoutBearer = $client->request('GET', '/api/auth/me');
+        $this->assertSame(200, $withoutBearer['status']);
+        $this->assertNull($withoutBearer['data']['data']['user']);
+
+        $announcement = $client->request('POST', '/api/announcements', [
+            'entity_id' => $entityId,
+            'title' => 'Mobile bearer post',
+            'message' => 'Bearer auth can protect native mutating calls without CSRF.'
+        ], ["Authorization: Bearer {$token}"]);
+        $this->assertSame(200, $announcement['status']);
+
+        $missingTokenLogout = $client->request('POST', '/api/auth/mobile/logout');
+        $this->assertSame(401, $missingTokenLogout['status']);
+
+        $logout = $client->request('POST', '/api/auth/mobile/logout', null, ["Authorization: Bearer {$token}"]);
+        $this->assertSame(200, $logout['status']);
+        $revoked = db()->prepare('SELECT revoked_at FROM mobile_sessions WHERE token_hash = ?');
+        $revoked->execute([hash('sha256', $token)]);
+        $this->assertNotEmpty($revoked->fetchColumn());
+
+        $revokedMe = $client->request('GET', '/api/auth/me', null, ["Authorization: Bearer {$token}"]);
+        $this->assertSame(200, $revokedMe['status']);
+        $this->assertNull($revokedMe['data']['data']['user']);
+
+        $secondLogin = $client->request('POST', '/api/auth/mobile/login', [
+            'email' => 'mobile-admin@example.com',
+            'password' => 'Password123!',
+            'platform' => 'android'
+        ]);
+        $this->assertSame(200, $secondLogin['status']);
+        $expiredToken = $secondLogin['data']['data']['token'] ?? '';
+        db()->prepare('UPDATE mobile_sessions SET expires_at = UTC_TIMESTAMP() - INTERVAL 1 SECOND WHERE token_hash = ?')
+            ->execute([hash('sha256', $expiredToken)]);
+        $expiredMe = $client->request('GET', '/api/auth/me', null, ["Authorization: Bearer {$expiredToken}"]);
+        $this->assertSame(200, $expiredMe['status']);
+        $this->assertNull($expiredMe['data']['data']['user']);
+    }
+
+    public function testMobileGoogleExchangeIssuesBearerTokenAndConsumesCodeOnce(): void {
+        $userId = $this->createUser('google-mobile@example.com', 'Password123!', 'staff');
+        $code = $this->mobileAuthCode();
+        $insert = db()->prepare(
+            'INSERT INTO mobile_auth_codes (user_id, code_hash, expires_at)
+             VALUES (?, ?, UTC_TIMESTAMP() + INTERVAL 5 MINUTE)'
+        );
+        $insert->execute([$userId, hash('sha256', $code)]);
+
+        $client = new TestClient(self::$baseUrl);
+        $exchange = $client->request('POST', '/api/auth/mobile/exchange', [
+            'code' => $code,
+            'platform' => 'android'
+        ]);
+        $this->assertSame(200, $exchange['status']);
+        $token = $exchange['data']['data']['token'] ?? '';
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]{32,256}$/', $token);
+
+        $platform = db()->prepare('SELECT platform FROM mobile_sessions WHERE token_hash = ?');
+        $platform->execute([hash('sha256', $token)]);
+        $this->assertSame('android', $platform->fetchColumn());
+
+        $freshClient = new TestClient(self::$baseUrl);
+        $me = $freshClient->request('GET', '/api/auth/me', null, ["Authorization: Bearer {$token}"]);
+        $this->assertSame(200, $me['status']);
+        $this->assertSame('google-mobile@example.com', $me['data']['data']['user']['email'] ?? null);
+
+        $repeat = $freshClient->request('POST', '/api/auth/mobile/exchange', [
+            'code' => $code,
+            'platform' => 'android'
+        ]);
+        $this->assertSame(401, $repeat['status']);
+        $this->assertSame('Mobile auth code already used', $repeat['data']['error']);
+    }
+
     public function testProtectedRouteRequiresAuth(): void {
         $client = new TestClient(self::$baseUrl);
         $response = $client->request('GET', '/api/endeavours');
@@ -780,6 +891,10 @@ final class ApiTest extends TestCase {
     private function insertDocApproval(int $endeavourId, string $docType, string $approverGroup, string $status): void {
         $stmt = db()->prepare('INSERT INTO endeavour_doc_approvals (endeavour_id, doc_type, approver_group, status) VALUES (?, ?, ?, ?)');
         $stmt->execute([$endeavourId, $docType, $approverGroup, $status]);
+    }
+
+    private function mobileAuthCode(): string {
+        return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
     }
 
     private function loginClient(string $email, string $password): object {

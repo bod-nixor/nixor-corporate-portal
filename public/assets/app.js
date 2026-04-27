@@ -15,6 +15,8 @@ const MOBILE_AUTH_CALLBACK_HOST = 'auth';
 const MOBILE_AUTH_CALLBACK_PATH = '/callback';
 const MOBILE_AUTH_CALLBACK_SESSION_PREFIX = 'ncp_mobile_callback_';
 const MOBILE_AUTH_CALLBACK_STATE_TTL_MS = 15 * 60 * 1000;
+const MOBILE_TOKEN_KEY = 'ncp_mobile_token';
+const MOBILE_TOKEN_EXPIRES_AT_KEY = 'ncp_mobile_token_expires_at';
 
 export function isNativeRuntime() {
   const capacitor = window.Capacitor;
@@ -28,6 +30,15 @@ export function isNativeRuntime() {
     return NATIVE_PLATFORMS.has(capacitor.getPlatform());
   }
   return window.location.protocol === 'capacitor:';
+}
+
+export function getNativePlatform() {
+  try {
+    const platform = window.Capacitor?.getPlatform?.();
+    return NATIVE_PLATFORMS.has(platform) ? platform : 'unknown';
+  } catch (err) {
+    return 'unknown';
+  }
 }
 
 function normalizeApiBase(base) {
@@ -48,6 +59,10 @@ let mobileAuthListenerPromise = null;
 let mobileAuthListenerHandle = null;
 let mobileAuthCleanupRegistered = false;
 let mobileAuthLaunchUrlChecked = false;
+let mobileToken = '';
+let mobileTokenExpiresAt = '';
+let mobileTokenLoaded = false;
+let mobileTokenLoadPromise = null;
 const mobileAuthCallbackKeysSeen = new Set();
 const mobileAuthCallbackStates = new Map();
 const mobileAuthExchangePromises = new Map();
@@ -174,6 +189,139 @@ function getCapacitorPlugin(name) {
     return capacitor.registerPlugin(name);
   }
   return null;
+}
+
+function mobileTokenIsExpired(expiresAt) {
+  const raw = String(expiresAt || '').trim();
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+    ? `${raw.replace(' ', 'T')}Z`
+    : raw;
+  const expiresMs = Date.parse(normalized);
+  if (!Number.isFinite(expiresMs)) {
+    return true;
+  }
+  return expiresMs <= Date.now() + 60 * 1000;
+}
+
+async function readNativePreference(key) {
+  const Preferences = getCapacitorPlugin('Preferences');
+  if (Preferences?.get) {
+    try {
+      const result = await Preferences.get({ key });
+      return result?.value || '';
+    } catch (err) {
+      console.warn('[NCP Mobile Auth] Native preference read failed.');
+    }
+  }
+  try {
+    return localStorage.getItem(key) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+async function writeNativePreference(key, value) {
+  const Preferences = getCapacitorPlugin('Preferences');
+  if (Preferences?.set) {
+    try {
+      await Preferences.set({ key, value });
+      return;
+    } catch (err) {
+      console.warn('[NCP Mobile Auth] Native preference write failed.');
+    }
+  }
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    // Storage can fail in constrained WebView contexts.
+  }
+}
+
+async function removeNativePreference(key) {
+  const Preferences = getCapacitorPlugin('Preferences');
+  if (Preferences?.remove) {
+    try {
+      await Preferences.remove({ key });
+      return;
+    } catch (err) {
+      console.warn('[NCP Mobile Auth] Native preference removal failed.');
+    }
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch (err) {
+    // Storage cleanup is best-effort.
+  }
+}
+
+export async function clearMobileAuthToken() {
+  mobileToken = '';
+  mobileTokenExpiresAt = '';
+  mobileTokenLoaded = true;
+  await Promise.all([
+    removeNativePreference(MOBILE_TOKEN_KEY),
+    removeNativePreference(MOBILE_TOKEN_EXPIRES_AT_KEY)
+  ]);
+}
+
+export async function setMobileAuthToken(token, expiresAt) {
+  if (!isNativeRuntime()) {
+    return;
+  }
+  const normalizedToken = String(token || '').trim();
+  const normalizedExpiresAt = String(expiresAt || '').trim();
+  if (!normalizedToken || mobileTokenIsExpired(normalizedExpiresAt)) {
+    await clearMobileAuthToken();
+    throw new Error('Mobile sign-in response did not include a valid session token.');
+  }
+  mobileToken = normalizedToken;
+  mobileTokenExpiresAt = normalizedExpiresAt;
+  mobileTokenLoaded = true;
+  await Promise.all([
+    writeNativePreference(MOBILE_TOKEN_KEY, mobileToken),
+    writeNativePreference(MOBILE_TOKEN_EXPIRES_AT_KEY, mobileTokenExpiresAt)
+  ]);
+}
+
+export async function persistMobileAuthSession(data) {
+  await setMobileAuthToken(data?.token, data?.expiresAt || data?.expires_at);
+}
+
+export async function getMobileAuthToken() {
+  if (!isNativeRuntime()) {
+    return '';
+  }
+  if (mobileTokenLoaded) {
+    if (mobileToken && !mobileTokenIsExpired(mobileTokenExpiresAt)) {
+      return mobileToken;
+    }
+    if (mobileToken) {
+      await clearMobileAuthToken();
+    }
+    return '';
+  }
+  if (mobileTokenLoadPromise) {
+    return mobileTokenLoadPromise;
+  }
+  mobileTokenLoadPromise = (async () => {
+    try {
+      const [storedToken, storedExpiresAt] = await Promise.all([
+        readNativePreference(MOBILE_TOKEN_KEY),
+        readNativePreference(MOBILE_TOKEN_EXPIRES_AT_KEY)
+      ]);
+      mobileToken = String(storedToken || '').trim();
+      mobileTokenExpiresAt = String(storedExpiresAt || '').trim();
+      mobileTokenLoaded = true;
+      if (!mobileToken || mobileTokenIsExpired(mobileTokenExpiresAt)) {
+        await clearMobileAuthToken();
+        return '';
+      }
+      return mobileToken;
+    } finally {
+      mobileTokenLoadPromise = null;
+    }
+  })();
+  return mobileTokenLoadPromise;
 }
 
 function cleanupMobileAuthListener() {
@@ -414,11 +562,12 @@ async function handleMobileAuthUrl(url) {
 
   const exchangePromise = (async () => {
     try {
-      await apiFetch('/auth/mobile/exchange', {
+      const exchangeResponse = await apiFetch('/auth/mobile/exchange', {
         method: 'POST',
         skipCsrf: true,
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ code, platform: getNativePlatform() })
       });
+      await persistMobileAuthSession(exchangeResponse?.data);
       markMobileAuthCallbackState(callbackKey, 'completed');
       await continueAfterVerifiedMobileAuth(callbackKey);
     } catch (err) {
@@ -504,10 +653,19 @@ export async function startNativeGoogleLogin() {
   return true;
 }
 
+function currentPageRequiresAuth() {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  return !['/', '/index.html', '/home.html', '/login.html', '/consent.html'].includes(path);
+}
+
 export async function apiFetch(path, options = {}) {
   const { skipFallback, skipCsrf, onResponse, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
-  const needsCsrf = !skipCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const normalizedPath = normalizeApiPath(path);
+  const mutates = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  const nativeRuntime = isNativeRuntime();
+  const bearerToken = nativeRuntime ? await getMobileAuthToken() : '';
+  const needsCsrf = !skipCsrf && mutates && !bearerToken;
   if (needsCsrf && !getCsrfToken()) {
     await ensureCsrfToken();
   }
@@ -515,11 +673,15 @@ export async function apiFetch(path, options = {}) {
   const headers = {
     ...(fetchOptions.headers || {})
   };
+  const hasAuthorizationHeader = Object.keys(headers).some((key) => key.toLowerCase() === 'authorization');
+  if (bearerToken && !hasAuthorizationHeader) {
+    headers.Authorization = `Bearer ${bearerToken}`;
+  }
   const isFormData = fetchOptions.body instanceof FormData;
   if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type'] && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
-  if (!skipCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && resolvedCsrf) {
+  if (needsCsrf && resolvedCsrf) {
     headers['X-CSRF-Token'] = resolvedCsrf;
   }
   const request = async (base) => {
@@ -528,7 +690,7 @@ export async function apiFetch(path, options = {}) {
       const res = await fetch(url, {
         ...fetchOptions,
         headers,
-        credentials: 'include',
+        credentials: nativeRuntime ? 'omit' : 'include',
         method
       });
       const text = await res.text();
@@ -547,12 +709,12 @@ export async function apiFetch(path, options = {}) {
         });
       }
       authDebugLog('[NCP API] endpoint/status', {
-        endpoint: normalizeApiPath(path) || '/',
+        endpoint: normalizedPath || '/',
         status: res.status
       });
       if (typeof onResponse === 'function') {
         try {
-          onResponse({ ok: res.ok, status: res.status, method, path: normalizeApiPath(path) || '/' });
+          onResponse({ ok: res.ok, status: res.status, method, path: normalizedPath || '/' });
         } catch (callbackErr) {
           // Diagnostic callbacks must not affect API behavior.
         }
@@ -565,7 +727,7 @@ export async function apiFetch(path, options = {}) {
   };
 
   let { res, data, text, url } = await request(preferredBase);
-  const isLoginRequest = method === 'POST' && normalizeApiPath(path) === '/auth/login';
+  const isLoginRequest = method === 'POST' && normalizedPath === '/auth/login';
   let retriedCsrfMismatch = false;
   if (needsCsrf && isLoginRequest && isInvalidCsrfResponse(res, data)) {
     authDebugLog('[NCP CSRF] login mismatch detected; refreshing once');
@@ -605,15 +767,36 @@ export async function apiFetch(path, options = {}) {
     }
   }
   if (!res.ok) {
+    const bearerFailureCanInvalidateToken = !['/auth/mobile/login', '/auth/mobile/exchange'].includes(normalizedPath);
+    const bearerAuthFailed = nativeRuntime
+      && bearerToken
+      && bearerFailureCanInvalidateToken
+      && (res.status === 401 || isInvalidCsrfResponse(res, data));
+    if (bearerAuthFailed) {
+      await clearMobileAuthToken();
+      if (currentPageRequiresAuth()) {
+        window.location.replace('/login.html');
+      }
+      throw buildApiError('Session expired. Please sign in again.', res.status, url, text);
+    }
     if (retriedCsrfMismatch && isInvalidCsrfResponse(res, data)) {
       throw buildApiError('Session expired. Please try again.', res.status, url, text);
     }
     const message = data?.error || `HTTP ${res.status}`;
     throw buildApiError(message, res.status, url, text);
   }
-  if (normalizeApiPath(path) === '/auth/logout') {
+  if (normalizedPath === '/auth/logout' || normalizedPath === '/auth/mobile/logout') {
     setCsrfToken('');
     csrfSessionVersion += 1;
+    if (normalizedPath === '/auth/mobile/logout') {
+      await clearMobileAuthToken();
+    }
+  }
+  if (nativeRuntime && bearerToken && normalizedPath === '/auth/me' && !data?.data?.user) {
+    await clearMobileAuthToken();
+    if (currentPageRequiresAuth()) {
+      window.location.replace('/login.html');
+    }
   }
   return data;
 }

@@ -36,6 +36,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - `GOOGLE_ALLOWED_DOMAIN` and, only if domain-restricted self-provisioning is intended, `GOOGLE_AUTO_PROVISION=true`
    - `OAUTH_STATE_SECRET` (dedicated random HMAC key for Google OAuth state signing; falls back to `APP_KEY` and then `GOOGLE_CLIENT_SECRET` if unset)
    - `MOBILE_AUTH_REDIRECT_URI` (defaults to `ncp://auth/callback`; set explicitly if changing the app scheme or using Universal/App Links)
+   - `MOBILE_SESSION_TTL_DAYS` (optional; defaults to 30 days for native bearer sessions)
    - `SETUP_TOKEN` (required in production to call `/api/admin/setup`)
 
 ## 5) Run the setup endpoint

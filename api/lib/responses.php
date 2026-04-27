@@ -63,6 +63,9 @@ function require_csrf(): void {
     if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
         return;
     }
+    if (csrf_request_allows_bearer_auth() && function_exists('request_has_valid_bearer_token') && request_has_valid_bearer_token()) {
+        return;
+    }
     $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
     if (!$token || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
         $reason = !$token ? 'missing_token' : (empty($_SESSION['csrf_token']) ? 'missing_session' : 'mismatch');
@@ -73,4 +76,11 @@ function require_csrf(): void {
             'meta' => ['reason' => $reason]
         ], 403);
     }
+}
+
+function csrf_request_allows_bearer_auth(): bool {
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+    $path = preg_replace('#^/api(?:/index\.php)?#', '', $path) ?: '';
+    $path = '/' . ltrim($path, '/');
+    return !in_array($path, ['/auth/login', '/auth/google_callback', '/auth/logout'], true);
 }
