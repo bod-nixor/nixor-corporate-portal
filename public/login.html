@@ -105,7 +105,15 @@
     </div>
   </div>
   <script type="module">
-    import { apiFetch, bootstrapCsrf, ensureCsrfToken, isNativeRuntime, startNativeGoogleLogin } from '/assets/app.js';
+    import {
+      apiFetch,
+      bootstrapCsrf,
+      ensureCsrfToken,
+      getNativePlatform,
+      isNativeRuntime,
+      persistMobileAuthSession,
+      startNativeGoogleLogin
+    } from '/assets/app.js';
     const form = document.getElementById('login-form');
     const errorEl = document.getElementById('error-message');
     const emailInput = document.getElementById('email-input');
@@ -211,18 +219,25 @@
     emailInput.addEventListener('input', () => clearFieldError(emailInput, emailError));
     passwordInput.addEventListener('input', () => clearFieldError(passwordInput, passwordError));
 
-    bootstrapCsrf()
-      .then(() => {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.textContent = defaultSubmitText;
-        }
-      })
-      .catch((err) => {
-        console.error('CSRF bootstrap failed:', err);
-        const msg = err?.status ? `Unable to start login (HTTP ${err.status}). Please refresh the page.` : 'Unable to start login. Please check your connection or refresh the page.';
-        disableForm(msg);
-      });
+    if (isNativeRuntime()) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = defaultSubmitText;
+      }
+    } else {
+      bootstrapCsrf()
+        .then(() => {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = defaultSubmitText;
+          }
+        })
+        .catch((err) => {
+          console.error('CSRF bootstrap failed:', err);
+          const msg = err?.status ? `Unable to start login (HTTP ${err.status}). Please refresh the page.` : 'Unable to start login. Please check your connection or refresh the page.';
+          disableForm(msg);
+        });
+    }
 
     const resetGoogleNativeBusy = () => {
       googleNativeBusy = false;
@@ -367,9 +382,23 @@
       submitBtn.disabled = true;
       submitBtn.textContent = 'Signing in...';
       try {
-        const csrf = await ensureCsrfToken();
-        loginDebugLog(`[NCP Login] submitting with csrf present ${csrf ? 'yes' : 'no'}`);
-        await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+        if (isNativeRuntime()) {
+          loginDebugLog('[NCP Login] submitting with native mobile auth');
+          const response = await apiFetch('/auth/mobile/login', {
+            method: 'POST',
+            skipCsrf: true,
+            body: JSON.stringify({ ...payload, platform: getNativePlatform() })
+          });
+          await persistMobileAuthSession(response?.data);
+          const verification = await apiFetch('/auth/me');
+          if (!verification?.data?.user) {
+            throw new Error('Sign-in completed, but the mobile session could not be verified. Please sign in again.');
+          }
+        } else {
+          const csrf = await ensureCsrfToken();
+          loginDebugLog(`[NCP Login] submitting with csrf present ${csrf ? 'yes' : 'no'}`);
+          await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+        }
         errorEl.classList.add('hidden');
         window.location.href = '/dashboard.html';
       } catch (err) {

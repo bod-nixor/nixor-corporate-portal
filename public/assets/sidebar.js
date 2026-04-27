@@ -1,4 +1,4 @@
-import { apiFetch } from '/assets/app.js';
+import { apiFetch, clearMobileAuthToken, isNativeRuntime } from '/assets/app.js';
 
 export function renderSidebar(activeId) {
   const links = [
@@ -69,9 +69,19 @@ if (typeof document !== 'undefined') {
       e.preventDefault();
       (async () => {
         try {
-          await apiFetch('/auth/logout', { method: 'POST' });
+          if (isNativeRuntime()) {
+            // apiFetch clears the stored mobile token after a successful native logout.
+            await apiFetch('/auth/mobile/logout', { method: 'POST', skipCsrf: true });
+          } else {
+            await apiFetch('/auth/logout', { method: 'POST' });
+          }
           window.location.href = '/login.html';
         } catch (err) {
+          if (isNativeRuntime()) {
+            await clearMobileAuthToken();
+            window.location.href = '/login.html';
+            return;
+          }
           console.error('Logout failed:', err);
         }
       })();

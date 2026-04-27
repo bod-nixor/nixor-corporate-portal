@@ -68,11 +68,17 @@ The PHP API allows credentialed CORS only for trusted origins:
 Do not use wildcard CORS with credentials. Mutating API calls still bootstrap CSRF through `GET /api/auth/csrf` and send `X-CSRF-Token`.
 
 ## Auth Notes
-The portal still treats the PHP session cookie as the source of truth. For trusted cross-origin Capacitor requests, the API marks the session cookie `SameSite=None; Secure` so WebViews can send it back to the hosted API.
+Browser auth still uses PHP session cookies and CSRF bootstrapped from `GET /api/auth/csrf`. Do not remove CSRF from `/api/auth/login`, `/api/auth/google_callback`, or other browser-cookie session flows.
 
-Remaining limitation: WebView cookie behavior can vary by OS version, embedded browser engine, and privacy settings. If production device testing shows unreliable cookie persistence, add a dedicated token-based mobile session design with revocation, expiry, secure storage, CSRF-equivalent protections, and backend RBAC checks. Do not bypass existing permission checks or CSRF requirements.
+Native Capacitor auth uses revocable mobile bearer sessions because iOS WKWebView does not always preserve the PHP session cookie across the CSRF, login, exchange, and `/auth/me` requests. The backend stores only `SHA-256` hashes in `mobile_sessions`; the raw bearer token is returned once to the app and sent as `Authorization: Bearer <token>` on later API calls. Native API fetches omit cookies so a stale WebView cookie cannot become the mobile source of truth. Token lifetime defaults to 30 days and can be changed with `MOBILE_SESSION_TTL_DAYS`.
 
-Google login in native Capacitor does not use Google Identity Services inside the local WebView. The native button opens `https://ncp.nixorcorporate.com/api/auth/google/start?platform=mobile` with `@capacitor/browser`, the PHP callback creates a short-lived one-time code, and the app receives `ncp://auth/callback?code=...` through `@capacitor/app`. The WebView exchanges that code at `/api/auth/mobile/exchange`, which creates the normal PHP session cookie for subsequent API requests.
+The shared frontend stores native tokens with `@capacitor/preferences` under `ncp_mobile_token` and `ncp_mobile_token_expires_at`, with an in-memory/local fallback for constrained WebView contexts. Do not log tokens, place them in URLs, or expose them in page markup.
+
+Google login in native Capacitor does not use Google Identity Services inside the local WebView. The native button opens `https://ncp.nixorcorporate.com/api/auth/google/start?platform=mobile` with `@capacitor/browser`, the PHP callback creates a short-lived one-time code, and the app receives `ncp://auth/callback?code=...` through `@capacitor/app`. The WebView exchanges that code at `/api/auth/mobile/exchange`, which consumes the one-time code and returns a mobile bearer token. The endpoint may also establish a PHP session cookie for compatibility, but native app auth must depend on the bearer token.
+
+Native email/password login posts JSON credentials to `/api/auth/mobile/login`. That endpoint is rate-limited and performs the same password and account-status checks as browser login, but it does not require CSRF because it returns a bearer token rather than relying on an ambient browser cookie.
+
+Native logout posts to `/api/auth/mobile/logout` with the bearer token. The backend hashes the presented token, marks the matching row revoked, and the app clears local token storage.
 
 Production hardening note: custom URL schemes can be claimed by another app on some platforms. Prefer adding an HTTPS callback bridge with Android App Links and iOS Universal Links (`assetlinks.json` and `apple-app-site-association`) that validates the request and 302s to the app callback when the platform setup is ready.
 
