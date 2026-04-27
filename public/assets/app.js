@@ -13,6 +13,8 @@ const NATIVE_PLATFORMS = new Set(['ios', 'android']);
 const MOBILE_AUTH_CALLBACK_PROTOCOL = 'ncp:';
 const MOBILE_AUTH_CALLBACK_HOST = 'auth';
 const MOBILE_AUTH_CALLBACK_PATH = '/callback';
+const MOBILE_AUTH_CALLBACK_SESSION_PREFIX = 'ncp_mobile_callback_';
+const MOBILE_AUTH_CALLBACK_STATE_TTL_MS = 15 * 60 * 1000;
 
 export function isNativeRuntime() {
   const capacitor = window.Capacitor;
@@ -44,7 +46,10 @@ let csrfBootstrapPromise = null;
 let mobileAuthListenerPromise = null;
 let mobileAuthListenerHandle = null;
 let mobileAuthCleanupRegistered = false;
-let mobileAuthExchangePromise = null;
+let mobileAuthLaunchUrlChecked = false;
+const mobileAuthCallbackKeysSeen = new Set();
+const mobileAuthCallbackStates = new Map();
+const mobileAuthExchangePromises = new Map();
 
 export function setCsrfToken(token) {
   csrfToken = token || '';
@@ -179,14 +184,136 @@ function emitMobileAuthError(message) {
   }));
 }
 
-function isMobileAuthCallback(url) {
+function normalizeMobileAuthCallbackUrl(url) {
+  const value = String(url || '').trim();
+  return value ? value.replace(/#+$/, '') : '';
+}
+
+function parseMobileAuthCallbackUrl(url) {
+  const normalized = normalizeMobileAuthCallbackUrl(url);
+  if (!normalized) {
+    return null;
+  }
   try {
-    const parsed = new URL(url);
-    return parsed.protocol === MOBILE_AUTH_CALLBACK_PROTOCOL
+    const parsed = new URL(normalized);
+    const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
+    if (parsed.protocol === MOBILE_AUTH_CALLBACK_PROTOCOL
       && parsed.hostname === MOBILE_AUTH_CALLBACK_HOST
-      && parsed.pathname === MOBILE_AUTH_CALLBACK_PATH;
+      && normalizedPath === MOBILE_AUTH_CALLBACK_PATH) {
+      return parsed;
+    }
   } catch (err) {
-    return false;
+    // Non-URL app open events are ignored.
+  }
+  return null;
+}
+
+function isMobileAuthCallback(url) {
+  return Boolean(parseMobileAuthCallbackUrl(url));
+}
+
+function safeMobileAuthFingerprint(value) {
+  const input = String(value || '');
+  let hashA = 0x811c9dc5;
+  let hashB = 0x9e3779b9;
+  for (let i = 0; i < input.length; i += 1) {
+    const codePoint = input.charCodeAt(i);
+    hashA ^= codePoint;
+    hashA = Math.imul(hashA, 0x01000193);
+    hashB ^= codePoint + i;
+    hashB = Math.imul(hashB, 0x85ebca6b);
+  }
+  return `${(hashA >>> 0).toString(36)}${(hashB >>> 0).toString(36)}`;
+}
+
+function mobileAuthCallbackKeyForCode(code) {
+  return `${MOBILE_AUTH_CALLBACK_SESSION_PREFIX}${safeMobileAuthFingerprint(code)}`;
+}
+
+function mobileAuthCallbackKeyForError(error) {
+  return `${MOBILE_AUTH_CALLBACK_SESSION_PREFIX}error_${safeMobileAuthFingerprint(error || 'callback_error')}`;
+}
+
+function readMobileAuthCallbackState(key) {
+  if (mobileAuthCallbackStates.has(key)) {
+    return mobileAuthCallbackStates.get(key);
+  }
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) {
+      return '';
+    }
+    const parsed = JSON.parse(raw);
+    const updatedAt = Number(parsed?.updatedAt || 0);
+    if (updatedAt && Date.now() - updatedAt > MOBILE_AUTH_CALLBACK_STATE_TTL_MS) {
+      sessionStorage.removeItem(key);
+      return '';
+    }
+    return typeof parsed?.state === 'string' ? parsed.state : '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function writeMobileAuthCallbackState(key, state) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ state, updatedAt: Date.now() }));
+  } catch (err) {
+    // Private browsing/storage restrictions should not break login.
+  }
+}
+
+function clearMobileAuthCallbackState(key) {
+  mobileAuthCallbackKeysSeen.delete(key);
+  mobileAuthCallbackStates.delete(key);
+  try {
+    sessionStorage.removeItem(key);
+  } catch (err) {
+    // Storage cleanup is best-effort.
+  }
+}
+
+function markMobileAuthCallbackState(key, state) {
+  mobileAuthCallbackKeysSeen.add(key);
+  mobileAuthCallbackStates.set(key, state);
+  writeMobileAuthCallbackState(key, state);
+}
+
+function isMobileAuthCodeAlreadyUsed(err) {
+  const message = `${err?.message || ''} ${err?.bodySnippet || ''}`;
+  return err?.status === 401 && /Mobile auth code already used/i.test(message);
+}
+
+function currentPageIsDashboard() {
+  return window.location.pathname.replace(/\/+$/, '') === '/dashboard.html';
+}
+
+async function verifyMobileAuthSession() {
+  const response = await apiFetch('/auth/me');
+  if (!response?.data?.user) {
+    throw new Error('Google sign-in completed, but the mobile session could not be verified. Please sign in again.');
+  }
+  return response;
+}
+
+async function continueAfterVerifiedMobileAuth(callbackKey) {
+  await verifyMobileAuthSession();
+  markMobileAuthCallbackState(callbackKey, 'completed');
+  if (!currentPageIsDashboard()) {
+    window.location.replace('/dashboard.html');
+  }
+}
+
+async function handleDuplicateMobileAuthCallback(callbackKey, state) {
+  console.log('[NCP Mobile Auth] Duplicate callback ignored', { state: state || 'seen' });
+  if (state === 'completed') {
+    try {
+      await continueAfterVerifiedMobileAuth(callbackKey);
+    } catch (err) {
+      if (!currentPageIsDashboard()) {
+        emitMobileAuthError(normalizeError(err) || 'Google sign-in could not be verified. Please sign in again.');
+      }
+    }
   }
 }
 
@@ -198,46 +325,92 @@ async function closeNativeBrowser() {
   try {
     await Browser.close();
   } catch (err) {
-    // Android Custom Tabs may already be gone when the deep link returns.
+    const message = err?.message || '';
+    if (!/No active window to close/i.test(message)) {
+      console.warn('[NCP Mobile Auth] Native browser close was not available.');
+    }
   }
 }
 
 async function handleMobileAuthUrl(url) {
-  if (!url || !isMobileAuthCallback(url)) {
+  const parsed = parseMobileAuthCallbackUrl(url);
+  if (!parsed) {
     return false;
   }
   console.log('[NCP Mobile Auth] Handling callback URL');
-  await closeNativeBrowser();
-  const parsed = new URL(url);
-  if (parsed.searchParams.get('error')) {
-    console.warn('[NCP Mobile Auth] Callback returned error:', parsed.searchParams.get('error'));
+  const callbackError = parsed.searchParams.get('error');
+  if (callbackError) {
+    const safeError = callbackError.replace(/[^A-Za-z0-9_.:-]/g, '_').slice(0, 80);
+    const callbackKey = mobileAuthCallbackKeyForError(safeError);
+    if (mobileAuthCallbackKeysSeen.has(callbackKey) || readMobileAuthCallbackState(callbackKey)) {
+      await closeNativeBrowser();
+      return true;
+    }
+    markMobileAuthCallbackState(callbackKey, 'completed');
+    await closeNativeBrowser();
+    console.warn('[NCP Mobile Auth] Callback returned error:', safeError);
     emitMobileAuthError('Google sign-in could not be completed. Please try again.');
     return true;
   }
 
   const code = parsed.searchParams.get('code') || '';
   if (!code) {
+    await closeNativeBrowser();
     emitMobileAuthError('Google sign-in returned without an authorization code. Please try again.');
     return true;
   }
 
-  if (mobileAuthExchangePromise) {
+  const callbackKey = mobileAuthCallbackKeyForCode(code);
+  const storedState = readMobileAuthCallbackState(callbackKey);
+  if (mobileAuthExchangePromises.has(callbackKey)) {
+    await closeNativeBrowser();
     return true;
   }
+  if (storedState === 'processing') {
+    await closeNativeBrowser();
+    try {
+      await continueAfterVerifiedMobileAuth(callbackKey);
+      return true;
+    } catch (err) {
+      clearMobileAuthCallbackState(callbackKey);
+    }
+  } else if (storedState === 'completed') {
+    await closeNativeBrowser();
+    await handleDuplicateMobileAuthCallback(callbackKey, storedState);
+    return true;
+  } else if (mobileAuthCallbackKeysSeen.has(callbackKey)) {
+    clearMobileAuthCallbackState(callbackKey);
+  }
 
-  mobileAuthExchangePromise = (async () => {
+  markMobileAuthCallbackState(callbackKey, 'processing');
+  await closeNativeBrowser();
+
+  const exchangePromise = (async () => {
     try {
       await apiFetch('/auth/mobile/exchange', {
         method: 'POST',
+        skipCsrf: true,
         body: JSON.stringify({ code })
       });
-      window.location.replace('/dashboard.html');
+      markMobileAuthCallbackState(callbackKey, 'completed');
+      await continueAfterVerifiedMobileAuth(callbackKey);
     } catch (err) {
+      if (isMobileAuthCodeAlreadyUsed(err)) {
+        try {
+          await continueAfterVerifiedMobileAuth(callbackKey);
+          return;
+        } catch (sessionErr) {
+          emitMobileAuthError(normalizeError(sessionErr) || 'Google sign-in could not be verified. Please sign in again.');
+          return;
+        }
+      }
+      clearMobileAuthCallbackState(callbackKey);
       emitMobileAuthError(normalizeError(err) || 'Google sign-in failed. Please try again.');
     } finally {
-      mobileAuthExchangePromise = null;
+      mobileAuthExchangePromises.delete(callbackKey);
     }
   })();
+  mobileAuthExchangePromises.set(callbackKey, exchangePromise);
 
   return true;
 }
@@ -266,7 +439,8 @@ export async function initMobileAuthListener() {
       console.log('[NCP Mobile Auth] Listener registered successfully');
       registerMobileAuthListenerCleanup();
 
-      if (typeof App.getLaunchUrl === 'function') {
+      if (!mobileAuthLaunchUrlChecked && typeof App.getLaunchUrl === 'function') {
+        mobileAuthLaunchUrlChecked = true;
         try {
           const launch = await App.getLaunchUrl();
           if (launch?.url) {
@@ -304,9 +478,9 @@ export async function startNativeGoogleLogin() {
 }
 
 export async function apiFetch(path, options = {}) {
-  const { skipFallback, ...fetchOptions } = options;
+  const { skipFallback, skipCsrf, onResponse, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !getCsrfToken()) {
+  if (!skipCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !getCsrfToken()) {
     await bootstrapCsrf();
   }
   const resolvedCsrf = getCsrfToken();
@@ -317,7 +491,7 @@ export async function apiFetch(path, options = {}) {
   if (['POST', 'PUT', 'PATCH'].includes(method) && !headers['Content-Type'] && !isFormData) {
     headers['Content-Type'] = 'application/json';
   }
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && resolvedCsrf) {
+  if (!skipCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && resolvedCsrf) {
     headers['X-CSRF-Token'] = resolvedCsrf;
   }
   const request = async (base) => {
@@ -343,6 +517,13 @@ export async function apiFetch(path, options = {}) {
           status: res.status,
           body: text.slice(0, 200)
         });
+      }
+      if (typeof onResponse === 'function') {
+        try {
+          onResponse({ ok: res.ok, status: res.status, method, path: normalizeApiPath(path) || '/' });
+        } catch (callbackErr) {
+          // Diagnostic callbacks must not affect API behavior.
+        }
       }
       return { res, data, text, url };
     } catch (err) {

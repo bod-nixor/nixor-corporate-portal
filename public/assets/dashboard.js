@@ -17,12 +17,81 @@ const modalClose = document.getElementById('announcement-close');
 const form = document.getElementById('announcement-form');
 const statusEl = document.getElementById('announcement-status');
 
+const DEFAULT_ANNOUNCEMENTS_TITLE = 'No announcements yet';
+const DEFAULT_ANNOUNCEMENTS_DETAIL = 'This space will show broadcasts sent to this entity.';
 
+const logDashboard = (message, detail) => {
+    if (detail === undefined) {
+        console.log(`[NCP Dashboard] ${message}`);
+    } else {
+        console.log(`[NCP Dashboard] ${message}`, detail);
+    }
+};
+
+const dashboardApiFetch = async (path, options = {}) => {
+    let sawResponse = false;
+    const originalOnResponse = options.onResponse;
+    try {
+        return await apiFetch(path, {
+            ...options,
+            onResponse: (responseMeta) => {
+                sawResponse = true;
+                const { status } = responseMeta || {};
+                logDashboard(`${path} status`, status);
+                if (typeof originalOnResponse === 'function') {
+                    originalOnResponse(responseMeta);
+                }
+            }
+        });
+    } catch (err) {
+        if (!sawResponse) {
+            logDashboard(`${path} status`, err?.status || 'request_failed');
+        }
+        throw err;
+    }
+};
 
 const setStatus = (message, ok) => {
     statusEl.textContent = message;
     statusEl.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
     statusEl.classList.remove('hidden');
+};
+
+const setListMessage = (listEl, message, tone = 'muted') => {
+    listEl.innerHTML = '';
+    const item = document.createElement('li');
+    const toneClass = tone === 'error' ? 'text-red-300 border-red-500/30 bg-red-500/10' : 'text-slate-500 border-slate-700';
+    item.className = `${toneClass} text-sm flex items-center justify-center p-4 h-full border border-dashed rounded-lg`;
+    item.textContent = message;
+    listEl.appendChild(item);
+};
+
+const setAnnouncementsMessage = (title, detail) => {
+    const messages = announcementsEmpty.querySelectorAll('p');
+    if (messages[0]) {
+        messages[0].textContent = title;
+    }
+    if (messages[1]) {
+        messages[1].textContent = detail;
+    }
+    announcementsEmpty.classList.remove('hidden');
+};
+
+const resetAnnouncementsMessage = () => {
+    setAnnouncementsMessage(DEFAULT_ANNOUNCEMENTS_TITLE, DEFAULT_ANNOUNCEMENTS_DETAIL);
+    announcementsEmpty.classList.add('hidden');
+};
+
+const setDashboardUnavailable = (message) => {
+    docProgress.textContent = '--';
+    docSummary.textContent = message;
+    setListMessage(pendingDocsList, 'Unable to load pending docs.', 'error');
+    setListMessage(meetingsList, 'Unable to load meetings.', 'error');
+    setListMessage(deadlinesList, 'Unable to load deadlines.', 'error');
+    announcementsList.innerHTML = '';
+    setAnnouncementsMessage('Dashboard unavailable', message);
+    modalOpen.disabled = true;
+    modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
 };
 
 const renderPendingDocs = (listEl, docs) => {
@@ -139,14 +208,25 @@ const renderDeadlines = (listEl, deadlines) => {
 };
 
 const loadDashboard = async (entityId) => {
-    meetingsList.innerHTML = '';
-    deadlinesList.innerHTML = '';
-    pendingDocsList.innerHTML = '';
+    if (!entityId) {
+        setDashboardUnavailable('Select an entity to load dashboard data.');
+        return;
+    }
     announcementsList.innerHTML = '';
-    announcementsEmpty.classList.add('hidden');
+    resetAnnouncementsMessage();
+    setListMessage(pendingDocsList, 'Loading pending docs...');
+    setListMessage(meetingsList, 'Loading meetings...');
+    setListMessage(deadlinesList, 'Loading deadlines...');
+    const dashboardPath = `/dashboard?entity_id=${encodeURIComponent(entityId)}`;
     try {
-        const response = await apiFetch(`/dashboard?entity_id=${encodeURIComponent(entityId)}`);
+        const response = await dashboardApiFetch(dashboardPath);
         const data = response?.data || {};
+        logDashboard('dashboard payload counts', {
+            pendingDocs: data.pending_docs?.length || 0,
+            meetings: data.calendar?.length || 0,
+            deadlines: data.deadlines?.length || 0,
+            announcements: data.announcements?.length || 0
+        });
         docProgress.textContent = `${data.doc_progress || 0}%`;
         const approvedDocs = Number(data.doc_progress_approved || 0);
         const totalDocs = Number(data.doc_progress_total || 0);
@@ -192,14 +272,32 @@ const loadDashboard = async (entityId) => {
         renderMeetings(meetingsList, data.calendar);
         renderDeadlines(deadlinesList, data.deadlines);
     } catch (err) {
-        docProgress.textContent = '--';
-        docSummary.textContent = err.message || 'Unable to load dashboard.';
+        const message = normalizeError(err) || 'Unable to load dashboard.';
+        logDashboard('dashboard data failure', { status: err?.status || null, message });
+        setDashboardUnavailable(message);
     }
 };
 
-apiFetch('/auth/me')
-    .then((response) => {
+const initDashboard = async () => {
+    logDashboard('init started');
+    entitySelect.disabled = true;
+    entitySelect.innerHTML = '';
+    const loadingOption = document.createElement('option');
+    loadingOption.textContent = 'Loading entities...';
+    entitySelect.appendChild(loadingOption);
+    modalOpen.disabled = true;
+    modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
+
+    try {
+        const response = await dashboardApiFetch('/auth/me');
+        const userPresent = Boolean(response?.data?.user);
+        logDashboard(`user present ${userPresent ? 'yes' : 'no'}`);
+        if (!userPresent) {
+            throw new Error('Session not found. Please sign in again.');
+        }
+
         const entities = response?.data?.entities || [];
+        logDashboard('entities count', entities.length);
         entitySelect.innerHTML = '';
         entities.forEach((entity) => {
             const option = document.createElement('option');
@@ -208,20 +306,36 @@ apiFetch('/auth/me')
             entitySelect.appendChild(option);
         });
         const selected = entities[0]?.id;
+        logDashboard('selectedEntityId', selected || null);
         if (selected) {
             entitySelect.value = selected;
-            loadDashboard(selected);
+            entitySelect.disabled = false;
+            await loadDashboard(selected);
+        } else {
+            const option = document.createElement('option');
+            option.textContent = 'No entities';
+            entitySelect.appendChild(option);
+            setDashboardUnavailable('No entities are available for this account.');
         }
-    })
-    .catch(() => {
+        logDashboard('init complete');
+    } catch (err) {
+        const message = normalizeError(err) || 'Unable to load dashboard.';
+        logDashboard('init failure', { status: err?.status || null, message });
+        entitySelect.innerHTML = '';
         const option = document.createElement('option');
-        option.textContent = 'No entities';
+        option.textContent = 'Unable to load entities';
         entitySelect.appendChild(option);
-        modalOpen.disabled = true;
-        modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
-    });
+        entitySelect.disabled = true;
+        setDashboardUnavailable(message);
+    }
+};
 
-entitySelect.addEventListener('change', () => loadDashboard(entitySelect.value));
+initDashboard();
+
+entitySelect.addEventListener('change', () => {
+    logDashboard('selectedEntityId', entitySelect.value || null);
+    loadDashboard(entitySelect.value);
+});
 
 let previouslyFocusedElement = null;
 
