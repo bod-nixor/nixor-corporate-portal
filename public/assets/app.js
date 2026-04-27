@@ -43,6 +43,7 @@ let portalConfig = {
 };
 let csrfToken = '';
 let csrfBootstrapPromise = null;
+let csrfSessionVersion = 0;
 let mobileAuthListenerPromise = null;
 let mobileAuthListenerHandle = null;
 let mobileAuthCleanupRegistered = false;
@@ -57,6 +58,30 @@ export function setCsrfToken(token) {
 
 export function getCsrfToken() {
   return csrfToken;
+}
+
+function authDebugEnabled() {
+  try {
+    return window.NCP_AUTH_DEBUG === true
+      || window.Capacitor?.DEBUG === true
+      || window.Capacitor?.isLoggingEnabled === true
+      || localStorage.getItem('ncp_auth_debug') === '1'
+      || new URLSearchParams(window.location.search).get('auth_debug') === '1'
+      || ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  } catch (err) {
+    return false;
+  }
+}
+
+function authDebugLog(message, detail) {
+  if (!authDebugEnabled()) {
+    return;
+  }
+  if (detail === undefined) {
+    console.log(message);
+  } else {
+    console.log(message, detail);
+  }
 }
 
 export function setTheme(themeName) {
@@ -290,7 +315,9 @@ function currentPageIsDashboard() {
 
 async function verifyMobileAuthSession() {
   const response = await apiFetch('/auth/me');
-  if (!response?.data?.user) {
+  const userPresent = Boolean(response?.data?.user);
+  authDebugLog(`[NCP Auth] /auth/me user present ${userPresent ? 'yes' : 'no'}`);
+  if (!userPresent) {
     throw new Error('Google sign-in completed, but the mobile session could not be verified. Please sign in again.');
   }
   return response;
@@ -480,8 +507,9 @@ export async function startNativeGoogleLogin() {
 export async function apiFetch(path, options = {}) {
   const { skipFallback, skipCsrf, onResponse, ...fetchOptions } = options;
   const method = (fetchOptions.method || 'GET').toUpperCase();
-  if (!skipCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !getCsrfToken()) {
-    await bootstrapCsrf();
+  const needsCsrf = !skipCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+  if (needsCsrf && !getCsrfToken()) {
+    await ensureCsrfToken();
   }
   const resolvedCsrf = getCsrfToken();
   const headers = {
@@ -518,6 +546,10 @@ export async function apiFetch(path, options = {}) {
           body: text.slice(0, 200)
         });
       }
+      authDebugLog('[NCP API] endpoint/status', {
+        endpoint: normalizeApiPath(path) || '/',
+        status: res.status
+      });
       if (typeof onResponse === 'function') {
         try {
           onResponse({ ok: res.ok, status: res.status, method, path: normalizeApiPath(path) || '/' });
@@ -533,6 +565,16 @@ export async function apiFetch(path, options = {}) {
   };
 
   let { res, data, text, url } = await request(preferredBase);
+  const isLoginRequest = method === 'POST' && normalizeApiPath(path) === '/auth/login';
+  let retriedCsrfMismatch = false;
+  if (needsCsrf && isLoginRequest && isInvalidCsrfResponse(res, data)) {
+    authDebugLog('[NCP CSRF] login mismatch detected; refreshing once');
+    retriedCsrfMismatch = true;
+    setCsrfToken('');
+    await bootstrapCsrf({ forceRefresh: true });
+    headers['X-CSRF-Token'] = getCsrfToken();
+    ({ res, data, text, url } = await request(preferredBase));
+  }
   const fallbackBase = resolveFallbackBase(preferredBase);
   const contentType = res.headers.get('content-type') || '';
   const hasJson = contentType.includes('application/json');
@@ -563,10 +605,21 @@ export async function apiFetch(path, options = {}) {
     }
   }
   if (!res.ok) {
+    if (retriedCsrfMismatch && isInvalidCsrfResponse(res, data)) {
+      throw buildApiError('Session expired. Please try again.', res.status, url, text);
+    }
     const message = data?.error || `HTTP ${res.status}`;
     throw buildApiError(message, res.status, url, text);
   }
+  if (normalizeApiPath(path) === '/auth/logout') {
+    setCsrfToken('');
+    csrfSessionVersion += 1;
+  }
   return data;
+}
+
+function isInvalidCsrfResponse(res, data) {
+  return res?.status === 403 && data?.error === 'Invalid CSRF token';
 }
 
 function buildApiError(message, status, url, body) {
@@ -589,14 +642,21 @@ export const normalizeError = (err) => {
   return message === 'Forbidden' ? 'You do not have permission.' : (message || 'Action failed.');
 };
 
-export async function bootstrapCsrf() {
+export async function bootstrapCsrf(options = {}) {
+  const forceRefresh = Boolean(options.forceRefresh);
+  if (!forceRefresh && getCsrfToken()) {
+    authDebugLog('[NCP CSRF] token present yes');
+    return getCsrfToken();
+  }
   if (csrfBootstrapPromise) {
     return csrfBootstrapPromise;
   }
+  const bootstrapVersion = csrfSessionVersion;
   const request = async (base) => {
     const url = buildApiUrl('/auth/csrf', base);
-    console.log('[NCP CSRF] Bootstrapping from:', url);
+    authDebugLog('[NCP CSRF] bootstrap start', { base });
     const res = await fetch(url, {
+      cache: 'no-store',
       credentials: 'include',
       headers: { 'Accept': 'application/json' }
     });
@@ -620,13 +680,28 @@ export async function bootstrapCsrf() {
       if (!res.ok) {
         throw buildApiError(data?.error || `HTTP ${res.status}`, res.status, url || buildApiUrl('/auth/csrf', preferredBase));
       }
-      setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
+      if (bootstrapVersion === csrfSessionVersion) {
+        setCsrfToken(data?.data?.csrfToken || data?.data?.token || '');
+      }
+      authDebugLog('[NCP CSRF] bootstrap status', {
+        status: res.status,
+        tokenPresent: getCsrfToken() ? 'yes' : 'no'
+      });
       return getCsrfToken();
     } finally {
       csrfBootstrapPromise = null;
     }
   })();
   return csrfBootstrapPromise;
+}
+
+export async function ensureCsrfToken() {
+  const token = getCsrfToken() || await bootstrapCsrf();
+  authDebugLog(`[NCP CSRF] token present ${token ? 'yes' : 'no'}`);
+  if (!token) {
+    throw new Error('Unable to start a secure session. Please try again.');
+  }
+  return token;
 }
 
 export function connectWebsocket(onMessage) {
