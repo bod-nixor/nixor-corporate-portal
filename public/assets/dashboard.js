@@ -28,13 +28,19 @@ const logDashboard = (message, detail) => {
     }
 };
 
-const dashboardApiFetch = async (path) => {
+const dashboardApiFetch = async (path, options = {}) => {
     let sawResponse = false;
+    const originalOnResponse = options.onResponse;
     try {
         return await apiFetch(path, {
-            onResponse: ({ status }) => {
+            ...options,
+            onResponse: (responseMeta) => {
                 sawResponse = true;
+                const { status } = responseMeta || {};
                 logDashboard(`${path} status`, status);
+                if (typeof originalOnResponse === 'function') {
+                    originalOnResponse(responseMeta);
+                }
             }
         });
     } catch (err) {
@@ -206,9 +212,6 @@ const loadDashboard = async (entityId) => {
         setDashboardUnavailable('Select an entity to load dashboard data.');
         return;
     }
-    meetingsList.innerHTML = '';
-    deadlinesList.innerHTML = '';
-    pendingDocsList.innerHTML = '';
     announcementsList.innerHTML = '';
     resetAnnouncementsMessage();
     setListMessage(pendingDocsList, 'Loading pending docs...');

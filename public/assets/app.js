@@ -48,6 +48,7 @@ let mobileAuthListenerHandle = null;
 let mobileAuthCleanupRegistered = false;
 let mobileAuthLaunchUrlChecked = false;
 const mobileAuthCallbackKeysSeen = new Set();
+const mobileAuthCallbackStates = new Map();
 const mobileAuthExchangePromises = new Map();
 
 export function setCsrfToken(token) {
@@ -234,6 +235,9 @@ function mobileAuthCallbackKeyForError(error) {
 }
 
 function readMobileAuthCallbackState(key) {
+  if (mobileAuthCallbackStates.has(key)) {
+    return mobileAuthCallbackStates.get(key);
+  }
   try {
     const raw = sessionStorage.getItem(key);
     if (!raw) {
@@ -260,6 +264,8 @@ function writeMobileAuthCallbackState(key, state) {
 }
 
 function clearMobileAuthCallbackState(key) {
+  mobileAuthCallbackKeysSeen.delete(key);
+  mobileAuthCallbackStates.delete(key);
   try {
     sessionStorage.removeItem(key);
   } catch (err) {
@@ -269,6 +275,7 @@ function clearMobileAuthCallbackState(key) {
 
 function markMobileAuthCallbackState(key, state) {
   mobileAuthCallbackKeysSeen.add(key);
+  mobileAuthCallbackStates.set(key, state);
   writeMobileAuthCallbackState(key, state);
 }
 
@@ -359,10 +366,20 @@ async function handleMobileAuthUrl(url) {
     await closeNativeBrowser();
     return true;
   }
-  if (mobileAuthCallbackKeysSeen.has(callbackKey) || storedState === 'processing' || storedState === 'completed') {
+  if (storedState === 'processing') {
+    await closeNativeBrowser();
+    try {
+      await continueAfterVerifiedMobileAuth(callbackKey);
+      return true;
+    } catch (err) {
+      clearMobileAuthCallbackState(callbackKey);
+    }
+  } else if (storedState === 'completed') {
     await closeNativeBrowser();
     await handleDuplicateMobileAuthCallback(callbackKey, storedState);
     return true;
+  } else if (mobileAuthCallbackKeysSeen.has(callbackKey)) {
+    clearMobileAuthCallbackState(callbackKey);
   }
 
   markMobileAuthCallbackState(callbackKey, 'processing');
@@ -378,7 +395,7 @@ async function handleMobileAuthUrl(url) {
       markMobileAuthCallbackState(callbackKey, 'completed');
       await continueAfterVerifiedMobileAuth(callbackKey);
     } catch (err) {
-      if (isMobileAuthCodeAlreadyUsed(err) && ['processing', 'completed'].includes(readMobileAuthCallbackState(callbackKey))) {
+      if (isMobileAuthCodeAlreadyUsed(err)) {
         try {
           await continueAfterVerifiedMobileAuth(callbackKey);
           return;
