@@ -4,7 +4,7 @@ function handle_config(string $method, array $segments): void {
         respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
     $user = current_user();
-    $includeToken = $user && in_array($user['global_role'], ['admin', 'board'], true);
+    $includeToken = $user && (can_permission($user, 'nav.admin') || can_permission($user, 'endeavour.approve_mob'));
     respond([
         'ok' => true,
         'data' => [

@@ -11,7 +11,7 @@ function smtp_configured(): bool {
     return (bool)env_value('SMTP_HOST') && (bool)env_value('SMTP_PORT') && (bool)env_value('SMTP_USER');
 }
 
-function send_email(string $to, string $subject, string $body, bool $isHtml = true): bool {
+function send_email(string $to, string $subject, string $body, bool $isHtml = true, ?string $replyTo = null): bool {
     $to = trim($to);
     if ($to === '') {
         return false;
@@ -50,6 +50,9 @@ function send_email(string $to, string $subject, string $body, bool $isHtml = tr
         $mail->SMTPSecure = $secure;
         $from = env_value('SMTP_FROM', env_value('SMTP_USER'));
         $mail->setFrom($from, env_value('SMTP_FROM_NAME', 'Nixor Portal'));
+        if ($replyTo) {
+            $mail->addReplyTo($replyTo);
+        }
         $mail->addAddress($to);
         $mail->Subject = $subject;
         $mail->Body = $body;

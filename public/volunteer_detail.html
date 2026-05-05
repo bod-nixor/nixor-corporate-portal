@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <script src="/assets/theme-init.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Volunteer Opportunity</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+
+<body class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen">
+  <main class="max-w-3xl mx-auto px-6 py-10">
+    <a href="/home.html" class="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Back to opportunities</a>
+    <section class="mt-6 card p-6 md:p-8">
+      <div id="detail-loading" class="space-y-4" aria-hidden="true">
+        <div class="h-7 rounded bg-[var(--bg-surface-hover)] animate-pulse w-2/3"></div>
+        <div class="h-4 rounded bg-[var(--bg-surface-hover)] animate-pulse w-1/2"></div>
+        <div class="h-28 rounded bg-[var(--bg-surface-hover)] animate-pulse"></div>
+      </div>
+      <div id="detail-content" class="hidden">
+        <p id="detail-entity" class="text-xs uppercase tracking-[0.25em] font-bold text-[var(--text-tertiary)]"></p>
+        <h1 id="detail-title" class="mt-2 text-3xl font-bold tracking-tight"></h1>
+        <p id="detail-description" class="mt-4 text-[var(--text-secondary)] leading-relaxed"></p>
+        <dl class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div class="rounded-lg border border-[var(--border-subtle)] p-4">
+            <dt class="text-[var(--text-tertiary)] font-semibold">Venue</dt>
+            <dd id="detail-venue" class="mt-1 font-semibold"></dd>
+          </div>
+          <div class="rounded-lg border border-[var(--border-subtle)] p-4">
+            <dt class="text-[var(--text-tertiary)] font-semibold">Date & Time</dt>
+            <dd id="detail-time" class="mt-1 font-semibold"></dd>
+          </div>
+          <div class="rounded-lg border border-[var(--border-subtle)] p-4">
+            <dt class="text-[var(--text-tertiary)] font-semibold">Signup Deadline</dt>
+            <dd id="detail-deadline" class="mt-1 font-semibold"></dd>
+          </div>
+          <div class="rounded-lg border border-[var(--border-subtle)] p-4">
+            <dt class="text-[var(--text-tertiary)] font-semibold">Transport</dt>
+            <dd id="detail-transport" class="mt-1 font-semibold"></dd>
+          </div>
+        </dl>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <button id="copy-link" type="button" class="btn btn-primary">Copy Link</button>
+          <a id="login-register" href="/login.html" class="btn btn-ghost">Volunteer Login</a>
+        </div>
+        <p id="copy-status" class="hidden mt-3 text-sm text-[#6ee7b7]"></p>
+      </div>
+      <p id="detail-error" class="hidden text-sm text-[#fca5a5]"></p>
+    </section>
+  </main>
+  <script type="module" src="/assets/volunteer_detail.js"></script>
+</body>
+
+</html>

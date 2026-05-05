@@ -15,14 +15,17 @@
   <div class="app-shell">
     <div id="sidebar-container"></div>
     <main class="app-main app-main--wide">
-      <header class="app-page-header">
-        <h1 class="text-3xl font-bold tracking-tight">Social Feed</h1>
-        <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Professional updates limited to involved
-          members.</p>
+      <header class="app-page-header flex flex-col md:flex-row md:items-end justify-between gap-5">
+        <div>
+          <h1 class="text-3xl font-bold tracking-tight">Social Feed</h1>
+          <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Professional updates limited to involved
+            members.</p>
+        </div>
+        <button id="open-post-modal" type="button" class="btn btn-primary">New Post</button>
       </header>
 
-      <section class="mt-8 grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-8 animate-fade-in">
-        <div class="order-2 xl:order-1">
+      <section class="mt-8 animate-fade-in">
+        <div>
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <h2 class="text-lg font-bold tracking-tight">Recent Posts</h2>
             <select id="social-entity" class="input-field max-w-[240px] py-1.5 text-sm font-medium"></select>
@@ -43,17 +46,32 @@
           </div>
         </div>
 
-        <div class="order-1 xl:order-2">
+        <div id="post-modal" class="hidden fixed inset-0 z-50 bg-black/65 backdrop-blur-sm p-4 overflow-y-auto">
+          <div class="min-h-full flex items-center justify-center">
           <div
-            class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)] xl:sticky xl:top-6">
-            <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+            class="card w-full max-w-lg p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)]">
+            <div class="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between gap-4">
               <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">New Post</h2>
+              <button id="close-post-modal" type="button" class="btn btn-ghost px-3 py-2" aria-label="Close new post">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
             </div>
             <form id="social-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+              <div class="space-y-1.5">
+                <label for="social-scope" class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Feed</label>
+                <select id="social-scope" name="feed_scope" class="input-field">
+                  <option value="entity">Selected entity</option>
+                  <option value="global">Global public feed</option>
+                </select>
+              </div>
               <div class="space-y-1.5">
                 <label for="social-content" class="sr-only">Post Content</label>
                 <textarea id="social-content" name="content" rows="4" required placeholder="What's happening?"
                   class="input-field font-medium w-full resize-y bg-[var(--bg-base)]"></textarea>
+              </div>
+              <div class="space-y-1.5">
+                <label for="social-images" class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Image URLs</label>
+                <input id="social-images" name="image_urls" class="input-field" placeholder="Up to 10 URLs, comma separated" />
               </div>
 
               <div id="social-status"
@@ -63,6 +81,7 @@
                 <button class="btn btn-primary w-full shadow-sm" type="submit">Publish Update</button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       </section>

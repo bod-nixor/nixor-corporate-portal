@@ -212,6 +212,50 @@
                     </div>
                 </div>
             </section>
+
+            <section class="animate-fade-in mt-6">
+                <div
+                    class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.015)]">
+                    <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+                        <h2 class="text-lg font-bold tracking-tight">Notifications</h2>
+                        <p class="text-[var(--text-secondary)] mt-1 text-sm">Choose where operational alerts reach you.</p>
+                    </div>
+                    <form id="notification-form" class="p-6 space-y-4">
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+                            <span class="text-sm font-semibold">In-portal notifications</span>
+                            <input type="checkbox" name="platform_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                        </label>
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+                            <span class="text-sm font-semibold">Email notifications</span>
+                            <input type="checkbox" name="email_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                        </label>
+                        <label class="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+                            <span class="text-sm font-semibold">Mobile push</span>
+                            <input type="checkbox" name="push_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                        </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                                <span class="text-sm text-[var(--text-secondary)]">Approvals</span>
+                                <input type="checkbox" name="approvals_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                            </label>
+                            <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                                <span class="text-sm text-[var(--text-secondary)]">Volunteering</span>
+                                <input type="checkbox" name="volunteering_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                            </label>
+                            <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                                <span class="text-sm text-[var(--text-secondary)]">Social</span>
+                                <input type="checkbox" name="social_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                            </label>
+                            <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                                <span class="text-sm text-[var(--text-secondary)]">Calendar</span>
+                                <input type="checkbox" name="calendar_enabled" class="h-5 w-5 accent-[var(--color-primary)]" />
+                            </label>
+                        </div>
+                        <div id="notification-status" class="hidden text-sm rounded-lg px-4 py-3 border"></div>
+                        <button class="btn btn-primary" type="submit">Save Preferences</button>
+                    </form>
+                </div>
+            </section>
         </main>
     </div>
     <script type="module" src="/assets/settings.js"></script>

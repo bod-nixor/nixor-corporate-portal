@@ -7,6 +7,9 @@ const postsEl = document.getElementById("social-posts");
 const emptyEl = document.getElementById("social-empty");
 const form = document.getElementById("social-form");
 const statusEl = document.getElementById("social-status");
+const postModal = document.getElementById("post-modal");
+const openPostModalBtn = document.getElementById("open-post-modal");
+const closePostModalBtn = document.getElementById("close-post-modal");
 let currentUser = null;
 let editingPostId = null;
 let deletingItem = null;
@@ -27,9 +30,24 @@ const setStatus = (message, ok) => {
   statusEl.className = `text-sm font-semibold rounded-lg px-4 py-3 ${ok ? "bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]" : "bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]"}`;
   statusEl.classList.remove("hidden");
 };
+const openPostModal = () => {
+  postModal?.classList.remove("hidden");
+  document.getElementById("social-content")?.focus();
+};
+const closePostModal = () => {
+  postModal?.classList.add("hidden");
+  if (!editingPostId) form?.reset();
+};
+openPostModalBtn?.addEventListener("click", openPostModal);
+closePostModalBtn?.addEventListener("click", closePostModal);
+postModal?.addEventListener("click", (event) => {
+  if (event.target === postModal) closePostModal();
+});
 const editPost = (post) => {
   editingPostId = post.id;
   document.getElementById("social-content").value = post.content;
+  document.getElementById("social-scope").value = post.feed_scope || "entity";
+  openPostModal();
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.textContent = "Update Post";
   let cancelBtn = document.getElementById("social-cancel-edit");
@@ -72,8 +90,8 @@ const closeDeleteModal = () => {
 };
 document.addEventListener("keydown", (e) => {
   if (!deleteModal.classList.contains("hidden")) {
-    if (e.key === "Escape") {
-      closeDeleteModal();
+      if (e.key === "Escape") {
+        closeDeleteModal();
     } else if (e.key === "Tab") {
       const focusable = deleteModal.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
@@ -92,6 +110,9 @@ document.addEventListener("keydown", (e) => {
         }
       }
     }
+  }
+  if (e.key === "Escape" && !postModal?.classList.contains("hidden")) {
+    closePostModal();
   }
 });
 if (deleteCancelBtn) deleteCancelBtn.onclick = closeDeleteModal;
@@ -151,10 +172,26 @@ const loadPosts = async () => {
       nameMetaGroup.appendChild(metaTime);
       headerWrap.appendChild(avatar);
       headerWrap.appendChild(nameMetaGroup);
-      const content = document.createElement("p");
+      const content = document.createElement("div");
       content.className =
         "text-[15px] font-medium text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap break-words";
-      content.textContent = post.content;
+      content.innerHTML = post.safe_html || "";
+      if (!post.safe_html) {
+        content.textContent = post.content;
+      }
+      const imagesWrap = document.createElement("div");
+      const images = Array.isArray(post.images) ? post.images : [];
+      if (images.length) {
+        imagesWrap.className = "mt-4 grid grid-cols-2 md:grid-cols-3 gap-3";
+        images.slice(0, 10).forEach((image) => {
+          const img = document.createElement("img");
+          img.src = image.url;
+          img.alt = "";
+          img.loading = "lazy";
+          img.className = "aspect-video w-full rounded-lg object-cover border border-[var(--border-subtle)]";
+          imagesWrap.appendChild(img);
+        });
+      }
       const commentList = document.createElement("div");
       const postComments = comments.filter((c) => Number(c.post_id) === Number(post.id));
       if (postComments.length > 0) {
@@ -176,7 +213,11 @@ const loadPosts = async () => {
           const commentSpan = document.createElement("span");
           commentSpan.className =
             "text-[var(--text-secondary)] font-medium leading-snug break-words";
-          commentSpan.textContent = comment.comment;
+          if (comment.safe_html) {
+            commentSpan.innerHTML = comment.safe_html;
+          } else {
+            commentSpan.textContent = comment.comment;
+          }
           cContent.appendChild(nameSpan);
           cContent.appendChild(commentSpan);
           line.appendChild(cAvatar);
@@ -245,6 +286,19 @@ const loadPosts = async () => {
             commentActions.append(editCommentBtn, delCommentBtn);
             line.appendChild(commentActions);
           }
+          const commentLike = document.createElement("button");
+          commentLike.type = "button";
+          commentLike.className = "text-[11px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--text-primary)] mt-1";
+          commentLike.textContent = `${comment.liked_by_me ? "Unlike" : "Like"} (${comment.likes_count || 0})`;
+          commentLike.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/social/comments/${comment.id}/like`, { method: "POST", body: JSON.stringify({}) });
+              loadPosts();
+            } catch (err) {
+              setStatus(normalizeError(err), false);
+            }
+          });
+          line.appendChild(commentLike);
           commentList.appendChild(line);
         });
       }
@@ -279,6 +333,20 @@ const loadPosts = async () => {
       });
       card.appendChild(headerWrap);
       card.appendChild(content);
+      if (imagesWrap.children.length) card.appendChild(imagesWrap);
+      const postLike = document.createElement("button");
+      postLike.type = "button";
+      postLike.className = "mt-4 text-xs font-bold text-[var(--text-tertiary)] hover:text-[var(--text-primary)]";
+      postLike.textContent = `${post.liked_by_me ? "Unlike" : "Like"} (${post.likes_count || 0})`;
+      postLike.addEventListener("click", async () => {
+        try {
+          await apiFetch(`/social/${post.id}/like`, { method: "POST", body: JSON.stringify({}) });
+          loadPosts();
+        } catch (err) {
+          setStatus(normalizeError(err), false);
+        }
+      });
+      card.appendChild(postLike);
       if (commentList.children.length) card.appendChild(commentList);
       card.appendChild(commentForm);
       const canManagePost = Boolean(post.can_manage);
@@ -361,20 +429,28 @@ form.addEventListener("submit", async (event) => {
     if (editingPostId) {
       await apiFetch(`/social/${editingPostId}`, {
         method: "PUT",
-        body: JSON.stringify({ content: form.content.value }),
+        body: JSON.stringify({
+          content: form.content.value,
+          image_urls: (form.image_urls?.value || "").split(",").map((value) => value.trim()).filter(Boolean).slice(0, 10),
+        }),
       });
       setStatus("Post updated successfully.", true);
       cancelEdit();
+      closePostModal();
     } else {
+      const feedScope = form.feed_scope?.value || "entity";
       await apiFetch("/social", {
         method: "POST",
         body: JSON.stringify({
-          entity_id: entitySelect.value,
+          entity_id: feedScope === "entity" ? entitySelect.value : null,
+          feed_scope: feedScope,
           content: form.content.value,
+          image_urls: (form.image_urls?.value || "").split(",").map((value) => value.trim()).filter(Boolean).slice(0, 10),
         }),
       });
       setStatus("Post published successfully.", true);
       form.reset();
+      closePostModal();
     }
     setTimeout(() => statusEl.classList.add("hidden"), 3000);
     loadPosts();

@@ -1,5 +1,5 @@
 import { renderSidebar } from './sidebar.js';
-import { setTheme } from './app.js';
+import { apiFetch, setTheme } from './app.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Render sidebar
@@ -47,4 +47,48 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    const notificationForm = document.getElementById('notification-form');
+    const notificationStatus = document.getElementById('notification-status');
+    const setNotificationStatus = (message, ok) => {
+        if (!notificationStatus) return;
+        notificationStatus.textContent = message;
+        notificationStatus.className = `text-sm rounded-lg px-4 py-3 border ${ok ? 'bg-[rgba(16,185,129,0.1)] text-[#6ee7b7] border-[rgba(16,185,129,0.2)]' : 'bg-[rgba(239,68,68,0.1)] text-[#fca5a5] border-[rgba(239,68,68,0.2)]'}`;
+        notificationStatus.classList.remove('hidden');
+    };
+
+    const applyNotificationPrefs = (prefs = {}) => {
+        if (!notificationForm) return;
+        notificationForm.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+            input.checked = Boolean(Number(prefs[input.name] ?? 1));
+        });
+    };
+
+    if (notificationForm) {
+        apiFetch('/settings/notifications')
+            .then((response) => applyNotificationPrefs(response?.data || {}))
+            .catch(() => setNotificationStatus('Unable to load notification preferences.', false));
+
+        notificationForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const payload = {};
+            notificationForm.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+                payload[input.name] = input.checked;
+            });
+            const button = notificationForm.querySelector('button[type="submit"]');
+            if (button) button.disabled = true;
+            try {
+                const response = await apiFetch('/settings/notifications', {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                });
+                applyNotificationPrefs(response?.data || payload);
+                setNotificationStatus('Preferences saved.', true);
+            } catch (err) {
+                setNotificationStatus(err?.message || 'Unable to save preferences.', false);
+            } finally {
+                if (button) button.disabled = false;
+            }
+        });
+    }
 });

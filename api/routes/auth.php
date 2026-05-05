@@ -26,7 +26,13 @@ function handle_auth(string $method, array $segments): void {
         $user = current_user();
         $entities = [];
         if ($user) {
-            if (in_array($user['global_role'], ['admin', 'board', 'student_affairs'], true)) {
+            $entityIds = rbac_entity_ids_for_permission($user, 'entity.view');
+            if ($entityIds) {
+                $placeholders = implode(',', array_fill(0, count($entityIds), '?'));
+                $stmt = db()->prepare("SELECT * FROM entities WHERE id IN ({$placeholders}) ORDER BY name");
+                $stmt->execute($entityIds);
+                $entities = $stmt->fetchAll();
+            } elseif (in_array($user['global_role'], ['admin', 'board', 'student_affairs'], true)) {
                 $entities = db()->query('SELECT * FROM entities ORDER BY name')->fetchAll();
             } else {
                 $stmt = db()->prepare('SELECT e.* FROM entities e JOIN entity_memberships em ON e.id = em.entity_id WHERE em.user_id = ? ORDER BY e.name');
@@ -34,7 +40,16 @@ function handle_auth(string $method, array $segments): void {
                 $entities = $stmt->fetchAll();
             }
         }
-        respond(['ok' => true, 'data' => ['user' => $user ? sanitize_user($user) : null, 'entities' => $entities]]);
+        respond([
+            'ok' => true,
+            'data' => [
+                'user' => $user ? sanitize_user($user) : null,
+                'entities' => $entities,
+                'permissions' => $user ? rbac_permissions_for_user($user) : [],
+                'roles' => $user ? rbac_roles_for_user($user) : [],
+                'navigation' => $user ? rbac_visible_nav($user) : [],
+            ]
+        ]);
     }
 
     if ($action === 'csrf' && $method === 'GET') {
@@ -207,13 +222,14 @@ function handle_google_oauth_start(): void {
 
     try {
         $platform = (($_GET['platform'] ?? '') === 'mobile') ? 'mobile' : 'web';
+        $next = auth_safe_next_path($_GET['next'] ?? '');
         $client = google_oauth_client_or_fail();
         $client->addScope('openid');
         $client->addScope('email');
         $client->addScope('profile');
         $client->setAccessType('online');
         $client->setIncludeGrantedScopes(true);
-        $client->setState(create_google_oauth_state($platform));
+        $client->setState(create_google_oauth_state($platform, $next));
 
         redirect_to($client->createAuthUrl());
     } catch (AuthRouteException $e) {
@@ -287,7 +303,7 @@ function handle_google_oauth_callback(): void {
         }
 
         establish_login_session($user);
-        redirect_to('/dashboard.html');
+        redirect_to($state['next'] ?? '/dashboard.html');
     } catch (AuthRouteException $e) {
         auth_log_exception_event('oauth_callback_failed', $e, ['platform' => $platform]);
         error_log('Google OAuth callback failed: ' . auth_sanitized_exception_message($e));
@@ -525,13 +541,22 @@ function base64url_decode(string $value): string|false {
     return base64_decode(strtr($value, '-_', '+/'), true);
 }
 
-function create_google_oauth_state(string $platform): string {
+function auth_safe_next_path($raw): string {
+    $next = trim((string)$raw);
+    if ($next === '' || !str_starts_with($next, '/') || str_starts_with($next, '//') || str_starts_with($next, '/api/')) {
+        return '/dashboard.html';
+    }
+    return $next;
+}
+
+function create_google_oauth_state(string $platform, string $next = '/dashboard.html'): string {
     $platform = $platform === 'mobile' ? 'mobile' : 'web';
     $nonce = bin2hex(random_bytes(16));
     $payload = [
         'nonce' => $nonce,
         'platform' => $platform,
         'iat' => time(),
+        'next' => auth_safe_next_path($next),
     ];
     $payloadJson = json_encode($payload, JSON_UNESCAPED_SLASHES);
     if ($payloadJson === false) {
@@ -545,6 +570,7 @@ function create_google_oauth_state(string $platform): string {
     $_SESSION['google_oauth_states'][$nonce] = [
         'platform' => $platform,
         'iat' => $payload['iat'],
+        'next' => $payload['next'],
     ];
 
     $payloadPart = base64url_encode($payloadJson);
@@ -586,6 +612,7 @@ function validate_google_oauth_state(string $state): array {
     $nonce = (string)($payload['nonce'] ?? '');
     $platform = (string)($payload['platform'] ?? 'web');
     $issuedAt = (int)($payload['iat'] ?? 0);
+    $next = auth_safe_next_path($payload['next'] ?? '/dashboard.html');
     if ($nonce === '' || !in_array($platform, ['web', 'mobile'], true) || $issuedAt <= 0) {
         throw new AuthRouteException('Invalid Google OAuth state', 401);
     }
@@ -610,6 +637,7 @@ function validate_google_oauth_state(string $state): array {
         'nonce' => $nonce,
         'platform' => $platform,
         'iat' => $issuedAt,
+        'next' => $next,
     ];
 }
 
@@ -648,6 +676,8 @@ function find_or_create_google_user(array $tokenInfo): array {
         $user = fetch_google_user_by_google_id($pdo, $googleId, true);
         if ($user) {
             $user = assert_active_local_user($user);
+            update_google_profile_fields($pdo, $user, $tokenInfo);
+            $user = fetch_google_user_by_id($pdo, local_user_id_from_row($user), true) ?: $user;
             if ($startedTransaction) {
                 $pdo->commit();
             }
@@ -672,6 +702,8 @@ function find_or_create_google_user(array $tokenInfo): array {
                 $user = fetch_google_user_by_email($pdo, $email, true);
                 $user = assert_google_user_resolved($user);
             }
+            update_google_profile_fields($pdo, $user, $tokenInfo);
+            $user = fetch_google_user_by_id($pdo, local_user_id_from_row($user), true) ?: $user;
 
             if ($startedTransaction) {
                 $pdo->commit();
@@ -684,12 +716,18 @@ function find_or_create_google_user(array $tokenInfo): array {
         }
 
         $fullName = google_profile_full_name($tokenInfo, $email);
+        $pictureUrl = google_profile_picture_url($tokenInfo);
         $insert = $pdo->prepare(
-            'INSERT INTO users (email, password_hash, full_name, google_id, global_role, status, email_verified_at)
-             VALUES (?, NULL, ?, ?, ?, ?, UTC_TIMESTAMP())'
+            auth_users_has_google_picture_column()
+                ? 'INSERT INTO users (email, password_hash, full_name, google_id, google_picture_url, global_role, status, email_verified_at)
+                   VALUES (?, NULL, ?, ?, ?, ?, ?, UTC_TIMESTAMP())'
+                : 'INSERT INTO users (email, password_hash, full_name, google_id, global_role, status, email_verified_at)
+                   VALUES (?, NULL, ?, ?, ?, ?, UTC_TIMESTAMP())'
         );
         try {
-            $insert->execute([$email, $fullName, $googleId, 'volunteer', 'active']);
+            $insert->execute(auth_users_has_google_picture_column()
+                ? [$email, $fullName, $googleId, $pictureUrl, 'volunteer', 'active']
+                : [$email, $fullName, $googleId, 'volunteer', 'active']);
         } catch (PDOException $e) {
             if ($e->getCode() !== '23000') {
                 throw $e;
@@ -776,6 +814,38 @@ function google_profile_full_name(array $tokenInfo, string $email): string {
         return mb_substr($name, 0, 190);
     }
     return substr($name, 0, 190);
+}
+
+function google_profile_picture_url(array $tokenInfo): ?string {
+    $picture = trim((string)($tokenInfo['picture'] ?? ''));
+    if ($picture === '' || strlen($picture) > 1024 || !filter_var($picture, FILTER_VALIDATE_URL)) {
+        return null;
+    }
+    $scheme = strtolower((string)(parse_url($picture, PHP_URL_SCHEME) ?: ''));
+    return in_array($scheme, ['https', 'http'], true) ? $picture : null;
+}
+
+function auth_users_has_google_picture_column(): bool {
+    static $hasColumn = null;
+    if ($hasColumn !== null) {
+        return $hasColumn;
+    }
+    try {
+        $stmt = db()->query("SHOW COLUMNS FROM users LIKE 'google_picture_url'");
+        $hasColumn = (bool)$stmt->fetch();
+    } catch (PDOException $e) {
+        $hasColumn = false;
+    }
+    return $hasColumn;
+}
+
+function update_google_profile_fields(PDO $pdo, array $user, array $tokenInfo): void {
+    if (!auth_users_has_google_picture_column()) {
+        return;
+    }
+    $pictureUrl = google_profile_picture_url($tokenInfo);
+    $stmt = $pdo->prepare('UPDATE users SET google_picture_url = ? WHERE id = ?');
+    $stmt->execute([$pictureUrl, local_user_id_from_row($user)]);
 }
 
 function google_auto_provision_enabled(array $allowedDomains): bool {

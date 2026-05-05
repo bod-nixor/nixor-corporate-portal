@@ -43,6 +43,7 @@ const editEvent = (event) => {
     document.getElementById('calendar-event-date').value = String(event.event_date || '').replace(' ', 'T').slice(0, 16);
     document.getElementById('calendar-end-date').value = event.end_date ? String(event.end_date).replace(' ', 'T').slice(0, 16) : '';
     document.getElementById('calendar-location').value = event.location || '';
+    document.getElementById('calendar-participants').value = (event.participant_entities || []).map((entity) => entity.id).join(', ');
     document.getElementById('calendar-description').value = event.description || '';
     
     const submitBtn = form.querySelector('button[type="submit"]');
@@ -175,10 +176,67 @@ const loadEvents = async () => {
       const desc = document.createElement('p');
       desc.className = 'text-[13px] font-medium text-[var(--text-secondary)] mt-3 leading-relaxed';
       desc.textContent = event.description || 'No description provided.';
+      const participants = document.createElement('p');
+      participants.className = 'text-[11px] font-bold tracking-widest uppercase text-[var(--text-tertiary)] mt-3';
+      participants.textContent = `Participants: ${(event.participant_entities || []).map((entity) => entity.name).join(', ') || 'Primary entity'}`;
       
       card.appendChild(title);
       card.appendChild(meta);
       card.appendChild(desc);
+      card.appendChild(participants);
+
+      const ops = document.createElement('div');
+      ops.className = 'mt-4 flex flex-col gap-3 border-t border-[var(--border-subtle)] pt-4';
+      if (event.can_rsvp) {
+        const rsvp = document.createElement('form');
+        rsvp.className = 'flex flex-col sm:flex-row gap-2';
+        rsvp.innerHTML = `
+          <select class="input-field py-2 text-sm" name="status">
+            <option value="attending">Attending</option>
+            <option value="tentative">Tentative</option>
+            <option value="absent">Absent</option>
+          </select>
+          <input class="input-field py-2 text-sm flex-1" name="absence_comment" placeholder="Absence comment" />
+          <button class="btn btn-secondary py-2 px-3" type="submit">RSVP</button>
+        `;
+        rsvp.addEventListener('submit', async (submitEvent) => {
+          submitEvent.preventDefault();
+          const payload = Object.fromEntries(new FormData(rsvp).entries());
+          try {
+            await apiFetch(`/calendar/${event.id}/rsvp`, { method: 'POST', body: JSON.stringify(payload) });
+            loadEvents();
+          } catch (err) {
+            setStatus(normalizeError(err), false);
+          }
+        });
+        ops.appendChild(rsvp);
+      }
+      if (event.can_submit_minutes) {
+        const minutes = document.createElement('form');
+        minutes.className = 'flex flex-col sm:flex-row gap-2';
+        minutes.innerHTML = `
+          <input class="input-field py-2 text-sm flex-1" name="file_drive_item_id" type="number" min="1" placeholder="Meeting Minutes Drive file ID" />
+          <button class="btn btn-secondary py-2 px-3" type="submit">Submit Minutes</button>
+        `;
+        minutes.addEventListener('submit', async (submitEvent) => {
+          submitEvent.preventDefault();
+          const payload = Object.fromEntries(new FormData(minutes).entries());
+          try {
+            await apiFetch(`/calendar/${event.id}/minutes`, { method: 'POST', body: JSON.stringify(payload) });
+            loadEvents();
+          } catch (err) {
+            setStatus(normalizeError(err), false);
+          }
+        });
+        ops.appendChild(minutes);
+      }
+      if ((event.minutes || []).length) {
+        const minutesList = document.createElement('div');
+        minutesList.className = 'text-xs text-[var(--text-secondary)] space-y-1';
+        minutesList.innerHTML = (event.minutes || []).map((minute) => `<a class="block hover:text-[var(--text-primary)]" href="${minute.download_url}" target="_blank" rel="noopener">Minutes: ${minute.entity_name}</a>`).join('');
+        ops.appendChild(minutesList);
+      }
+      if (ops.children.length) card.appendChild(ops);
       
       const canManage = Boolean(event.can_manage);
       if (canManage) {
@@ -258,6 +316,10 @@ form.addEventListener('submit', async (event) => {
   if (submitBtn) submitBtn.disabled = true;
   const payload = Object.fromEntries(new FormData(form).entries());
   payload.entity_id = entitySelect.value;
+  payload.participant_entity_ids = String(payload.participant_entity_ids || '')
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value > 0);
   if (!dateInAllowedRange(payload.event_date || '')) {
     setStatus('Event date must be between years 2000 and 2100.', false);
     eventDateInput.focus();

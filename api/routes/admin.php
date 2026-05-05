@@ -7,7 +7,7 @@ function handle_admin(string $method, array $segments): void {
     }
 
     if ($action === 'summary' && $method === 'GET') {
-        require_role(['admin']);
+        require_permission('nav.admin');
         $missingStmt = db()->prepare("SELECT COUNT(*) as total FROM endeavours WHERE status IN ('ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'post_financial_pending_board_approval')");
         $missingStmt->execute();
         $missingDocs = $missingStmt->fetch();
@@ -21,24 +21,139 @@ function handle_admin(string $method, array $segments): void {
     }
 
     if ($action === 'entities') {
+        require_permission('admin.manage_entities');
         require_once __DIR__ . '/entities.php';
         handle_entities($method, array_merge(['entities'], array_slice($segments, 2)));
         return;
     }
 
     if ($action === 'users') {
+        require_permission('admin.manage_users');
         require_once __DIR__ . '/users.php';
         handle_users($method, array_merge(['users'], array_slice($segments, 2)));
         return;
     }
 
     if ($action === 'members') {
+        require_permission('admin.assign_roles');
         require_once __DIR__ . '/members.php';
         handle_members($method, array_merge(['members'], array_slice($segments, 2)));
         return;
     }
 
+    if ($action === 'roles') {
+        handle_admin_roles($method, array_merge(['roles'], array_slice($segments, 2)));
+        return;
+    }
+
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function handle_admin_roles(string $method, array $segments): void {
+    $user = require_permission('admin.manage_roles');
+    $id = $segments[1] ?? null;
+
+    if (!rbac_tables_ready()) {
+        respond(['ok' => false, 'error' => 'RBAC tables are not available. Run migrations.'], 500);
+    }
+
+    if ($method === 'GET' && !$id) {
+        $roles = db()->query('SELECT * FROM rbac_roles ORDER BY is_system DESC, name')->fetchAll();
+        $permissions = db()->query('SELECT * FROM rbac_permissions ORDER BY code')->fetchAll();
+        $roleIds = array_map(fn($role) => (int)$role['id'], $roles);
+        $grants = [];
+        if ($roleIds) {
+            $in = implode(',', array_fill(0, count($roleIds), '?'));
+            $stmt = db()->prepare("SELECT rp.role_id, p.code FROM rbac_role_permissions rp JOIN rbac_permissions p ON p.id = rp.permission_id WHERE rp.role_id IN ({$in}) ORDER BY p.code");
+            $stmt->execute($roleIds);
+            foreach ($stmt->fetchAll() as $row) {
+                $grants[(int)$row['role_id']][] = $row['code'];
+            }
+        }
+        foreach ($roles as &$role) {
+            $role['permissions'] = $grants[(int)$role['id']] ?? [];
+        }
+        unset($role);
+        respond(['ok' => true, 'data' => ['roles' => $roles, 'permissions' => $permissions]]);
+    }
+
+    if ($method === 'POST' && !$id) {
+        $data = read_json();
+        $code = preg_replace('/[^a-z0-9_.-]/', '_', strtolower(trim((string)($data['code'] ?? ''))));
+        $name = require_non_empty($data['name'] ?? '', 'name', 190);
+        $scope = $data['scope'] ?? 'entity';
+        if ($code === '' || strlen($code) > 120) {
+            respond(['ok' => false, 'error' => 'Invalid role code'], 400);
+        }
+        if (!in_array($scope, ['global', 'entity', 'both'], true)) {
+            respond(['ok' => false, 'error' => 'Invalid role scope'], 400);
+        }
+        $stmt = db()->prepare('INSERT INTO rbac_roles (code, name, scope, description, is_system) VALUES (?, ?, ?, ?, 0)');
+        try {
+            $stmt->execute([$code, $name, $scope, sanitize_text($data['description'] ?? '', 1000)]);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                respond(['ok' => false, 'error' => 'Role already exists'], 409);
+            }
+            throw $e;
+        }
+        $roleId = (int)db()->lastInsertId();
+        sync_role_permissions($roleId, $data['permissions'] ?? []);
+        log_activity($user['id'], 'role', $roleId, 'created', 'RBAC role created');
+        respond(['ok' => true, 'data' => ['id' => $roleId]]);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $roleId = (int)$id;
+        $data = read_json();
+        $role = fetch_rbac_role($roleId);
+        if (!$role) {
+            respond(['ok' => false, 'error' => 'Role not found'], 404);
+        }
+        $name = require_non_empty($data['name'] ?? $role['name'], 'name', 190);
+        $scope = $data['scope'] ?? $role['scope'];
+        if (!in_array($scope, ['global', 'entity', 'both'], true)) {
+            respond(['ok' => false, 'error' => 'Invalid role scope'], 400);
+        }
+        $stmt = db()->prepare('UPDATE rbac_roles SET name = ?, scope = ?, description = ? WHERE id = ?');
+        $stmt->execute([$name, $scope, sanitize_text($data['description'] ?? ($role['description'] ?? ''), 1000), $roleId]);
+        if (array_key_exists('permissions', $data)) {
+            sync_role_permissions($roleId, $data['permissions']);
+        }
+        log_activity($user['id'], 'role', $roleId, 'updated', 'RBAC role updated');
+        respond(['ok' => true]);
+    }
+
+    respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function fetch_rbac_role(int $roleId): ?array {
+    $stmt = db()->prepare('SELECT * FROM rbac_roles WHERE id = ?');
+    $stmt->execute([$roleId]);
+    $role = $stmt->fetch();
+    return $role ?: null;
+}
+
+function sync_role_permissions(int $roleId, $permissionCodes): void {
+    if (!is_array($permissionCodes)) {
+        respond(['ok' => false, 'error' => 'permissions must be an array'], 400);
+    }
+    $codes = array_values(array_unique(array_filter(array_map(static fn($code) => trim((string)$code), $permissionCodes))));
+    db()->prepare('DELETE FROM rbac_role_permissions WHERE role_id = ?')->execute([$roleId]);
+    if (!$codes) {
+        return;
+    }
+    $in = implode(',', array_fill(0, count($codes), '?'));
+    $stmt = db()->prepare("SELECT id, code FROM rbac_permissions WHERE code IN ({$in})");
+    $stmt->execute($codes);
+    $permissionIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    if (count($permissionIds) !== count($codes)) {
+        respond(['ok' => false, 'error' => 'Unknown permission supplied'], 400);
+    }
+    $insert = db()->prepare('INSERT INTO rbac_role_permissions (role_id, permission_id) VALUES (?, ?)');
+    foreach ($permissionIds as $permissionId) {
+        $insert->execute([$roleId, $permissionId]);
+    }
 }
 
 function handle_setup(): void {

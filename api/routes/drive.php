@@ -23,6 +23,7 @@ function handle_drive(string $method, array $segments): void {
         $stmt->execute([$entityId, $parentId, $parentId]);
         $rows = $stmt->fetchAll();
         $shareTargetsMap = drive_item_share_targets_for_items(array_column($rows, 'id'));
+        $labelMap = drive_item_labels_for_items(array_column($rows, 'id'));
 
         $visibleRows = [];
         foreach ($rows as $item) {
@@ -39,6 +40,7 @@ function handle_drive(string $method, array $segments): void {
             $item['shared_departments'] = $targets['departments'];
             $item['shared_users'] = $targets['users'];
             $item['can_manage'] = $canManageMap[(int)$item['id']] ?? false;
+            $item['labels'] = $labelMap[(int)$item['id']] ?? [];
             $items[] = $item;
         }
 
@@ -69,6 +71,8 @@ function handle_drive(string $method, array $segments): void {
         $item['shared_users'] = $shares['users'];
         $item['parent_chain'] = drive_build_parent_chain($user, $item);
         $item['can_manage'] = drive_user_can_manage_item($user, $item);
+        $labels = drive_item_labels_for_items([$itemId]);
+        $item['labels'] = $labels[$itemId] ?? [];
         respond(['ok' => true, 'data' => $item]);
     }
 
@@ -118,6 +122,63 @@ function handle_drive(string $method, array $segments): void {
         $stmt = db()->prepare('SELECT DISTINCT u.id, u.full_name, u.email FROM entity_memberships em JOIN users u ON u.id = em.user_id WHERE em.entity_id = ? AND u.status = "active" ORDER BY u.full_name');
         $stmt->execute([$entityId]);
         respond(['ok' => true, 'data' => ['departments' => drive_departments(), 'users' => $stmt->fetchAll()]]);
+    }
+
+    if ($method === 'GET' && $action === 'labels') {
+        $entityId = (int)($_GET['entity_id'] ?? 0);
+        if ($entityId <= 0) {
+            respond(['ok' => false, 'error' => 'entity_id required'], 400);
+        }
+        drive_assert_entity_context_access($user, $entityId);
+        $stmt = db()->prepare('SELECT * FROM drive_labels WHERE entity_id = ? ORDER BY name');
+        $stmt->execute([$entityId]);
+        respond(['ok' => true, 'data' => $stmt->fetchAll()]);
+    }
+
+    if ($method === 'POST' && $action === 'labels') {
+        $data = read_json();
+        $entityId = (int)($data['entity_id'] ?? 0);
+        if ($entityId <= 0) {
+            respond(['ok' => false, 'error' => 'entity_id required'], 400);
+        }
+        require_permission('drive.label', $entityId, $user);
+        $name = require_non_empty($data['name'] ?? '', 'name', 80);
+        $color = sanitize_text($data['color'] ?? '', 40);
+        $stmt = db()->prepare('INSERT INTO drive_labels (entity_id, name, color, created_by) VALUES (?, ?, ?, ?)');
+        try {
+            $stmt->execute([$entityId, $name, $color, $user['id']]);
+        } catch (PDOException $e) {
+            if ($e->getCode() === '23000') {
+                respond(['ok' => false, 'error' => 'Label already exists'], 409);
+            }
+            throw $e;
+        }
+        respond(['ok' => true, 'data' => ['id' => (int)db()->lastInsertId()]]);
+    }
+
+    if ($method === 'POST' && $action === 'item_labels') {
+        $data = read_json();
+        $itemId = (int)($data['id'] ?? 0);
+        if ($itemId <= 0) {
+            respond(['ok' => false, 'error' => 'id required'], 400);
+        }
+        $item = drive_get_item_by_id($itemId);
+        if (!$item) {
+            respond(['ok' => false, 'error' => 'Item not found'], 404);
+        }
+        drive_assert_item_entity_access($user, $item);
+        drive_assert_can_manage_item($user, $item);
+        $labelIds = is_array($data['label_ids'] ?? null) ? array_map('intval', $data['label_ids']) : [];
+        db()->prepare('DELETE FROM drive_item_labels WHERE item_id = ?')->execute([$itemId]);
+        if ($labelIds) {
+            $insert = db()->prepare('INSERT INTO drive_item_labels (item_id, label_id) SELECT ?, id FROM drive_labels WHERE id = ? AND entity_id = ?');
+            foreach (array_values(array_unique($labelIds)) as $labelId) {
+                if ($labelId > 0) {
+                    $insert->execute([$itemId, $labelId, (int)$item['entity_id']]);
+                }
+            }
+        }
+        respond(['ok' => true]);
     }
 
     if ($method === 'POST' && in_array($action, ['folder', 'create_folder'], true)) {

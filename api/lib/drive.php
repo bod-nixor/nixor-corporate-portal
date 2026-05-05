@@ -154,6 +154,53 @@ function drive_item_share_targets_for_items(array $itemIds): array {
     return $map;
 }
 
+function drive_item_labels_for_items(array $itemIds): array {
+    $normalized = [];
+    foreach ($itemIds as $id) {
+        $id = (int)$id;
+        if ($id > 0) {
+            $normalized[] = $id;
+        }
+    }
+    $normalized = array_values(array_unique($normalized));
+    if (!$normalized) {
+        return [];
+    }
+
+    $map = [];
+    foreach ($normalized as $itemId) {
+        $map[$itemId] = [];
+    }
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($normalized), '?'));
+        $stmt = db()->prepare(
+            "SELECT dil.item_id, dl.id, dl.name, dl.color
+             FROM drive_item_labels dil
+             JOIN drive_labels dl ON dl.id = dil.label_id
+             WHERE dil.item_id IN ({$placeholders})
+             ORDER BY dl.name"
+        );
+        $stmt->execute($normalized);
+    } catch (PDOException $e) {
+        return $map;
+    }
+
+    foreach ($stmt->fetchAll() as $row) {
+        $itemId = (int)$row['item_id'];
+        if (!isset($map[$itemId])) {
+            $map[$itemId] = [];
+        }
+        $map[$itemId][] = [
+            'id' => (int)$row['id'],
+            'name' => $row['name'],
+            'color' => $row['color'],
+        ];
+    }
+
+    return $map;
+}
+
 function drive_user_is_explicitly_shared(array $user, int $itemId): bool {
     $stmt = db()->prepare('SELECT 1 FROM drive_item_shares WHERE item_id = ? AND share_type = "user" AND (user_id = ? OR user_email = ?) LIMIT 1');
     $stmt->execute([$itemId, (int)$user['id'], strtolower((string)$user['email'])]);
@@ -161,6 +208,10 @@ function drive_user_is_explicitly_shared(array $user, int $itemId): bool {
 }
 
 function drive_user_can_view_item(array $user, array $item): bool {
+    if (rbac_has_global_permission($user, 'drive.view')) {
+        return true;
+    }
+
     if (drive_is_global_role($user)) {
         return true;
     }
@@ -201,6 +252,10 @@ function drive_user_can_view_item(array $user, array $item): bool {
 }
 
 function drive_user_can_manage_item(array $user, array $item): bool {
+    if (can_permission($user, 'drive.manage', (int)$item['entity_id'])) {
+        return true;
+    }
+
     if (drive_is_global_role($user)) {
         return true;
     }
@@ -262,6 +317,9 @@ function drive_assert_manageable_parent(array $user, ?int $parentId, int $entity
 }
 
 function drive_assert_entity_context_access(array $user, int $entityId): void {
+    if (can_permission($user, 'drive.view', $entityId)) {
+        return;
+    }
     if (drive_is_global_role($user)) {
         return;
     }

@@ -8,8 +8,39 @@ const createForm = document.getElementById('create-form');
 const createStatus = document.getElementById('create-status');
 const listEl = document.getElementById('endeavour-list');
 const emptyEl = document.getElementById('endeavour-empty');
+const openCreateModalBtn = document.getElementById('open-create-modal');
+const closeCreateModalBtn = document.getElementById('close-create-modal');
+const createModal = document.getElementById('create-modal');
+const loadPreviousBtn = document.getElementById('load-previous');
 let currentUser = null;
+let currentPermissions = [];
 let endeavoursRequestId = 0;
+let includeCompleted = false;
+
+const openCreateModal = () => {
+    createModal?.classList.remove('hidden');
+    createForm?.querySelector('input, select, textarea')?.focus();
+};
+
+const closeCreateModal = () => {
+    createModal?.classList.add('hidden');
+};
+
+openCreateModalBtn?.addEventListener('click', openCreateModal);
+closeCreateModalBtn?.addEventListener('click', closeCreateModal);
+createModal?.addEventListener('click', (event) => {
+    if (event.target === createModal) closeCreateModal();
+});
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !createModal?.classList.contains('hidden')) {
+        closeCreateModal();
+    }
+});
+loadPreviousBtn?.addEventListener('click', () => {
+    includeCompleted = true;
+    loadPreviousBtn.classList.add('hidden');
+    loadEndeavours(entitySelect.value);
+});
 
 const setStatus = (el, message, ok) => {
     if (el._hideTimer) clearTimeout(el._hideTimer);
@@ -58,6 +89,71 @@ const fileOptions = (selectedId, driveFiles) => {
     return options.join('');
 };
 
+let drivePickerModal = null;
+const ensureDrivePickerModal = () => {
+    if (drivePickerModal) return drivePickerModal;
+    drivePickerModal = document.createElement('div');
+    drivePickerModal.className = 'hidden fixed inset-0 z-[60] bg-black/65 backdrop-blur-sm p-4';
+    drivePickerModal.innerHTML = `
+      <div class="min-h-full flex items-center justify-center">
+        <div class="card w-full max-w-xl p-0 overflow-hidden">
+          <div class="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
+            <h2 class="text-lg font-bold">Select from Entity Drive</h2>
+            <button type="button" class="btn btn-ghost px-3 py-2" data-picker-close aria-label="Close drive picker">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+          <div class="p-5 max-h-[60vh] overflow-y-auto space-y-2" data-picker-list></div>
+        </div>
+      </div>
+    `;
+    drivePickerModal.addEventListener('click', (event) => {
+        if (event.target === drivePickerModal || event.target.closest('[data-picker-close]')) {
+            drivePickerModal.classList.add('hidden');
+        }
+    });
+    document.body.appendChild(drivePickerModal);
+    return drivePickerModal;
+};
+
+const openDrivePicker = (selectEl, driveFiles) => {
+    const modal = ensureDrivePickerModal();
+    const list = modal.querySelector('[data-picker-list]');
+    list.innerHTML = '';
+    if (!driveFiles.length) {
+        list.innerHTML = '<p class="text-sm text-[var(--text-secondary)]">No Drive files are available for this entity.</p>';
+    } else {
+        driveFiles.forEach((file) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'w-full text-left rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-surface-hover)] px-4 py-3 transition-colors';
+            button.textContent = file.name;
+            button.addEventListener('click', () => {
+                selectEl.value = String(file.id);
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                modal.classList.add('hidden');
+            });
+            list.appendChild(button);
+        });
+    }
+    modal.classList.remove('hidden');
+};
+
+const attachDrivePicker = (container, driveFiles) => {
+    container.querySelectorAll('select[data-drive-picker]').forEach((selectEl) => {
+        selectEl.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            openDrivePicker(selectEl, driveFiles);
+        });
+        selectEl.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openDrivePicker(selectEl, driveFiles);
+            }
+        });
+    });
+};
+
 const formatDateTime = (value) => {
     if (!value) return '';
     const date = new Date(String(value).replace(' ', 'T'));
@@ -89,6 +185,18 @@ const nextDeadlineSummary = (row) => {
         .filter(Boolean)
         .sort((left, right) => Math.abs(left.date.getTime() - now) - Math.abs(right.date.getTime() - now))[0];
     return upcoming ? `${upcoming.label}: ${formatDateTime(upcoming.date)}` : 'No deadline set';
+};
+
+const workflowSummaryText = (row) => {
+    const summary = row.workflow_summary || {};
+    const parts = [];
+    (summary.pending_submissions || []).forEach((item) => parts.push(`Missing: ${item.label || item.doc_type}`));
+    (summary.pending_approvals || []).forEach((item) => parts.push(`Approval: ${item.label || item.doc_type}`));
+    (summary.overdue_items || []).forEach((item) => parts.push(`Overdue: ${item.label || item.doc_type}`));
+    if (summary.next_required_action) {
+        parts.push(`Next: ${summary.next_required_action}`);
+    }
+    return parts.length ? parts.join(' | ') : 'No outstanding workflow actions';
 };
 
 const showRegistrationActionError = (container, message) => {
@@ -249,11 +357,11 @@ const buildPlansCard = (row, driveFiles) => {
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="min-w-0 space-y-1.5">
           <label for="ops-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Operational Plan</label>
-          <select id="ops-select-${row.id}" class="input-field py-2.5 text-sm" data-role="ops">${fileOptions(row.operational_plan_file_id, driveFiles)}</select>
+          <select id="ops-select-${row.id}" class="input-field py-2.5 text-sm" data-drive-picker data-role="ops">${fileOptions(row.operational_plan_file_id, driveFiles)}</select>
         </div>
         <div class="min-w-0 space-y-1.5">
           <label for="budget-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Budget Plan</label>
-          <select id="budget-select-${row.id}" class="input-field py-2.5 text-sm" data-role="budget">${fileOptions(row.budget_plan_file_id, driveFiles)}</select>
+          <select id="budget-select-${row.id}" class="input-field py-2.5 text-sm" data-drive-picker data-role="budget">${fileOptions(row.budget_plan_file_id, driveFiles)}</select>
         </div>
       </div>
       <div data-role="status" class="hidden mt-4"></div>
@@ -289,21 +397,21 @@ const buildFinCard = (row, driveFiles) => {
         <div class="flex flex-col sm:flex-row gap-3 items-end">
           <div class="flex-1 w-full space-y-1.5">
              <label for="pre-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Pre-Financial</label>
-             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-role="pre">${fileOptions(row.pre_financial_file_id, driveFiles)}</select>
+             <select id="pre-select-${row.id}" class="input-field py-2 text-sm" data-drive-picker data-role="pre">${fileOptions(row.pre_financial_file_id, driveFiles)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="pre">Submit</button>
         </div>
         <div class="flex flex-col sm:flex-row gap-3 items-end">
           <div class="flex-1 w-full space-y-1.5">
              <label for="post-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Post-Financial</label>
-             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-role="post">${fileOptions(row.post_financial_file_id, driveFiles)}</select>
+             <select id="post-select-${row.id}" class="input-field py-2 text-sm" data-drive-picker data-role="post">${fileOptions(row.post_financial_file_id, driveFiles)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="post">Submit</button>
         </div>
         <div class="flex flex-col sm:flex-row gap-3 items-end">
           <div class="flex-1 w-full space-y-1.5">
              <label for="epi-select-${row.id}" class="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-wider">Epilogue</label>
-             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-role="epilogue">${fileOptions(row.epilogue_file_id, driveFiles)}</select>
+             <select id="epi-select-${row.id}" class="input-field py-2 text-sm" data-drive-picker data-role="epilogue">${fileOptions(row.epilogue_file_id, driveFiles)}</select>
           </div>
           <button class="btn btn-secondary w-full sm:w-auto whitespace-nowrap" data-action="epilogue">Submit</button>
         </div>
@@ -587,8 +695,13 @@ const renderEndeavours = (rows, driveFiles) => {
 
         summary.append(phaseBadge, progressBadge, deadline);
 
+        const outstanding = document.createElement('p');
+        outstanding.className = 'mt-2 text-xs text-[var(--text-secondary)] leading-relaxed break-words';
+        outstanding.textContent = workflowSummaryText(row);
+
         textDiv.appendChild(title);
         textDiv.appendChild(summary);
+        textDiv.appendChild(outstanding);
 
         titleContent.appendChild(iconDiv);
         titleContent.appendChild(textDiv);
@@ -624,7 +737,7 @@ const renderEndeavours = (rows, driveFiles) => {
         contentGrid.appendChild(buildPlansCard(row, driveFiles));
         contentGrid.appendChild(buildVolCard(row, currentUser));
         contentGrid.appendChild(buildFinCard(row, driveFiles));
-        if (['board', 'student_affairs', 'admin'].includes(currentUser?.global_role)) {
+        if (currentPermissions.includes('endeavour.approve_mob') || currentPermissions.includes('endeavour.approve_sa')) {
             contentGrid.appendChild(buildAdminCard(row));
         }
 
@@ -642,11 +755,20 @@ const loadEndeavours = async (entityId) => {
         return;
     }
     const reqId = ++endeavoursRequestId;
+    listEl.innerHTML = `
+      <div class="space-y-4">
+        <div class="h-28 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse"></div>
+        <div class="h-28 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse"></div>
+      </div>
+    `;
+    attachDrivePicker(finCard, driveFiles);
+    attachDrivePicker(plansCard, driveFiles);
+    emptyEl.classList.add('hidden');
 
     try {
         const [driveFilesForRequest, response] = await Promise.all([
             loadDriveFiles(entityId),
-            apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}`)
+            apiFetch(`/endeavours?entity_id=${encodeURIComponent(entityId)}${includeCompleted ? '&include_completed=1' : ''}`)
         ]);
         if (reqId !== endeavoursRequestId) return;
 
@@ -671,6 +793,10 @@ apiFetch('/auth/me')
     .then((response) => {
         const entities = response?.data?.entities || [];
         currentUser = response?.data?.user || null;
+        currentPermissions = response?.data?.permissions || [];
+        if (!currentPermissions.includes('endeavour.create')) {
+            openCreateModalBtn?.classList.add('hidden');
+        }
         entitySelect.innerHTML = '';
         entities.forEach((entity) => {
             const option = document.createElement('option');
@@ -715,9 +841,12 @@ createForm.addEventListener('submit', async (event) => {
             body: JSON.stringify({
                 entity_id: entitySelect.value,
                 name: createForm.elements.namedItem('name').value,
+                title: createForm.elements.namedItem('name').value,
                 description: createForm.elements.namedItem('description').value,
+                venue: createForm.elements.namedItem('venue').value,
                 volunteering_enabled: createForm.elements.namedItem('volunteering_enabled').checked,
                 transport_fee_required: createForm.elements.namedItem('transport_fee_required').checked,
+                transport_fee_amount: createForm.elements.namedItem('transport_fee_amount').value || null,
                 volunteer_registration_deadline: createForm.elements.namedItem('volunteer_registration_deadline').value || null,
                 pre_financial_deadline: createForm.elements.namedItem('pre_financial_deadline').value || null,
                 post_financial_deadline: createForm.elements.namedItem('post_financial_deadline').value || null,
@@ -727,6 +856,7 @@ createForm.addEventListener('submit', async (event) => {
         });
         setStatus(createStatus, 'Endeavour created.', true);
         createForm.reset();
+        closeCreateModal();
         loadEndeavours(entitySelect.value);
     } catch (err) {
         setStatus(createStatus, err.message || 'Unable to create endeavour.', false);

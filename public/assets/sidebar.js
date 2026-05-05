@@ -1,26 +1,79 @@
-import { apiFetch, clearMobileAuthToken, isNativeRuntime } from '/assets/app.js';
+import { apiFetch, clearMobileAuthToken, isNativeRuntime, loginUrlForCurrentPage } from '/assets/app.js';
 
-export function renderSidebar(activeId) {
-  const links = [
-    { id: 'dashboard', href: '/dashboard.html', text: 'Entity Dashboard' },
-    { id: 'entity_endeavours', href: '/entity_endeavours.html', text: 'Entity Endeavours' },
-    { id: 'entity_drive', href: '/entity_drive.html', text: 'Entity Drive' },
-    { id: 'calendar', href: '/calendar.html', text: 'Calendar' },
-    { id: 'social', href: '/social.html', text: 'Social' },
-    { id: 'endeavours', href: '/endeavours.html', text: 'Volunteering' },
-    { id: 'settings', href: '/settings.html', text: 'Settings' },
-    { id: 'admin', href: '/admin.html', text: 'Admin Panel' }
-  ];
+const fallbackLinks = [
+  { id: 'settings', href: '/settings.html', text: 'Settings', permission: 'nav.settings' }
+];
 
-  const navHtml = links.map(link => {
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function initialsFor(name, email) {
+  const source = String(name || email || 'User').trim();
+  const parts = source.split(/\s+/).filter(Boolean).slice(0, 2);
+  return (parts.map(part => part[0]).join('') || 'U').toUpperCase();
+}
+
+function renderNavLinks(links, activeId) {
+  const safeLinks = Array.isArray(links) && links.length ? links : fallbackLinks;
+  return safeLinks.map(link => {
     const isActive = link.id === activeId;
     const classes = isActive
       ? 'block px-4 py-2.5 rounded-xl bg-[var(--text-primary)] text-[var(--bg-base)] font-semibold cursor-default shadow-sm'
       : 'block px-4 py-2.5 rounded-xl text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text-primary)] transition-colors font-medium';
     const aria = isActive ? ' aria-current="page"' : '';
-    return `<a class="${classes}" href="${link.href}"${aria}>${link.text}</a>`;
+    return `<a class="${classes}" href="${escapeHtml(link.href)}"${aria} data-link-id="${escapeHtml(link.id)}">${escapeHtml(link.text)}</a>`;
   }).join('\n        ');
+}
 
+function renderAvatar(user) {
+  const name = user?.full_name || user?.name || '';
+  const email = user?.email || '';
+  const picture = user?.google_picture_url || user?.picture || '';
+  if (picture) {
+    return `<img src="${escapeHtml(picture)}" alt="" referrerpolicy="no-referrer" class="w-8 h-8 rounded-full object-cover border border-[var(--border-strong)]" />`;
+  }
+  return `<div class="w-8 h-8 rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-strong)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">${escapeHtml(initialsFor(name, email))}</div>`;
+}
+
+async function hydrateSidebar(activeId) {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) {
+    return;
+  }
+  try {
+    const response = await apiFetch('/auth/me', { skipFallback: true });
+    const user = response?.data?.user;
+    if (!user) {
+      window.location.href = loginUrlForCurrentPage();
+      return;
+    }
+    const nav = sidebar.querySelector('[data-sidebar-nav]');
+    if (nav) {
+      nav.innerHTML = renderNavLinks(response?.data?.navigation || [], activeId);
+    }
+    const avatar = sidebar.querySelector('[data-sidebar-avatar]');
+    if (avatar) {
+      avatar.innerHTML = renderAvatar(user);
+    }
+    const name = sidebar.querySelector('#sidebar-user-name');
+    if (name) {
+      name.textContent = user.full_name || user.email || 'User Profile';
+    }
+  } catch (err) {
+    if (err?.status === 401) {
+      window.location.href = loginUrlForCurrentPage();
+    }
+  }
+}
+
+export function renderSidebar(activeId) {
+  queueMicrotask(() => hydrateSidebar(activeId));
   return `
     <button id="mobile-menu-btn" class="app-mobile-menu-button" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="sidebar">
       <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -39,13 +92,17 @@ export function renderSidebar(activeId) {
         </div>
         <span class="text-sm uppercase tracking-widest text-[var(--text-primary)] font-bold">Nixor Portal</span>
       </div>
-      <nav class="app-sidebar-nav space-y-1.5 flex-1">
-        ${navHtml}
+      <nav class="app-sidebar-nav space-y-1.5 flex-1" data-sidebar-nav>
+        <div class="space-y-2" aria-hidden="true">
+          <div class="h-9 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse"></div>
+          <div class="h-9 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse"></div>
+          <div class="h-9 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse"></div>
+        </div>
       </nav>
       <div class="mt-auto pt-6 border-t border-[var(--border-subtle)] px-2">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-strong)] flex items-center justify-center text-sm font-medium text-[var(--text-secondary)]">
-            U
+          <div data-sidebar-avatar>
+            ${renderAvatar(null)}
           </div>
           <div class="text-sm min-w-0">
             <p class="font-medium text-[var(--text-primary)] truncate" id="sidebar-user-name">User Profile</p>
@@ -64,13 +121,11 @@ if (typeof document !== 'undefined') {
     const sidebar = document.getElementById('sidebar');
     const backdrop = document.getElementById('sidebar-backdrop');
 
-    // Handle sign-out via event delegation (works even if sidebar is injected after DOMContentLoaded)
     if (e.target.closest('#sidebar-signout')) {
       e.preventDefault();
       (async () => {
         try {
           if (isNativeRuntime()) {
-            // apiFetch clears the stored mobile token after a successful native logout.
             await apiFetch('/auth/mobile/logout', { method: 'POST', skipCsrf: true });
           } else {
             await apiFetch('/auth/logout', { method: 'POST' });
@@ -91,12 +146,10 @@ if (typeof document !== 'undefined') {
     if (btn) {
       if (sidebar && backdrop) {
         const isClosed = sidebar.classList.contains('-translate-x-full');
-
         if (isClosed) {
           sidebar.classList.remove('-translate-x-full');
           backdrop.classList.remove('hidden');
           clearTimeout(backdropTimer);
-          // Allow display block to apply
           backdropTimer = setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
           btn.setAttribute('aria-expanded', 'true');
         } else {
@@ -108,7 +161,6 @@ if (typeof document !== 'undefined') {
         }
       }
     } else if (sidebar && !sidebar.classList.contains('-translate-x-full') && window.innerWidth < 768) {
-      // Clicked outside on mobile
       if (!e.target.closest('#sidebar')) {
         sidebar.classList.add('-translate-x-full');
         if (backdrop) {
