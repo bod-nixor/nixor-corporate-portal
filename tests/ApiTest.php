@@ -48,17 +48,23 @@ final class ApiTest extends TestCase {
         $client = new TestClient(self::$baseUrl);
         $privacy = $client->request('GET', '/privacy.html');
         $terms = $client->request('GET', '/terms.html');
-        $settings = $client->request('GET', '/settings.html');
-        $sidebar = $client->request('GET', '/assets/sidebar.js');
 
         $this->assertSame(200, $privacy['status']);
         $this->assertSame(200, $terms['status']);
+        $this->assertStringContainsString('Privacy Policy', $privacy['body']);
+        $this->assertStringContainsString('Terms &amp; Conditions', $terms['body']);
+
+        $this->createUser('legal-admin@example.com', 'Password123!', 'admin');
+        $loggedIn = $this->loginClient('legal-admin@example.com', 'Password123!');
+        $settings = $loggedIn->client->request('GET', '/settings.html');
+        $sidebar = $loggedIn->client->request('GET', '/assets/sidebar.js');
+
         $this->assertSame(200, $settings['status']);
         $this->assertSame(200, $sidebar['status']);
-        $this->assertStringContainsString('Privacy Policy', file_get_contents(__DIR__ . '/../public/settings.html'));
-        $this->assertStringContainsString('Terms &amp; Conditions', file_get_contents(__DIR__ . '/../public/settings.html'));
-        $this->assertStringContainsString('/privacy.html', file_get_contents(__DIR__ . '/../public/assets/sidebar.js'));
-        $this->assertStringContainsString('/terms.html', file_get_contents(__DIR__ . '/../public/assets/sidebar.js'));
+        $this->assertStringContainsString('Privacy Policy', $settings['body']);
+        $this->assertStringContainsString('Terms &amp; Conditions', $settings['body']);
+        $this->assertStringContainsString('/privacy.html', $sidebar['body']);
+        $this->assertStringContainsString('/terms.html', $sidebar['body']);
     }
 
     public function testCsrfBootstrapReturnsTokenAndSetsSessionCookie(): void {

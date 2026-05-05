@@ -37,6 +37,9 @@ function user_from_session(): ?array {
         unset($_SESSION['user_id']);
         return null;
     }
+    if ($sessionVersion === null) {
+        $_SESSION['session_version'] = $expectedVersion;
+    }
     return $user;
 }
 
@@ -215,12 +218,13 @@ function auth_user_requires_password_setup(array $user): bool {
         || (int)($user['password_setup_required'] ?? 0) === 1;
 }
 
-function auth_revoke_user_sessions(int $userId, bool $preserveCurrentSession = false): int {
-    $stmt = db()->prepare('UPDATE users SET session_version = session_version + 1 WHERE id = ?');
+function auth_revoke_user_sessions(int $userId, bool $preserveCurrentSession = false, ?PDO $pdo = null): int {
+    $pdo = $pdo ?: db();
+    $stmt = $pdo->prepare('UPDATE users SET session_version = LAST_INSERT_ID(session_version + 1) WHERE id = ?');
     $stmt->execute([$userId]);
 
     try {
-        $revokeMobile = db()->prepare(
+        $revokeMobile = $pdo->prepare(
             'UPDATE mobile_sessions
              SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
              WHERE user_id = ? AND revoked_at IS NULL'
@@ -232,8 +236,7 @@ function auth_revoke_user_sessions(int $userId, bool $preserveCurrentSession = f
         }
     }
 
-    $versionStmt = db()->prepare('SELECT session_version FROM users WHERE id = ?');
-    $versionStmt->execute([$userId]);
+    $versionStmt = $pdo->query('SELECT LAST_INSERT_ID()');
     $newVersion = (int)$versionStmt->fetchColumn();
     if ($preserveCurrentSession && session_status() === PHP_SESSION_ACTIVE && (int)($_SESSION['user_id'] ?? 0) === $userId) {
         $_SESSION['session_version'] = $newVersion;

@@ -274,12 +274,14 @@ usersList.addEventListener('click', async (event) => {
         setStatus(userStatus, sendEmail
             ? (response?.data?.email_sent ? 'Password reset required and setup link sent.' : 'Password reset required. Mail delivery was not confirmed.')
             : 'Password reset required at next login.', true);
-        loadUsers();
+        await loadUsers();
     } catch (err) {
         setStatus(userStatus, normalizeError(err), false);
     } finally {
-        button.disabled = false;
-        button.textContent = originalText;
+        if (document.contains(button)) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
     }
 });
 

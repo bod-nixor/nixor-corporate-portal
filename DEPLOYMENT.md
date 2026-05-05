@@ -45,7 +45,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    {
      "email": "admin@example.com",
      "full_name": "Portal Admin",
-     "password": "YourSecurePassword123",
+     "password": "YourSecurePassword123!",
      "setup_token": "your-setup-token"
    }
    ```

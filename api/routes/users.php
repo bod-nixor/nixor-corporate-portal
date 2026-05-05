@@ -184,8 +184,9 @@ function handle_user_force_password_reset(string $method, int $userId, array $ac
 
     $emailSent = false;
     if ($sendEmail && ($target['status'] ?? '') === 'active') {
-        $token = auth_create_password_token($userId, 'password_setup', (int)$actor['id']);
-        $emailSent = auth_send_password_token_email($target, 'password_setup', $token['token'], $token['expires_at']);
+        $tokenType = trim((string)($target['password_hash'] ?? '')) !== '' ? 'password_reset' : 'password_setup';
+        $token = auth_create_password_token($userId, $tokenType, (int)$actor['id']);
+        $emailSent = auth_send_password_token_email($target, $tokenType, $token['token'], $token['expires_at']);
     }
 
     log_activity($actor['id'], 'user', $userId, 'password_reset_forced', 'Admin forced password reset', ['email_requested' => $sendEmail, 'email_sent' => $emailSent]);

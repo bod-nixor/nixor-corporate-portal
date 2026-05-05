@@ -240,6 +240,14 @@ function migration_index_exists(PDO $pdo, string $table, string $index): bool {
     return (bool)$stmt->fetchColumn();
 }
 
+function migration_constraint_exists(PDO $pdo, string $table, string $constraint): bool {
+    $stmt = $pdo->prepare(
+        'SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ? LIMIT 1'
+    );
+    $stmt->execute([migration_database_name($pdo), $table, $constraint]);
+    return (bool)$stmt->fetchColumn();
+}
+
 function execute_migration_statement(PDO $pdo, string $statement): void {
     if (stripos($statement, 'ALTER TABLE') !== 0 || stripos($statement, 'IF NOT EXISTS') === false) {
         $pdo->exec($statement);
@@ -271,6 +279,13 @@ function execute_migration_statement(PDO $pdo, string $statement): void {
                     $indexMatch[2],
                     $indexMatch[3]
                 );
+            }
+            continue;
+        }
+
+        if (preg_match('/^ADD\s+CONSTRAINT\s+IF\s+NOT\s+EXISTS\s+`?([A-Za-z0-9_]+)`?\s+(.+)$/is', $operation, $constraintMatch)) {
+            if (!migration_constraint_exists($pdo, $table, $constraintMatch[1])) {
+                $pendingOperations[] = sprintf('ADD CONSTRAINT `%s` %s', $constraintMatch[1], $constraintMatch[2]);
             }
             continue;
         }

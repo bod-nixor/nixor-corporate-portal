@@ -120,7 +120,8 @@ form?.addEventListener('submit', async (event) => {
     setStatus(response?.data?.message || 'Password updated.', true);
     form.reset();
     updateRuleUI();
-    if (tokenType === 'password_setup' || sessionMode) {
+    if (submitBtn) {
+      submitBtn.disabled = false;
       submitBtn.textContent = 'Password updated';
     }
   } catch (err) {

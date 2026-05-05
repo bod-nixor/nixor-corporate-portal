@@ -74,16 +74,45 @@ function auth_create_password_token(int $userId, string $type, ?int $createdBy =
 
 function auth_public_base_url(): string {
     $baseUrl = trim((string)env_value('BASE_URL', ''));
+    $appEnv = strtolower((string)env_value('APP_ENV', 'production'));
     if ($baseUrl === '') {
-        $host = $_SERVER['HTTP_HOST'] ?? '';
+        if ($appEnv === 'production') {
+            error_log('BASE_URL is required in production for password reset/setup links.');
+            return '';
+        }
+        $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+        if ($host === '' || !auth_public_host_allowed($host)) {
+            error_log('BASE_URL or ALLOWED_HOSTS is required before using HTTP_HOST for password reset/setup links.');
+            return '';
+        }
         $scheme = function_exists('is_https') && is_https() ? 'https' : 'http';
-        $baseUrl = $host !== '' ? "{$scheme}://{$host}" : '';
+        $baseUrl = "{$scheme}://{$host}";
     }
     $baseUrl = rtrim($baseUrl, '/');
-    if (env_value('APP_ENV', 'production') === 'production' && str_starts_with(strtolower($baseUrl), 'http://')) {
+    if ($appEnv === 'production' && str_starts_with(strtolower($baseUrl), 'http://')) {
         $baseUrl = 'https://' . substr($baseUrl, strlen('http://'));
     }
     return $baseUrl;
+}
+
+function auth_public_host_allowed(string $host): bool {
+    $allowed = function_exists('allowed_hosts') ? allowed_hosts() : [];
+    if (!$allowed) {
+        return false;
+    }
+    $host = strtolower($host);
+    $hostName = strtolower((string)(parse_url('http://' . $host, PHP_URL_HOST) ?: ''));
+    foreach ($allowed as $allowedHost) {
+        $allowedHost = strtolower(trim((string)$allowedHost));
+        if ($allowedHost === '') {
+            continue;
+        }
+        $allowedName = strtolower((string)(parse_url('http://' . $allowedHost, PHP_URL_HOST) ?: $allowedHost));
+        if ($host === $allowedHost || $hostName === $allowedName) {
+            return true;
+        }
+    }
+    return false;
 }
 
 function auth_password_flow_url(string $token): string {

@@ -375,8 +375,8 @@ function handle_password_token_reset(): void {
             $pdo->commit();
             auth_respond_invalid_password_token();
         }
+        auth_revoke_user_sessions($userId, false, $pdo);
         $pdo->commit();
-        auth_revoke_user_sessions($userId);
         log_activity(null, 'user', $userId, 'password_changed', 'Password changed through secure reset/setup link', ['token_type' => $row['token_type']]);
         auth_log_event('password_reset_completed', ['user_id' => $userId, 'token_type' => $row['token_type']]);
         respond(['ok' => true, 'data' => ['message' => 'Password updated. You can now sign in.']]);
@@ -414,16 +414,30 @@ function handle_session_password_setup(): void {
     require_strong_password($password, $confirmation, (string)$user['email'], (string)$user['full_name']);
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $userId = local_user_id_from_row($user);
-    $stmt = db()->prepare(
-        'UPDATE users
-         SET password_hash = ?,
-             force_password_reset = 0,
-             password_setup_required = 0,
-             password_changed_at = UTC_TIMESTAMP()
-         WHERE id = ?'
-    );
-    $stmt->execute([$hash, $userId]);
-    auth_revoke_user_sessions($userId, true);
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare(
+            'UPDATE users
+             SET password_hash = ?,
+                 force_password_reset = 0,
+                 password_setup_required = 0,
+                 password_changed_at = UTC_TIMESTAMP()
+             WHERE id = ?'
+        );
+        $stmt->execute([$hash, $userId]);
+        auth_revoke_user_sessions($userId, true, $pdo);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if ($e instanceof PDOException) {
+            error_log('Session password setup database error: ' . auth_sanitized_exception_message($e));
+            respond(['ok' => false, 'error' => 'Unable to update password'], 500);
+        }
+        throw $e;
+    }
     log_activity($userId, 'user', $userId, 'password_changed', 'Password changed during forced setup');
     auth_log_event('password_setup_completed', ['user_id' => $userId]);
     $fresh = fetch_google_user_by_id(db(), $userId) ?: $user;

@@ -6,7 +6,9 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS password_reset_forced_by INT NULL AFTER password_reset_forced_at,
   ADD COLUMN IF NOT EXISTS session_version INT NOT NULL DEFAULT 0 AFTER last_login_at,
   ADD INDEX IF NOT EXISTS idx_users_password_reset_flags (password_setup_required, force_password_reset),
-  ADD INDEX IF NOT EXISTS idx_users_session_version (id, session_version);
+  ADD INDEX IF NOT EXISTS idx_users_session_version (id, session_version),
+  ADD INDEX IF NOT EXISTS idx_users_password_reset_forced_by (password_reset_forced_by),
+  ADD CONSTRAINT IF NOT EXISTS fk_users_password_reset_forced_by FOREIGN KEY (password_reset_forced_by) REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
   id INT AUTO_INCREMENT PRIMARY KEY,

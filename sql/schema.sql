@@ -18,7 +18,9 @@ CREATE TABLE users (
   last_login_at TIMESTAMP NULL,
   session_version INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_users_password_reset_forced_by (password_reset_forced_by),
+  CONSTRAINT fk_users_password_reset_forced_by FOREIGN KEY (password_reset_forced_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE auth_tokens (
@@ -34,6 +36,7 @@ CREATE TABLE auth_tokens (
   created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   KEY idx_auth_tokens_user_type_active (user_id, token_type, used_at, expires_at),
   KEY idx_auth_tokens_expiry (expires_at, used_at),
+  KEY idx_auth_tokens_created_by (created_by),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
