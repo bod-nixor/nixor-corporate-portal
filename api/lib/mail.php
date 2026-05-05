@@ -37,6 +37,8 @@ function send_email(string $to, string $subject, string $body, bool $isHtml = tr
     try {
         $mail = new PHPMailer\PHPMailer\PHPMailer(true);
         $mail->isSMTP();
+        $mail->Timeout = 10;
+        $mail->SMTPKeepAlive = false;
         $mail->Host = env_value('SMTP_HOST');
         $mail->Port = (int)env_value('SMTP_PORT', 587);
         $mail->SMTPAuth = true;
