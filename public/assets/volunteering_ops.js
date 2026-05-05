@@ -96,7 +96,7 @@ body.addEventListener('click', async (event) => {
     transport_fee_paid: Boolean(row.querySelector('[data-field="transport_fee_paid"]')?.checked)
   };
   const attendance = row.querySelector('[data-field="attendance_status"]')?.value || '';
-  if (attendance) payload.attendance_status = attendance;
+  payload.attendance_status = attendance;
   saveBtn.disabled = true;
   try {
     await apiFetch('/endeavours/volunteering_ops', {

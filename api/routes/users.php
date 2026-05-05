@@ -88,6 +88,11 @@ function handle_users(string $method, array $segments): void {
             $fields[] = 'email = ?';
             $values[] = $email;
         }
+        $exists = db()->prepare('SELECT id FROM users WHERE id = ?');
+        $exists->execute([$userId]);
+        if (!$exists->fetch()) {
+            respond(['ok' => false, 'error' => 'User not found'], 404);
+        }
         $values[] = $userId;
         $stmt = db()->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?');
         try {
@@ -97,9 +102,6 @@ function handle_users(string $method, array $segments): void {
                 respond(['ok' => false, 'error' => 'Email already exists'], 409);
             }
             throw $e;
-        }
-        if ($stmt->rowCount() === 0) {
-            respond(['ok' => false, 'error' => 'User not found'], 404);
         }
         log_activity($user['id'], 'user', $userId, 'updated', 'User updated');
         respond(['ok' => true]);

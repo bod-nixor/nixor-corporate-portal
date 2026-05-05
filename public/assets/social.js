@@ -10,8 +10,10 @@ const statusEl = document.getElementById("social-status");
 const postModal = document.getElementById("post-modal");
 const openPostModalBtn = document.getElementById("open-post-modal");
 const closePostModalBtn = document.getElementById("close-post-modal");
+const imageInput = document.getElementById("social-images");
 let currentUser = null;
 let editingPostId = null;
+let attachmentsChanged = false;
 let deletingItem = null;
 let editingCommentId = null;
 const deleteModal = document.getElementById("delete-modal");
@@ -36,8 +38,17 @@ const openPostModal = () => {
 };
 const closePostModal = () => {
   postModal?.classList.add("hidden");
-  if (!editingPostId) form?.reset();
+  editingPostId = null;
+  attachmentsChanged = false;
+  form?.reset();
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  if (submitBtn) submitBtn.textContent = "Publish Update";
+  const cancelBtn = document.getElementById("social-cancel-edit");
+  if (cancelBtn) cancelBtn.classList.add("hidden");
 };
+imageInput?.addEventListener("input", () => {
+  attachmentsChanged = true;
+});
 openPostModalBtn?.addEventListener("click", openPostModal);
 closePostModalBtn?.addEventListener("click", closePostModal);
 postModal?.addEventListener("click", (event) => {
@@ -47,6 +58,13 @@ const editPost = (post) => {
   editingPostId = post.id;
   document.getElementById("social-content").value = post.content;
   document.getElementById("social-scope").value = post.feed_scope || "entity";
+  if (imageInput) {
+    imageInput.value = (Array.isArray(post.images) ? post.images : [])
+      .map((image) => image.url)
+      .filter(Boolean)
+      .join(", ");
+  }
+  attachmentsChanged = false;
   openPostModal();
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.textContent = "Update Post";
@@ -65,6 +83,7 @@ const editPost = (post) => {
 };
 const cancelEdit = () => {
   editingPostId = null;
+  attachmentsChanged = false;
   form.reset();
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.textContent = "Publish Update";
@@ -427,15 +446,17 @@ form.addEventListener("submit", async (event) => {
   if (submitBtn) submitBtn.disabled = true;
   try {
     if (editingPostId) {
+      const updatePayload = {
+        content: form.content.value,
+      };
+      if (attachmentsChanged) {
+        updatePayload.image_urls = (form.image_urls?.value || "").split(",").map((value) => value.trim()).filter(Boolean).slice(0, 10);
+      }
       await apiFetch(`/social/${editingPostId}`, {
         method: "PUT",
-        body: JSON.stringify({
-          content: form.content.value,
-          image_urls: (form.image_urls?.value || "").split(",").map((value) => value.trim()).filter(Boolean).slice(0, 10),
-        }),
+        body: JSON.stringify(updatePayload),
       });
       setStatus("Post updated successfully.", true);
-      cancelEdit();
       closePostModal();
     } else {
       const feedScope = form.feed_scope?.value || "entity";

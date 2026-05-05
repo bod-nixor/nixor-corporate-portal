@@ -183,6 +183,7 @@ function drive_item_labels_for_items(array $itemIds): array {
         );
         $stmt->execute($normalized);
     } catch (PDOException $e) {
+        error_log('Failed to load drive item labels: ' . $e->getMessage());
         return $map;
     }
 

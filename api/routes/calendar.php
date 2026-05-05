@@ -39,19 +39,30 @@ function handle_calendar(string $method, array $segments): void {
         }
         $description = sanitize_text($data['description'] ?? '', 2000);
         $location = sanitize_text($data['location'] ?? '', 190);
+        $participantIds = calendar_normalize_participant_ids($entityId, $data['participant_entity_ids'] ?? [$entityId]);
 
-        $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, end_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([
-            $entityId,
-            $title,
-            $description,
-            $dateTime->format('Y-m-d H:i:s'),
-            $endDate ? $endDate->format('Y-m-d H:i:s') : null,
-            $location,
-            $user['id'],
-        ]);
-        $eventId = (int)db()->lastInsertId();
-        calendar_sync_participants($eventId, $entityId, $data['participant_entity_ids'] ?? [$entityId], (int)$user['id']);
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, end_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([
+                $entityId,
+                $title,
+                $description,
+                $dateTime->format('Y-m-d H:i:s'),
+                $endDate ? $endDate->format('Y-m-d H:i:s') : null,
+                $location,
+                $user['id'],
+            ]);
+            $eventId = (int)$pdo->lastInsertId();
+            calendar_sync_participants($eventId, $entityId, $participantIds, (int)$user['id']);
+            $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
         log_activity($user['id'], 'calendar_event', $eventId, 'created', 'Calendar event created');
         emit_ws_event('calendar.created', ['id' => $eventId]);
         respond(['ok' => true, 'data' => ['id' => $eventId]]);
@@ -79,19 +90,32 @@ function handle_calendar(string $method, array $segments): void {
         }
         $description = sanitize_text($data['description'] ?? $event['description'], 2000);
         $location = sanitize_text($data['location'] ?? $event['location'], 190);
+        $participantIds = array_key_exists('participant_entity_ids', $data)
+            ? calendar_normalize_participant_ids($entityId, $data['participant_entity_ids'])
+            : null;
 
-        $stmt = db()->prepare('UPDATE calendar_events SET title = ?, description = ?, event_date = ?, end_date = ?, location = ?, entity_id = ? WHERE id = ?');
-        $stmt->execute([
-            $title,
-            $description,
-            $dateTime->format('Y-m-d H:i:s'),
-            $endDate ? $endDate->format('Y-m-d H:i:s') : null,
-            $location,
-            $entityId,
-            $eventId,
-        ]);
-        if (array_key_exists('participant_entity_ids', $data)) {
-            calendar_sync_participants($eventId, $entityId, $data['participant_entity_ids'], (int)$user['id']);
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare('UPDATE calendar_events SET title = ?, description = ?, event_date = ?, end_date = ?, location = ?, entity_id = ? WHERE id = ?');
+            $stmt->execute([
+                $title,
+                $description,
+                $dateTime->format('Y-m-d H:i:s'),
+                $endDate ? $endDate->format('Y-m-d H:i:s') : null,
+                $location,
+                $entityId,
+                $eventId,
+            ]);
+            if ($participantIds !== null) {
+                calendar_sync_participants($eventId, $entityId, $participantIds, (int)$user['id']);
+            }
+            $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
         log_activity($user['id'], 'calendar_event', $eventId, 'updated', 'Calendar event updated');
         emit_ws_event('calendar.updated', ['id' => $eventId]);
@@ -227,7 +251,7 @@ function calendar_require_event_view(array $event, array $user): void {
     respond(['ok' => false, 'error' => 'Forbidden'], 403);
 }
 
-function calendar_sync_participants(int $eventId, int $primaryEntityId, $rawEntityIds, int $actorId): void {
+function calendar_normalize_participant_ids(int $primaryEntityId, $rawEntityIds): array {
     $ids = [$primaryEntityId];
     if (is_array($rawEntityIds)) {
         foreach ($rawEntityIds as $id) {
@@ -248,6 +272,11 @@ function calendar_sync_participants(int $eventId, int $primaryEntityId, $rawEnti
     if (count($validIds) !== count($ids)) {
         respond(['ok' => false, 'error' => 'One or more participant entities are invalid'], 400);
     }
+    return $ids;
+}
+
+function calendar_sync_participants(int $eventId, int $primaryEntityId, $rawEntityIds, int $actorId): void {
+    $ids = calendar_normalize_participant_ids($primaryEntityId, $rawEntityIds);
     db()->prepare('DELETE FROM calendar_event_entities WHERE event_id = ?')->execute([$eventId]);
     $insert = db()->prepare('INSERT IGNORE INTO calendar_event_entities (event_id, entity_id, added_by) VALUES (?, ?, ?)');
     foreach ($ids as $entityId) {

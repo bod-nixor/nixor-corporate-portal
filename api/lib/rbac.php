@@ -8,6 +8,7 @@ function rbac_tables_ready(): bool {
     try {
         db()->query('SELECT 1 FROM rbac_roles LIMIT 1');
         db()->query('SELECT 1 FROM rbac_permissions LIMIT 1');
+        db()->query('SELECT 1 FROM rbac_role_permissions LIMIT 1');
         db()->query('SELECT 1 FROM rbac_user_roles LIMIT 1');
         $ready = true;
     } catch (PDOException $e) {

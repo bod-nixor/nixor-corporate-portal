@@ -1385,9 +1385,6 @@
   .object-cover {
     object-fit: cover;
   }
-  .\!p-0 {
-    padding: calc(var(--spacing) * 0) !important;
-  }
   .\!p-1\.5 {
     padding: calc(var(--spacing) * 1.5) !important;
   }
@@ -1623,6 +1620,7 @@
   }
   .tracking-\[0\.25em\] {
     --tw-tracking: 0.25em;
+
     letter-spacing: 0.25em;
   }
   .tracking-tight {

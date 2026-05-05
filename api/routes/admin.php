@@ -7,7 +7,7 @@ function handle_admin(string $method, array $segments): void {
     }
 
     if ($action === 'summary' && $method === 'GET') {
-        require_permission('nav.admin');
+        require_permission('admin.manage_users');
         $missingStmt = db()->prepare("SELECT COUNT(*) as total FROM endeavours WHERE status IN ('ops_plan_pending_board_approval', 'mou_pending_board_approval', 'pre_financial_pending_board_approval', 'post_financial_pending_board_approval')");
         $missingStmt->execute();
         $missingDocs = $missingStmt->fetch();
@@ -82,23 +82,30 @@ function handle_admin_roles(string $method, array $segments): void {
         $code = preg_replace('/[^a-z0-9_.-]/', '_', strtolower(trim((string)($data['code'] ?? ''))));
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $scope = $data['scope'] ?? 'entity';
+        $permissionCodes = normalize_role_permission_codes($data['permissions'] ?? []);
         if ($code === '' || strlen($code) > 120) {
             respond(['ok' => false, 'error' => 'Invalid role code'], 400);
         }
         if (!in_array($scope, ['global', 'entity', 'both'], true)) {
             respond(['ok' => false, 'error' => 'Invalid role scope'], 400);
         }
-        $stmt = db()->prepare('INSERT INTO rbac_roles (code, name, scope, description, is_system) VALUES (?, ?, ?, ?, 0)');
+        $pdo = db();
+        $stmt = $pdo->prepare('INSERT INTO rbac_roles (code, name, scope, description, is_system) VALUES (?, ?, ?, ?, 0)');
         try {
+            $pdo->beginTransaction();
             $stmt->execute([$code, $name, $scope, sanitize_text($data['description'] ?? '', 1000)]);
+            $roleId = (int)$pdo->lastInsertId();
+            sync_role_permissions($roleId, $permissionCodes);
+            $pdo->commit();
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             if ($e->getCode() === '23000') {
                 respond(['ok' => false, 'error' => 'Role already exists'], 409);
             }
             throw $e;
         }
-        $roleId = (int)db()->lastInsertId();
-        sync_role_permissions($roleId, $data['permissions'] ?? []);
         log_activity($user['id'], 'role', $roleId, 'created', 'RBAC role created');
         respond(['ok' => true, 'data' => ['id' => $roleId]]);
     }
@@ -115,10 +122,22 @@ function handle_admin_roles(string $method, array $segments): void {
         if (!in_array($scope, ['global', 'entity', 'both'], true)) {
             respond(['ok' => false, 'error' => 'Invalid role scope'], 400);
         }
-        $stmt = db()->prepare('UPDATE rbac_roles SET name = ?, scope = ?, description = ? WHERE id = ?');
-        $stmt->execute([$name, $scope, sanitize_text($data['description'] ?? ($role['description'] ?? ''), 1000), $roleId]);
-        if (array_key_exists('permissions', $data)) {
-            sync_role_permissions($roleId, $data['permissions']);
+        $syncPermissions = array_key_exists('permissions', $data);
+        $permissionCodes = $syncPermissions ? normalize_role_permission_codes($data['permissions']) : [];
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare('UPDATE rbac_roles SET name = ?, scope = ?, description = ? WHERE id = ?');
+            $stmt->execute([$name, $scope, sanitize_text($data['description'] ?? ($role['description'] ?? ''), 1000), $roleId]);
+            if ($syncPermissions) {
+                sync_role_permissions($roleId, $permissionCodes);
+            }
+            $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
         log_activity($user['id'], 'role', $roleId, 'updated', 'RBAC role updated');
         respond(['ok' => true]);
@@ -132,6 +151,24 @@ function fetch_rbac_role(int $roleId): ?array {
     $stmt->execute([$roleId]);
     $role = $stmt->fetch();
     return $role ?: null;
+}
+
+function normalize_role_permission_codes($permissionCodes): array {
+    if (!is_array($permissionCodes)) {
+        respond(['ok' => false, 'error' => 'permissions must be an array'], 400);
+    }
+    $codes = array_values(array_unique(array_filter(array_map(static fn($code) => trim((string)$code), $permissionCodes))));
+    if (!$codes) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($codes), '?'));
+    $stmt = db()->prepare("SELECT code FROM rbac_permissions WHERE code IN ({$in})");
+    $stmt->execute($codes);
+    $found = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    if (count($found) !== count($codes)) {
+        respond(['ok' => false, 'error' => 'Unknown permission supplied'], 400);
+    }
+    return $codes;
 }
 
 function sync_role_permissions(int $roleId, $permissionCodes): void {

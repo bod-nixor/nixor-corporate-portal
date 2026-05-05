@@ -78,13 +78,13 @@ function handle_files(string $method, array $segments): void {
         }
         stream_download(resolve_upload_path($row['file_path']), $row['name'] ?: 'meeting-minutes');
     } elseif ($type === 'endeavour_document') {
+        $user = require_auth();
         $stmt = db()->prepare('SELECT ed.*, e.entity_id FROM endeavour_documents ed JOIN endeavours e ON ed.endeavour_id = e.id WHERE ed.id = ?');
         $stmt->execute([$id]);
         $doc = $stmt->fetch();
         if (!$doc) {
             respond(['ok' => false, 'error' => 'Document not found'], 404);
         }
-        $user = require_auth();
         if (!can_permission($user, 'endeavour.view_confidential', (int)$doc['entity_id']) && !can_permission($user, 'endeavour.submit_docs', (int)$doc['entity_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }

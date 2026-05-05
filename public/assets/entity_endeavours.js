@@ -383,6 +383,7 @@ const buildPlansCard = (row, driveFiles) => {
             attachBtn.disabled = false;
         }
     });
+    attachDrivePicker(plansCard, driveFiles);
     return plansCard;
 };
 
@@ -459,6 +460,7 @@ const buildFinCard = (row, driveFiles) => {
             epiBtn.disabled = false;
         }
     });
+    attachDrivePicker(finCard, driveFiles);
     return finCard;
 };
 
@@ -652,7 +654,7 @@ const renderEndeavours = (rows, driveFiles) => {
 
     rows.forEach((row) => {
         const card = document.createElement('article');
-        card.className = 'workflow-card card animate-fade-in !p-0';
+        card.className = 'workflow-card card animate-fade-in p-0!';
         card.dataset.workflowName = row.name || 'workflow';
 
         const bodyContainer = document.createElement('div');
@@ -761,8 +763,6 @@ const loadEndeavours = async (entityId) => {
         <div class="h-28 rounded-xl bg-[var(--bg-surface-hover)] animate-pulse"></div>
       </div>
     `;
-    attachDrivePicker(finCard, driveFiles);
-    attachDrivePicker(plansCard, driveFiles);
     emptyEl.classList.add('hidden');
 
     try {

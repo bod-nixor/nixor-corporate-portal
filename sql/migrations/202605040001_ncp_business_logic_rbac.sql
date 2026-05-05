@@ -431,7 +431,7 @@ JOIN rbac_roles r ON r.code = 'ceo'
 WHERE u.global_role = 'ceo';
 
 INSERT IGNORE INTO rbac_user_roles (user_id, role_id, entity_id)
-SELECT em.user_id, r.id, em.entity_id
+SELECT em.user_id, r.id, CASE WHEN r.code = 'volunteer' THEN NULL ELSE em.entity_id END
 FROM entity_memberships em
 JOIN rbac_roles r ON r.code = CASE
   WHEN em.department = 'communications' AND em.role = 'manager' THEN 'cco'

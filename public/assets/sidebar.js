@@ -20,7 +20,7 @@ function initialsFor(name, email) {
 }
 
 function renderNavLinks(links, activeId) {
-  const safeLinks = Array.isArray(links) && links.length ? links : fallbackLinks;
+  const safeLinks = Array.isArray(links) ? links : fallbackLinks;
   return safeLinks.map(link => {
     const isActive = link.id === activeId;
     const classes = isActive

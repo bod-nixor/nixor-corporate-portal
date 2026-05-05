@@ -90,21 +90,24 @@ function handle_endeavours(string $method, array $segments): void {
             if ($registrationId <= 0) {
                 respond(['ok' => false, 'error' => 'registration_id required'], 400);
             }
-            $check = db()->prepare('SELECT vr.*, e.entity_id, e.transport_fee_required FROM volunteer_registrations vr JOIN endeavours e ON e.id = vr.endeavour_id WHERE vr.id = ?');
+            $check = db()->prepare('SELECT vr.*, vr.status AS registration_status, e.entity_id, e.transport_fee_required, e.phase AS endeavour_phase, e.status AS endeavour_status FROM volunteer_registrations vr JOIN endeavours e ON e.id = vr.endeavour_id WHERE vr.id = ?');
             $check->execute([$registrationId]);
             $registration = $check->fetch();
             if (!$registration) {
                 respond(['ok' => false, 'error' => 'Registration not found'], 404);
             }
+            if (($registration['registration_status'] ?? '') === 'rejected' || ($registration['endeavour_status'] ?? '') === 'rejected' || (($registration['registration_status'] ?? '') !== 'shortlisted' && ($registration['endeavour_phase'] ?? '') !== 'ON_DAY')) {
+                respond(['ok' => false, 'error' => 'Registration is not ready for volunteering operations'], 403);
+            }
             $fields = [];
             $values = [];
             if (array_key_exists('attendance_status', $data)) {
-                $status = $data['attendance_status'];
-                if (!in_array($status, ['present', 'absent'], true)) {
+                $status = (string)$data['attendance_status'];
+                if (!in_array($status, ['', 'present', 'absent'], true)) {
                     respond(['ok' => false, 'error' => 'Invalid attendance_status'], 400);
                 }
                 $fields[] = 'attendance_status = ?';
-                $values[] = $status;
+                $values[] = $status === '' ? null : $status;
             }
             if (array_key_exists('transport_fee_paid', $data)) {
                 if (!(int)$registration['transport_fee_required']) {
@@ -300,6 +303,15 @@ function handle_endeavours(string $method, array $segments): void {
         $user = require_permission('endeavour.edit', (int)$endeavour['entity_id']);
         $data = read_json();
         $payload = normalize_endeavour_update_payload($endeavour, $data);
+        if (!$payload['event_start_at'] || !$payload['event_end_at']) {
+            respond(['ok' => false, 'error' => 'event_start_at and event_end_at are required'], 400);
+        }
+        validate_endeavour_date_business_rules(
+            $payload['event_start_at'],
+            $payload['event_end_at'],
+            $payload,
+            can_permission($user, 'endeavour.manage_periods', (int)$endeavour['entity_id'])
+        );
         if (endeavour_edit_requires_approval($endeavour, $payload) && !can_permission($user, 'endeavour.approve_edit')) {
             $stmt = db()->prepare('INSERT INTO endeavour_edit_approvals (endeavour_id, requested_by, requested_payload, status) VALUES (?, ?, ?, "pending")');
             $stmt->execute([$id, $user['id'], json_encode($payload)]);
@@ -1079,6 +1091,9 @@ function record_endeavour_submission_approval(array $submission, string $group, 
     if ($decision === 'rejected' && trim($comment) === '') {
         respond(['ok' => false, 'error' => 'Rejection comments are required'], 400);
     }
+    if (in_array((string)($submission['status'] ?? ''), ['approved', 'rejected'], true)) {
+        respond(['ok' => false, 'error' => 'Submission already has a terminal decision'], 400);
+    }
     if ($group === 'mob') {
         require_permission('endeavour.approve_mob', null, $user);
     } elseif ($group === 'student_affairs') {
@@ -1089,6 +1104,9 @@ function record_endeavour_submission_approval(array $submission, string $group, 
         }
     } else {
         respond(['ok' => false, 'error' => 'Invalid approver group'], 400);
+    }
+    if (latest_submission_approval((int)$submission['id'], $group)) {
+        respond(['ok' => false, 'error' => 'This approver group has already decided this submission'], 400);
     }
     $stmt = db()->prepare('INSERT INTO endeavour_submission_approvals (submission_id, approver_group, decision, comment, decided_by) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([(int)$submission['id'], $group, $decision, $comment, $user['id']]);
@@ -1152,10 +1170,21 @@ function endeavour_submissions_for_response(int $endeavourId, array $user): arra
     } catch (PDOException $e) {
         return [];
     }
-    $canSeeFiles = can_permission($user, 'endeavour.view_confidential')
-        || can_permission($user, 'endeavour.submit_docs')
-        || can_permission($user, 'endeavour.approve_mob')
-        || can_permission($user, 'endeavour.approve_sa');
+    $entityId = null;
+    try {
+        $entityStmt = db()->prepare('SELECT entity_id FROM endeavours WHERE id = ?');
+        $entityStmt->execute([$endeavourId]);
+        $entity = $entityStmt->fetchColumn();
+        $entityId = $entity !== false ? (int)$entity : null;
+    } catch (PDOException $e) {
+        $entityId = null;
+    }
+    $canSeeFiles = $entityId !== null && (
+        can_permission($user, 'endeavour.view_confidential', $entityId)
+        || can_permission($user, 'endeavour.submit_docs', $entityId)
+        || can_permission($user, 'endeavour.approve_mob', $entityId)
+        || can_permission($user, 'endeavour.approve_sa', $entityId)
+    );
     $submissionIds = array_map(fn($row) => (int)$row['id'], $rows);
     $approvals = [];
     if ($submissionIds) {
@@ -1552,17 +1581,40 @@ function notify_shortlisted(int $endeavourId, int $entityId): void {
 function create_notification(int $userId, string $type, array $payload, bool $force = false): void {
     if (!$force) {
         try {
-            $pref = db()->prepare('SELECT platform_enabled FROM user_notification_preferences WHERE user_id = ?');
+            $pref = db()->prepare('SELECT platform_enabled, approvals_enabled, volunteering_enabled, social_enabled, calendar_enabled FROM user_notification_preferences WHERE user_id = ?');
             $pref->execute([$userId]);
-            $enabled = $pref->fetchColumn();
-            if ($enabled !== false && (int)$enabled === 0) {
-                return;
+            $settings = $pref->fetch();
+            if ($settings) {
+                $column = notification_preference_column_for_type($type);
+                $enabled = $settings[$column] ?? $settings['platform_enabled'] ?? 1;
+                if ($enabled === null) {
+                    $enabled = $settings['platform_enabled'] ?? 1;
+                }
+                if ((int)$enabled === 0) {
+                    return;
+                }
             }
         } catch (PDOException $e) {
         }
     }
     $stmt = db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)');
     $stmt->execute([$userId, $type, json_encode($payload)]);
+}
+
+function notification_preference_column_for_type(string $type): string {
+    if (str_starts_with($type, 'volunteer')) {
+        return 'volunteering_enabled';
+    }
+    if (str_starts_with($type, 'social')) {
+        return 'social_enabled';
+    }
+    if (str_starts_with($type, 'calendar')) {
+        return 'calendar_enabled';
+    }
+    if (str_contains($type, 'submission') || str_contains($type, 'approval') || str_contains($type, 'rejected')) {
+        return 'approvals_enabled';
+    }
+    return 'platform_enabled';
 }
 
 function handle_doc_upload(int $endeavourId, string $docType, string $nextStatus, int $userId, bool $requiresApproval = true): void {

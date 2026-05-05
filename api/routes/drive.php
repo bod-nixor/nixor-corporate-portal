@@ -169,14 +169,32 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_item_entity_access($user, $item);
         drive_assert_can_manage_item($user, $item);
         $labelIds = is_array($data['label_ids'] ?? null) ? array_map('intval', $data['label_ids']) : [];
-        db()->prepare('DELETE FROM drive_item_labels WHERE item_id = ?')->execute([$itemId]);
-        if ($labelIds) {
-            $insert = db()->prepare('INSERT INTO drive_item_labels (item_id, label_id) SELECT ?, id FROM drive_labels WHERE id = ? AND entity_id = ?');
-            foreach (array_values(array_unique($labelIds)) as $labelId) {
-                if ($labelId > 0) {
-                    $insert->execute([$itemId, $labelId, (int)$item['entity_id']]);
+        $labelIds = array_values(array_unique(array_filter($labelIds, static fn($labelId) => $labelId > 0)));
+        $pdo = db();
+        try {
+            $pdo->beginTransaction();
+            if ($labelIds) {
+                $in = implode(',', array_fill(0, count($labelIds), '?'));
+                $check = $pdo->prepare("SELECT COUNT(*) FROM drive_labels WHERE id IN ({$in}) AND entity_id = ?");
+                $check->execute(array_merge($labelIds, [(int)$item['entity_id']]));
+                if ((int)$check->fetchColumn() !== count($labelIds)) {
+                    $pdo->rollBack();
+                    respond(['ok' => false, 'error' => 'One or more labels are invalid for this entity'], 400);
                 }
             }
+            $pdo->prepare('DELETE FROM drive_item_labels WHERE item_id = ?')->execute([$itemId]);
+            if ($labelIds) {
+                $insert = $pdo->prepare('INSERT INTO drive_item_labels (item_id, label_id) VALUES (?, ?)');
+                foreach ($labelIds as $labelId) {
+                    $insert->execute([$itemId, $labelId]);
+                }
+            }
+            $pdo->commit();
+        } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
         respond(['ok' => true]);
     }

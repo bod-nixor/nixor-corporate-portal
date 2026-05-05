@@ -37,6 +37,18 @@ const dateInAllowedRange = (value) => {
   return value >= '2000-01-01T00:00' && value <= '2100-12-31T23:59';
 };
 
+const safeExternalUrl = (value) => {
+  try {
+    const url = new URL(String(value || ''), window.location.origin);
+    if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) {
+      return '';
+    }
+    return url.href;
+  } catch (err) {
+    return '';
+  }
+};
+
 const editEvent = (event) => {
     editingEventId = event.id;
     document.getElementById('calendar-title').value = event.title;
@@ -233,7 +245,17 @@ const loadEvents = async () => {
       if ((event.minutes || []).length) {
         const minutesList = document.createElement('div');
         minutesList.className = 'text-xs text-[var(--text-secondary)] space-y-1';
-        minutesList.innerHTML = (event.minutes || []).map((minute) => `<a class="block hover:text-[var(--text-primary)]" href="${minute.download_url}" target="_blank" rel="noopener">Minutes: ${minute.entity_name}</a>`).join('');
+        (event.minutes || []).forEach((minute) => {
+          const href = safeExternalUrl(minute.download_url);
+          if (!href) return;
+          const link = document.createElement('a');
+          link.className = 'block hover:text-[var(--text-primary)]';
+          link.href = href;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.textContent = `Minutes: ${minute.entity_name || 'Entity'}`;
+          minutesList.appendChild(link);
+        });
         ops.appendChild(minutesList);
       }
       if (ops.children.length) card.appendChild(ops);
@@ -316,10 +338,21 @@ form.addEventListener('submit', async (event) => {
   if (submitBtn) submitBtn.disabled = true;
   const payload = Object.fromEntries(new FormData(form).entries());
   payload.entity_id = entitySelect.value;
-  payload.participant_entity_ids = String(payload.participant_entity_ids || '')
+  const rawParticipantTokens = String(payload.participant_entity_ids || '')
     .split(',')
-    .map((value) => Number(value.trim()))
-    .filter((value) => Number.isInteger(value) && value > 0);
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const invalidParticipantTokens = rawParticipantTokens.filter((token) => {
+    const value = Number(token);
+    return !Number.isInteger(value) || value <= 0;
+  });
+  if (invalidParticipantTokens.length) {
+    setStatus(`Invalid participant entity ID(s): ${invalidParticipantTokens.join(', ')}`, false);
+    form.dataset.submitting = '';
+    if (submitBtn) submitBtn.disabled = false;
+    return;
+  }
+  payload.participant_entity_ids = rawParticipantTokens.map((token) => Number(token));
   if (!dateInAllowedRange(payload.event_date || '')) {
     setStatus('Event date must be between years 2000 and 2100.', false);
     eventDateInput.focus();

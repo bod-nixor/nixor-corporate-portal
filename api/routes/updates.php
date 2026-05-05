@@ -75,7 +75,8 @@ function handle_updates(string $method, array $_segments): void {
 
     // Filter events
     $filteredEvents = $rawEvents;
-    if (!rbac_has_global_permission($user, 'entity.view')) {
+    $isGlobalEntityViewer = rbac_has_global_permission($user, 'entity.view');
+    if (!$isGlobalEntityViewer) {
         $userEntityIds = rbac_entity_ids_for_permission($user, 'entity.view');
 
         $filteredEvents = array_values(array_filter($rawEvents, function($event) use ($userEntityIds, $relatedMap) {
@@ -103,18 +104,18 @@ function handle_updates(string $method, array $_segments): void {
 
             return in_array($parentEntityId, $userEntityIds, true);
         }));
-    }
 
-    $allowedRelatedIds = [];
-    foreach ($filteredEvents as $event) {
-        $type = $event['entity_type'];
-        $allowedRelatedIds[$type] = $allowedRelatedIds[$type] ?? [];
-        $allowedRelatedIds[$type][(int)$event['entity_id']] = true;
-    }
-    foreach ($relatedList as $type => $rows) {
-        $relatedList[$type] = array_values(array_filter($rows, static function ($row) use ($allowedRelatedIds, $type) {
-            return isset($allowedRelatedIds[$type][(int)($row['id'] ?? 0)]);
-        }));
+        $allowedRelatedIds = [];
+        foreach ($filteredEvents as $event) {
+            $type = $event['entity_type'];
+            $allowedRelatedIds[$type] = $allowedRelatedIds[$type] ?? [];
+            $allowedRelatedIds[$type][(int)$event['entity_id']] = true;
+        }
+        foreach ($relatedList as $type => $rows) {
+            $relatedList[$type] = array_values(array_filter($rows, static function ($row) use ($allowedRelatedIds, $type) {
+                return isset($allowedRelatedIds[$type][(int)($row['id'] ?? 0)]);
+            }));
+        }
     }
 
     respond([

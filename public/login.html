@@ -128,10 +128,18 @@
     const requestedNext = new URLSearchParams(window.location.search).get('next') || '';
     let googleNativeBusy = false;
     const safeNext = () => {
-      if (!requestedNext || !requestedNext.startsWith('/') || requestedNext.startsWith('//') || requestedNext.startsWith('/api/')) {
+      if (!requestedNext || requestedNext.includes('\\')) {
         return '/dashboard.html';
       }
-      return requestedNext;
+      try {
+        const resolved = new URL(requestedNext, window.location.origin);
+        if (resolved.origin !== window.location.origin || resolved.pathname.startsWith('/api/')) {
+          return '/dashboard.html';
+        }
+        return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+      } catch (err) {
+        return '/dashboard.html';
+      }
     };
     const loginDebugEnabled = () => {
       try {

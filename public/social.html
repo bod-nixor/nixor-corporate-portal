@@ -46,17 +46,18 @@
           </div>
         </div>
 
-        <div id="post-modal" class="hidden fixed inset-0 z-50 bg-black/65 backdrop-blur-sm p-4 overflow-y-auto">
+        <div id="post-modal" class="hidden fixed inset-0 z-50 bg-black/65 backdrop-blur-sm p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="post-modal-title" aria-describedby="post-modal-desc">
           <div class="min-h-full flex items-center justify-center">
           <div
             class="card w-full max-w-lg p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)]">
             <div class="px-6 py-5 border-b border-[var(--border-subtle)] flex items-center justify-between gap-4">
-              <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">New Post</h2>
+              <h2 id="post-modal-title" class="text-lg font-bold tracking-tight text-[var(--text-primary)]">New Post</h2>
               <button id="close-post-modal" type="button" class="btn btn-ghost px-3 py-2" aria-label="Close new post">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
             <form id="social-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+              <p id="post-modal-desc" class="sr-only">Create or edit a social feed post.</p>
               <div class="space-y-1.5">
                 <label for="social-scope" class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Feed</label>
                 <select id="social-scope" name="feed_scope" class="input-field">

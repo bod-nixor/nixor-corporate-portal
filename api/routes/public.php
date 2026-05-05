@@ -8,6 +8,9 @@ function handle_public(string $method, array $segments): void {
     }
 
     if ($action === 'volunteer_detail' && $method === 'GET') {
+        if (!rate_limit('volunteer_detail', 60, 600)) {
+            respond(['ok' => false, 'error' => 'Too many requests'], 429);
+        }
         $endeavourId = (int)($_GET['endeavour_id'] ?? ($_GET['id'] ?? 0));
         if ($endeavourId <= 0) {
             respond(['ok' => false, 'error' => 'endeavour_id required'], 400);
@@ -42,6 +45,9 @@ function handle_public(string $method, array $segments): void {
     }
 
     if ($action === 'social_global' && $method === 'GET') {
+        if (!rate_limit('social_global', 120, 600)) {
+            respond(['ok' => false, 'error' => 'Too many requests'], 429);
+        }
         require_once __DIR__ . '/social.php';
         respond(['ok' => true, 'data' => social_fetch_feed(null, 'global', null)]);
     }
