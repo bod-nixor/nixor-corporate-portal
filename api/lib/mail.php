@@ -12,23 +12,26 @@ function smtp_configured(): bool {
 }
 
 function send_email(string $to, string $subject, string $body, bool $isHtml = true, ?string $replyTo = null): bool {
+
+    file_put_contents(
+        mail_log_path(),
+        sprintf("[%s] send_email called. To: %s | Subject: %s\n", date('c'), $to, $subject),
+        FILE_APPEND
+    );
+
     $to = trim($to);
     if ($to === '') {
+        file_put_contents(mail_log_path(), '[' . date('c') . "] send_email: empty recipient\n", FILE_APPEND);
         return false;
     }
     if (!smtp_configured()) {
-        $logLine = sprintf(
-            "[%s] SMTP not configured. To: %s | Subject: %s | Body: [omitted]\n",
-            date('c'),
-            $to,
-            $subject
-        );
-        file_put_contents(mail_log_path(), $logLine, FILE_APPEND);
+        file_put_contents(mail_log_path(), '[' . date('c') . "] send_email: SMTP not configured\n", FILE_APPEND);
         return false;
     }
 
     $autoload = dirname(__DIR__, 2) . '/vendor/autoload.php';
     if (!file_exists($autoload)) {
+        file_put_contents(mail_log_path(), '[' . date('c') . "] send_email: PHPMailer autoload missing at {$autoload}\n", FILE_APPEND);
         error_log('PHPMailer missing; cannot send mail.');
         return false;
     }
@@ -59,7 +62,38 @@ function send_email(string $to, string $subject, string $body, bool $isHtml = tr
         $mail->Subject = $subject;
         $mail->Body = $body;
         $mail->isHTML($isHtml);
+        
+        file_put_contents(
+            mail_log_path(),
+            sprintf(
+                "[%s] SMTP attempt. Host: %s | Port: %s | Secure: %s | User: %s\n",
+                date('c'),
+                env_value('SMTP_HOST'),
+                env_value('SMTP_PORT'),
+                env_value('SMTP_SECURE'),
+                env_value('SMTP_USER')
+            ),
+            FILE_APPEND
+        );
+        
+        if (in_array(env_value('SMTP_HOST'), ['localhost', '127.0.0.1', '::1'], true)) {
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true,
+                ],
+            ];
+        }
+        
         $mail->send();
+        
+        file_put_contents(
+            mail_log_path(),
+            sprintf("[%s] SMTP send success. To: %s | Subject: %s\n", date('c'), $to, $subject),
+            FILE_APPEND
+        );
+        
         return true;
     } catch (Throwable $e) {
         error_log('Mail send failed: ' . $e->getMessage());

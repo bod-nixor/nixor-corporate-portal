@@ -267,8 +267,29 @@ function handle_forgot_password(): void {
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             if ($user && ($user['status'] ?? '') === 'active') {
+                file_put_contents(
+                    dirname(__DIR__, 2) . '/logs/reset-debug.log',
+                    '[' . date('c') . "] forgot-password: real user found id=" . local_user_id_from_row($user) . " email=" . ($user['email'] ?? '') . "\n",
+                    FILE_APPEND
+                );
+                
                 $token = auth_create_password_token(local_user_id_from_row($user), 'password_reset');
-                auth_send_password_token_email($user, 'password_reset', $token['token'], $token['expires_at']);
+                
+                file_put_contents(
+                    dirname(__DIR__, 2) . '/logs/reset-debug.log',
+                    '[' . date('c') . "] forgot-password: token created\n",
+                    FILE_APPEND
+                );
+                
+                $mailSent = auth_send_password_token_email($user, 'password_reset', $token['token'], $token['expires_at']);
+                
+                file_put_contents(
+                    dirname(__DIR__, 2) . '/logs/reset-debug.log',
+                    '[' . date('c') . '] forgot-password: mail result=' . ($mailSent ? 'true' : 'false') . "\n",
+                    FILE_APPEND
+                );
+
+                error_log('forgot-password: reset email send result = ' . ($mailSent ? 'true' : 'false') . ' for user_id=' . local_user_id_from_row($user));
                 auth_log_event('password_reset_requested', [
                     'user_id' => local_user_id_from_row($user),
                     'email_hash' => auth_email_hash($email),
