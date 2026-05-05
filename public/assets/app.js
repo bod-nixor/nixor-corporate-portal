@@ -729,10 +729,19 @@ function userHasPagePermission(me, permission) {
   return (me?.data?.navigation || []).some(link => link.permission === permission);
 }
 
+function userRequiresPasswordSetup(user) {
+  return Number(user?.force_password_reset || 0) === 1 || Number(user?.password_setup_required || 0) === 1;
+}
+
 export async function requireAuthPage(requiredPermission = null) {
   const response = await apiFetch('/auth/me', { skipFallback: true });
-  if (!response?.data?.user) {
+  const user = response?.data?.user;
+  if (!user) {
     window.location.replace(loginUrlForCurrentPage());
+    return null;
+  }
+  if (userRequiresPasswordSetup(user)) {
+    window.location.replace('/reset_password.html?mode=session');
     return null;
   }
   const permission = requiredPermission || pagePermissionMap[(window.location.pathname.replace(/\/+$/, '') || '/').toLowerCase()];

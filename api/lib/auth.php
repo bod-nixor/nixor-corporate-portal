@@ -24,7 +24,23 @@ function user_from_session(): ?array {
     $stmt = db()->prepare('SELECT * FROM users WHERE id = ? AND status = ?');
     $stmt->execute([$_SESSION['user_id'], 'active']);
     $user = $stmt->fetch();
-    return $user ?: null;
+    if (!$user) {
+        return null;
+    }
+    $expectedVersion = (int)($user['session_version'] ?? 0);
+    $sessionVersion = $_SESSION['session_version'] ?? null;
+    if ($sessionVersion !== null && (int)$sessionVersion !== $expectedVersion) {
+        unset($_SESSION['user_id'], $_SESSION['session_version']);
+        return null;
+    }
+    if ($sessionVersion === null && $expectedVersion > 0) {
+        unset($_SESSION['user_id']);
+        return null;
+    }
+    if ($sessionVersion === null) {
+        $_SESSION['session_version'] = $expectedVersion;
+    }
+    return $user;
 }
 
 function auth_base64url_encode(string $value): string {
@@ -187,7 +203,45 @@ function require_auth(): array {
     if (!$user) {
         respond(['ok' => false, 'error' => 'Unauthorized'], 401);
     }
+    if (auth_user_requires_password_setup($user)) {
+        respond([
+            'ok' => false,
+            'error' => 'Password setup required',
+            'meta' => ['redirect' => '/reset_password.html?mode=session'],
+        ], 403);
+    }
     return $user;
+}
+
+function auth_user_requires_password_setup(array $user): bool {
+    return (int)($user['force_password_reset'] ?? 0) === 1
+        || (int)($user['password_setup_required'] ?? 0) === 1;
+}
+
+function auth_revoke_user_sessions(int $userId, bool $preserveCurrentSession = false, ?PDO $pdo = null): int {
+    $pdo = $pdo ?: db();
+    $stmt = $pdo->prepare('UPDATE users SET session_version = LAST_INSERT_ID(session_version + 1) WHERE id = ?');
+    $stmt->execute([$userId]);
+
+    try {
+        $revokeMobile = $pdo->prepare(
+            'UPDATE mobile_sessions
+             SET revoked_at = COALESCE(revoked_at, UTC_TIMESTAMP())
+             WHERE user_id = ? AND revoked_at IS NULL'
+        );
+        $revokeMobile->execute([$userId]);
+    } catch (PDOException $e) {
+        if ($e->getCode() !== '42S02') {
+            throw $e;
+        }
+    }
+
+    $versionStmt = $pdo->query('SELECT LAST_INSERT_ID()');
+    $newVersion = (int)$versionStmt->fetchColumn();
+    if ($preserveCurrentSession && session_status() === PHP_SESSION_ACTIVE && (int)($_SESSION['user_id'] ?? 0) === $userId) {
+        $_SESSION['session_version'] = $newVersion;
+    }
+    return $newVersion;
 }
 
 function require_role(array $roles): array {

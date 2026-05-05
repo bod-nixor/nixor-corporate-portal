@@ -90,6 +90,16 @@ const getRoleBadge = (role) => {
     return `badge ${badgeCls}`;
 };
 
+const passwordStateLabel = (user) => {
+    if (Number(user.password_setup_required || 0) === 1) {
+        return 'Setup required';
+    }
+    if (Number(user.force_password_reset || 0) === 1) {
+        return 'Reset required';
+    }
+    return user.password_changed_at ? 'Set' : 'Not set';
+};
+
 const loadUsers = async () => {
     try {
         const response = await apiFetch('/users');
@@ -111,9 +121,33 @@ const loadUsers = async () => {
             roleSpan.className = `${getRoleBadge(user.global_role)} capitalize`;
             roleSpan.textContent = user.global_role;
             role.appendChild(roleSpan);
+            const password = document.createElement('td');
+            password.className = 'py-3 text-slate-400';
+            password.textContent = passwordStateLabel(user);
+            const actions = document.createElement('td');
+            actions.className = 'py-3';
+            const actionWrap = document.createElement('div');
+            actionWrap.className = 'flex flex-wrap gap-2';
+            const forceButton = document.createElement('button');
+            forceButton.type = 'button';
+            forceButton.className = 'btn btn-secondary text-xs px-3 py-1.5';
+            forceButton.dataset.forceResetUser = user.id;
+            forceButton.dataset.sendEmail = '0';
+            forceButton.textContent = 'Force reset';
+            const emailButton = document.createElement('button');
+            emailButton.type = 'button';
+            emailButton.className = 'btn btn-secondary text-xs px-3 py-1.5';
+            emailButton.dataset.forceResetUser = user.id;
+            emailButton.dataset.sendEmail = '1';
+            emailButton.textContent = 'Send link';
+            actionWrap.appendChild(forceButton);
+            actionWrap.appendChild(emailButton);
+            actions.appendChild(actionWrap);
             row.appendChild(name);
             row.appendChild(email);
             row.appendChild(role);
+            row.appendChild(password);
+            row.appendChild(actions);
             usersList.appendChild(row);
 
             const option = document.createElement('option');
@@ -129,7 +163,7 @@ const loadUsers = async () => {
         const cell = document.createElement('td');
         row.className = 'border-t border-slate-800';
         cell.className = 'py-3 text-red-400 text-center';
-        cell.colSpan = 3;
+        cell.colSpan = 5;
         cell.textContent = message;
         row.appendChild(cell);
         usersList.appendChild(row);
@@ -208,15 +242,46 @@ userForm.addEventListener('submit', async (event) => {
     const submitBtn = userForm.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
     const payload = Object.fromEntries(new FormData(userForm).entries());
+    payload.send_invite = userForm.querySelector('input[name="send_invite"]')?.checked ?? true;
     try {
-        await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
-        setStatus(userStatus, 'User created.', true);
+        const response = await apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) });
+        const emailText = payload.send_invite
+            ? (response?.data?.invite_email_sent ? ' Setup email sent.' : ' Mail delivery was not confirmed.')
+            : '';
+        setStatus(userStatus, `User created. Password setup required.${emailText}`, true);
         userForm.reset();
         loadUsers();
     } catch (err) {
         setStatus(userStatus, normalizeError(err), false);
     } finally {
         if (submitBtn) submitBtn.disabled = false;
+    }
+});
+
+usersList.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-force-reset-user]');
+    if (!button) return;
+    const userId = button.dataset.forceResetUser;
+    const sendEmail = button.dataset.sendEmail === '1';
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = sendEmail ? 'Sending...' : 'Saving...';
+    try {
+        const response = await apiFetch(`/users/${userId}/force-password-reset`, {
+            method: 'POST',
+            body: JSON.stringify({ send_email: sendEmail })
+        });
+        setStatus(userStatus, sendEmail
+            ? (response?.data?.email_sent ? 'Password reset required and setup link sent.' : 'Password reset required. Mail delivery was not confirmed.')
+            : 'Password reset required at next login.', true);
+        await loadUsers();
+    } catch (err) {
+        setStatus(userStatus, normalizeError(err), false);
+    } finally {
+        if (document.contains(button)) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
     }
 });
 

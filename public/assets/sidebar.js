@@ -109,6 +109,10 @@ export function renderSidebar(activeId) {
             <button type="button" id="sidebar-signout" class="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer mt-0.5">Sign out</button>
           </div>
         </div>
+        <div class="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium text-[var(--text-tertiary)]">
+          <a href="/privacy.html" class="hover:text-[var(--text-secondary)] transition-colors">Privacy</a>
+          <a href="/terms.html" class="hover:text-[var(--text-secondary)] transition-colors">Terms</a>
+        </div>
       </div>
     </aside>
   `;

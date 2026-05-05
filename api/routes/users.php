@@ -10,12 +10,22 @@ function handle_users(string $method, array $segments): void {
         return;
     }
 
+    if ($id && $action === 'force-password-reset') {
+        handle_user_force_password_reset($method, (int)$id, $user);
+        return;
+    }
+
     if ($method === 'GET' && !$id) {
         $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
         $limit = isset($_GET['limit']) ? min(100, max(1, (int)$_GET['limit'])) : 50;
         $offset = ($page - 1) * $limit;
         try {
-            $stmt = db()->prepare('SELECT id, email, full_name, global_role, status, created_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?');
+            $stmt = db()->prepare(
+                'SELECT id, email, full_name, global_role, status, force_password_reset, password_setup_required, password_changed_at, password_reset_forced_at, created_at
+                 FROM users
+                 ORDER BY created_at DESC
+                 LIMIT ? OFFSET ?'
+            );
             $stmt->bindValue(1, $limit, PDO::PARAM_INT);
             $stmt->bindValue(2, $offset, PDO::PARAM_INT);
             $stmt->execute();
@@ -31,27 +41,54 @@ function handle_users(string $method, array $segments): void {
         $data = read_json();
         $email = validate_email_address($data['email'] ?? '', 'email');
         $fullName = require_non_empty($data['full_name'] ?? '', 'full_name', 190);
-        $password = $data['password'] ?? '';
-        if (strlen($password) < 12) {
-            respond(['ok' => false, 'error' => 'Password must be at least 12 characters'], 400);
+        if (array_key_exists('password', $data) && trim((string)$data['password']) !== '') {
+            respond(['ok' => false, 'error' => 'Admins cannot set initial passwords. Send a setup invite instead.'], 400);
         }
         $role = $data['global_role'] ?? 'volunteer';
         if (!in_array($role, $allowedRoles, true)) {
             respond(['ok' => false, 'error' => 'Invalid global_role'], 400);
         }
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = db()->prepare('INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, ?)');
+        $status = $data['status'] ?? 'active';
+        if (!in_array($status, ['active', 'suspended'], true)) {
+            respond(['ok' => false, 'error' => 'Invalid status'], 400);
+        }
+        $sendInvite = !array_key_exists('send_invite', $data) || filter_var($data['send_invite'], FILTER_VALIDATE_BOOLEAN);
+        $pdo = db();
         try {
-            $stmt->execute([$email, $hash, $fullName, $role]);
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare(
+                'INSERT INTO users (email, password_hash, full_name, global_role, status, force_password_reset, password_setup_required)
+                 VALUES (?, NULL, ?, ?, ?, 1, 1)'
+            );
+            $stmt->execute([$email, $fullName, $role, $status]);
+            $userId = (int)$pdo->lastInsertId();
+            $token = auth_create_password_token($userId, 'password_setup', (int)$user['id']);
+            $pdo->commit();
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             if ($e->getCode() === '23000') {
                 respond(['ok' => false, 'error' => 'Email already exists'], 409);
             }
             throw $e;
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         }
-        $userId = (int)db()->lastInsertId();
-        log_activity($user['id'], 'user', $userId, 'created', 'User created');
-        respond(['ok' => true, 'data' => ['id' => $userId]]);
+        $emailSent = false;
+        if ($sendInvite && $status === 'active') {
+            $emailSent = auth_send_password_token_email(
+                ['email' => $email, 'full_name' => $fullName],
+                'password_setup',
+                $token['token'],
+                $token['expires_at']
+            );
+        }
+        log_activity($user['id'], 'user', $userId, 'created', 'User created with password setup required', ['invite_email_attempted' => $sendInvite && $status === 'active', 'invite_email_sent' => $emailSent]);
+        respond(['ok' => true, 'data' => ['id' => $userId, 'password_setup_required' => true, 'invite_email_sent' => $emailSent]]);
     }
 
     if ($method === 'PUT' && $id) {
@@ -119,6 +156,41 @@ function handle_users(string $method, array $segments): void {
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function handle_user_force_password_reset(string $method, int $userId, array $actor): void {
+    if ($method !== 'POST') {
+        respond(['ok' => false, 'error' => 'Not Found'], 404);
+    }
+    require_permission('admin.manage_users', null, $actor);
+    $data = read_json();
+    $sendEmail = filter_var($data['send_email'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $stmt = db()->prepare('SELECT * FROM users WHERE id = ? AND status <> "deleted"');
+    $stmt->execute([$userId]);
+    $target = $stmt->fetch();
+    if (!$target) {
+        respond(['ok' => false, 'error' => 'User not found'], 404);
+    }
+
+    $update = db()->prepare(
+        'UPDATE users
+         SET force_password_reset = 1,
+             password_setup_required = IF(password_hash IS NULL OR password_hash = "", 1, password_setup_required),
+             password_reset_forced_at = UTC_TIMESTAMP(),
+             password_reset_forced_by = ?
+         WHERE id = ?'
+    );
+    $update->execute([(int)$actor['id'], $userId]);
+
+    $emailSent = false;
+    if ($sendEmail && ($target['status'] ?? '') === 'active') {
+        $tokenType = trim((string)($target['password_hash'] ?? '')) !== '' ? 'password_reset' : 'password_setup';
+        $token = auth_create_password_token($userId, $tokenType, (int)$actor['id']);
+        $emailSent = auth_send_password_token_email($target, $tokenType, $token['token'], $token['expires_at']);
+    }
+
+    log_activity($actor['id'], 'user', $userId, 'password_reset_forced', 'Admin forced password reset', ['email_requested' => $sendEmail, 'email_sent' => $emailSent]);
+    respond(['ok' => true, 'data' => ['force_password_reset' => true, 'email_sent' => $emailSent]]);
 }
 
 function handle_user_role_assignments(string $method, int $userId, array $segments, array $actor): void {

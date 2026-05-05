@@ -9,10 +9,36 @@ CREATE TABLE users (
   google_id VARCHAR(190),
   global_role ENUM('admin','board','ceo','staff','student_affairs','volunteer') DEFAULT 'volunteer',
   status ENUM('active','suspended','deleted') DEFAULT 'active',
+  force_password_reset TINYINT(1) NOT NULL DEFAULT 0,
+  password_setup_required TINYINT(1) NOT NULL DEFAULT 0,
+  password_changed_at DATETIME NULL,
+  password_reset_forced_at DATETIME NULL,
+  password_reset_forced_by INT NULL,
   email_verified_at TIMESTAMP NULL,
   last_login_at TIMESTAMP NULL,
+  session_version INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_users_password_reset_forced_by (password_reset_forced_by),
+  CONSTRAINT fk_users_password_reset_forced_by FOREIGN KEY (password_reset_forced_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE auth_tokens (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  token_type ENUM('password_reset','password_setup') NOT NULL,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  expires_at DATETIME NOT NULL,
+  used_at DATETIME NULL,
+  created_ip VARCHAR(45),
+  created_user_agent VARCHAR(255),
+  created_by INT,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  KEY idx_auth_tokens_user_type_active (user_id, token_type, used_at, expires_at),
+  KEY idx_auth_tokens_expiry (expires_at, used_at),
+  KEY idx_auth_tokens_created_by (created_by),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE students (

@@ -113,6 +113,8 @@
                   <th class="px-6 py-3">Name</th>
                   <th class="px-6 py-3">Email</th>
                   <th class="px-6 py-3">Role</th>
+                  <th class="px-6 py-3">Password</th>
+                  <th class="px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody id="users-list"
@@ -140,14 +142,7 @@
                 class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Email
                 Address</label>
               <input id="user-email" name="email" type="email" autocomplete="email" required
-                placeholder="user@nixor.edu.pk" class="input-field font-medium" />
-            </div>
-            <div class="space-y-1.5">
-              <label for="user-password"
-                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Temporary
-                Password</label>
-              <input id="user-password" name="password" type="password" autocomplete="new-password" required
-                placeholder="Generate password" class="input-field font-medium" />
+                placeholder="user@example.com" class="input-field font-medium" />
             </div>
             <div class="space-y-1.5">
               <label for="user-global_role"
@@ -161,6 +156,21 @@
                 <option value="volunteer" selected>Volunteer</option>
               </select>
             </div>
+            <div class="space-y-1.5">
+              <label for="user-account-status"
+                class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Account
+                Status</label>
+              <select id="user-account-status" name="status" class="input-field font-medium">
+                <option value="active" selected>Active</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+            <label
+              class="flex items-center justify-between gap-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
+              <span class="text-sm font-semibold">Email setup link</span>
+              <input type="checkbox" name="send_invite" value="1" checked
+                class="h-5 w-5 accent-[var(--color-primary)]" />
+            </label>
             <div id="user-status"
               class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
             <div class="pt-2">

@@ -52,6 +52,7 @@ class TestClient {
         $data = json_decode($response, true);
         return [
             'status' => $status,
+            'body' => $response,
             'data' => is_array($data) ? $data : [],
             'headers' => $this->lastHeaders
         ];
