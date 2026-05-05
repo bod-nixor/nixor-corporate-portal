@@ -132,3 +132,9 @@ form?.addEventListener('submit', async (event) => {
     }
   }
 });
+
+const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+const privacyLink = document.getElementById('legal-privacy');
+const termsLink = document.getElementById('legal-terms');
+if (privacyLink) privacyLink.href = `/privacy.html?return_to=${returnTo}`;
+if (termsLink) termsLink.href = `/terms.html?return_to=${returnTo}`;

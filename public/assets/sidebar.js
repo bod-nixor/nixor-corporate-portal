@@ -110,8 +110,8 @@ export function renderSidebar(activeId) {
           </div>
         </div>
         <div class="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium text-[var(--text-tertiary)]">
-          <a href="/privacy.html" class="hover:text-[var(--text-secondary)] transition-colors">Privacy</a>
-          <a href="/terms.html" class="hover:text-[var(--text-secondary)] transition-colors">Terms</a>
+          <a href="/privacy.html?return_to=${encodeURIComponent(window.location.pathname + window.location.search)}" class="hover:text-[var(--text-secondary)] transition-colors">Privacy</a>
+          <a href="/terms.html?return_to=${encodeURIComponent(window.location.pathname + window.location.search)}" class="hover:text-[var(--text-secondary)] transition-colors">Terms</a>
         </div>
       </div>
     </aside>
