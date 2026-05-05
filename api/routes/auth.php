@@ -8,6 +8,7 @@ function handle_auth(string $method, array $segments): void {
             }
             require_csrf();
             $data = read_json();
+            auth_enforce_subject_rate_limit('login_email', (string)($data['email'] ?? ''), 5, 900);
             $user = authenticate_password_credentials($data);
             complete_login($user);
         } catch (Throwable $e) {
@@ -61,6 +62,22 @@ function handle_auth(string $method, array $segments): void {
                 'sessionName' => session_name()
             ]
         ]);
+    }
+
+    if ($action === 'forgot-password' && $method === 'POST') {
+        handle_forgot_password();
+    }
+
+    if ($action === 'reset-password' && ($segments[2] ?? '') === 'validate' && $method === 'POST') {
+        handle_password_token_validate();
+    }
+
+    if ($action === 'reset-password' && $method === 'POST') {
+        handle_password_token_reset();
+    }
+
+    if ($action === 'password' && ($segments[2] ?? '') === 'setup' && $method === 'POST') {
+        handle_session_password_setup();
     }
 
     if ($action === 'config' && $method === 'GET') {
@@ -176,6 +193,16 @@ function auth_email_domain(string $email): string {
     return substr($email, $atPos + 1);
 }
 
+function auth_enforce_subject_rate_limit(string $key, string $subject, int $limit, int $windowSeconds): void {
+    $subject = strtolower(trim($subject));
+    if ($subject === '') {
+        return;
+    }
+    if (!rate_limit_subject($key, $subject, $limit, $windowSeconds)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+}
+
 function auth_sanitized_exception_message(Throwable $e): string {
     $message = $e->getMessage();
     $message = preg_replace('/\\b(code|access_token|refresh_token|id_token|client_secret|mobile_auth_code|cookie|phpsessid)=([^\\s&]+)/i', '$1=[redacted]', $message) ?? $message;
@@ -213,6 +240,194 @@ function authenticate_password_credentials(array $data): array {
         respond(['ok' => false, 'error' => 'Account inactive'], 403);
     }
     return $user;
+}
+
+function auth_generic_forgot_password_response(): void {
+    respond([
+        'ok' => true,
+        'data' => [
+            'message' => 'If an account exists, a reset link has been sent.',
+        ],
+    ]);
+}
+
+function handle_forgot_password(): void {
+    if (!rate_limit('forgot_password', 6, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    require_csrf();
+    $data = read_json();
+    $email = strtolower(trim((string)($data['email'] ?? '')));
+    if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!rate_limit_subject('forgot_password_email', $email, 4, 900)) {
+            respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+        }
+        try {
+            $stmt = db()->prepare('SELECT * FROM users WHERE email = ? LIMIT 1');
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+            if ($user && ($user['status'] ?? '') === 'active') {
+                $token = auth_create_password_token(local_user_id_from_row($user), 'password_reset');
+                auth_send_password_token_email($user, 'password_reset', $token['token'], $token['expires_at']);
+                auth_log_event('password_reset_requested', [
+                    'user_id' => local_user_id_from_row($user),
+                    'email_hash' => auth_email_hash($email),
+                ]);
+            }
+        } catch (PDOException $e) {
+            error_log('Forgot password database error: ' . auth_sanitized_exception_message($e));
+        } catch (Throwable $e) {
+            error_log('Forgot password failed unexpectedly: ' . auth_sanitized_exception_message($e));
+        }
+    }
+    auth_generic_forgot_password_response();
+}
+
+function auth_read_password_token_payload(): array {
+    $data = read_json();
+    $token = trim((string)($data['token'] ?? ''));
+    return [$data, $token];
+}
+
+function auth_respond_invalid_password_token(): void {
+    respond(['ok' => false, 'error' => 'Invalid or expired password link'], 400);
+}
+
+function handle_password_token_validate(): void {
+    if (!rate_limit('password_token_validate', 30, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    require_csrf();
+    [$data, $token] = auth_read_password_token_payload();
+    if ($token === '' || !auth_password_token_format_is_valid($token)) {
+        auth_respond_invalid_password_token();
+    }
+    if (!rate_limit_subject('password_token_validate_token', $token, 10, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    try {
+        $row = auth_fetch_password_token_row(db(), $token);
+        if (!auth_password_token_row_is_usable($row)) {
+            auth_respond_invalid_password_token();
+        }
+        respond([
+            'ok' => true,
+            'data' => [
+                'valid' => true,
+                'type' => $row['token_type'],
+                'email' => auth_mask_email((string)$row['email']),
+                'requirements' => password_policy_rules(),
+            ],
+        ]);
+    } catch (PDOException $e) {
+        error_log('Password token validation database error: ' . auth_sanitized_exception_message($e));
+        respond(['ok' => false, 'error' => 'Unable to validate password link'], 500);
+    }
+}
+
+function handle_password_token_reset(): void {
+    if (!rate_limit('password_reset_submit', 10, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    require_csrf();
+    [$data, $token] = auth_read_password_token_payload();
+    $password = (string)($data['password'] ?? '');
+    $confirmation = (string)($data['password_confirmation'] ?? ($data['confirm_password'] ?? ''));
+    if ($token === '' || !auth_password_token_format_is_valid($token)) {
+        auth_respond_invalid_password_token();
+    }
+    if (!rate_limit_subject('password_reset_submit_token', $token, 5, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    try {
+        $preflightRow = auth_fetch_password_token_row(db(), $token);
+    } catch (PDOException $e) {
+        error_log('Password reset preflight database error: ' . auth_sanitized_exception_message($e));
+        respond(['ok' => false, 'error' => 'Unable to update password'], 500);
+    }
+    if (!auth_password_token_row_is_usable($preflightRow)) {
+        auth_respond_invalid_password_token();
+    }
+    require_strong_password($password, $confirmation, (string)$preflightRow['email'], (string)$preflightRow['full_name']);
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $row = auth_fetch_password_token_row($pdo, $token, true);
+        if (!auth_password_token_row_is_usable($row)) {
+            $pdo->commit();
+            auth_respond_invalid_password_token();
+        }
+        $userId = (int)$row['user_id'];
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        $update = $pdo->prepare(
+            'UPDATE users
+             SET password_hash = ?,
+                 force_password_reset = 0,
+                 password_setup_required = 0,
+                 password_changed_at = UTC_TIMESTAMP()
+             WHERE id = ?'
+        );
+        $update->execute([$hash, $userId]);
+        $markUsed = $pdo->prepare('UPDATE auth_tokens SET used_at = UTC_TIMESTAMP() WHERE id = ? AND used_at IS NULL');
+        $markUsed->execute([(int)$row['id']]);
+        if ($markUsed->rowCount() !== 1) {
+            $pdo->commit();
+            auth_respond_invalid_password_token();
+        }
+        $pdo->commit();
+        auth_revoke_user_sessions($userId);
+        log_activity(null, 'user', $userId, 'password_changed', 'Password changed through secure reset/setup link', ['token_type' => $row['token_type']]);
+        auth_log_event('password_reset_completed', ['user_id' => $userId, 'token_type' => $row['token_type']]);
+        respond(['ok' => true, 'data' => ['message' => 'Password updated. You can now sign in.']]);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if ($e instanceof PDOException) {
+            error_log('Password reset database error: ' . auth_sanitized_exception_message($e));
+            respond(['ok' => false, 'error' => 'Unable to update password'], 500);
+        }
+        throw $e;
+    }
+}
+
+function handle_session_password_setup(): void {
+    if (!rate_limit('password_session_setup', 10, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+    require_csrf();
+    $user = current_user();
+    if (!$user) {
+        respond(['ok' => false, 'error' => 'Unauthorized'], 401);
+    }
+    if (!auth_user_requires_password_setup($user)) {
+        respond(['ok' => false, 'error' => 'Password setup is not required for this account'], 400);
+    }
+    if (!rate_limit_subject('password_session_setup_user', (string)local_user_id_from_row($user), 5, 900)) {
+        respond(['ok' => false, 'error' => 'Too many attempts'], 429);
+    }
+
+    $data = read_json();
+    $password = (string)($data['password'] ?? '');
+    $confirmation = (string)($data['password_confirmation'] ?? ($data['confirm_password'] ?? ''));
+    require_strong_password($password, $confirmation, (string)$user['email'], (string)$user['full_name']);
+    $hash = password_hash($password, PASSWORD_DEFAULT);
+    $userId = local_user_id_from_row($user);
+    $stmt = db()->prepare(
+        'UPDATE users
+         SET password_hash = ?,
+             force_password_reset = 0,
+             password_setup_required = 0,
+             password_changed_at = UTC_TIMESTAMP()
+         WHERE id = ?'
+    );
+    $stmt->execute([$hash, $userId]);
+    auth_revoke_user_sessions($userId, true);
+    log_activity($userId, 'user', $userId, 'password_changed', 'Password changed during forced setup');
+    auth_log_event('password_setup_completed', ['user_id' => $userId]);
+    $fresh = fetch_google_user_by_id(db(), $userId) ?: $user;
+    respond(['ok' => true, 'data' => ['message' => 'Password updated.', 'user' => sanitize_user($fresh)]]);
 }
 
 function handle_google_oauth_start(): void {
@@ -303,7 +518,7 @@ function handle_google_oauth_callback(): void {
         }
 
         establish_login_session($user);
-        redirect_to($state['next'] ?? '/dashboard.html');
+        redirect_to(auth_user_requires_password_setup($user) ? '/reset_password.html?mode=session' : ($state['next'] ?? '/dashboard.html'));
     } catch (AuthRouteException $e) {
         auth_log_exception_event('oauth_callback_failed', $e, ['platform' => $platform]);
         error_log('Google OAuth callback failed: ' . auth_sanitized_exception_message($e));
@@ -311,7 +526,7 @@ function handle_google_oauth_callback(): void {
             redirect_to_mobile_auth_failure($e->clientErrorCode());
             return;
         }
-        redirect_to('/login.html?error=google_auth_failed');
+        redirect_to('/login.html?error=' . ($e->clientErrorCode() === 'domain_not_allowed' ? 'google_domain_not_allowed' : 'google_auth_failed'));
     } catch (PDOException $e) {
         auth_log_exception_event('oauth_callback_database_error', $e, ['platform' => $platform]);
         error_log('Google OAuth callback database error: ' . auth_sanitized_exception_message($e));
@@ -362,6 +577,8 @@ function handle_mobile_auth_exchange(): void {
                 'user' => sanitize_user($user),
                 'token' => $session['token'],
                 'expiresAt' => mobile_session_expires_at_for_client($session['expires_at']),
+                'requires_password_setup' => auth_user_requires_password_setup($user),
+                'redirect' => auth_user_requires_password_setup($user) ? '/reset_password.html?mode=session' : null,
             ],
         ]);
     } catch (AuthRouteException $e) {
@@ -382,6 +599,7 @@ function handle_mobile_password_login(): void {
 
     $data = read_json();
     try {
+        auth_enforce_subject_rate_limit('login_email', (string)($data['email'] ?? ''), 5, 900);
         $user = authenticate_password_credentials($data);
         $platform = mobile_platform_from_request($data);
         $session = create_mobile_session_token(local_user_id_from_row($user), $platform);
@@ -395,6 +613,8 @@ function handle_mobile_password_login(): void {
                 'user' => sanitize_user($user),
                 'token' => $session['token'],
                 'expiresAt' => mobile_session_expires_at_for_client($session['expires_at']),
+                'requires_password_setup' => auth_user_requires_password_setup($user),
+                'redirect' => auth_user_requires_password_setup($user) ? '/reset_password.html?mode=session' : null,
             ],
         ]);
     } catch (PDOException $e) {
@@ -437,6 +657,7 @@ function mobile_session_expires_at_for_client(string $expiresAt): string {
 
 function sanitize_user(array $user): array {
     unset($user['password_hash']);
+    unset($user['session_version']);
     return $user;
 }
 
@@ -1029,7 +1250,7 @@ function allowed_google_domains(): array {
         $raw = $raw === '' ? $pluralRaw : $raw . ',' . $pluralRaw;
     }
     if (!$raw) {
-        return [];
+        return ['nixorcollege.edu.pk'];
     }
     $parts = array_map('trim', explode(',', $raw));
     $domains = [];
@@ -1037,9 +1258,13 @@ function allowed_google_domains(): array {
         if ($domain === '') {
             continue;
         }
-        $domains[] = ltrim(strtolower($domain), '@');
+        $domain = ltrim(strtolower($domain), '@');
+        if ($domain === 'nixorcollege.edu.pk') {
+            $domains[] = $domain;
+        }
     }
-    return array_values(array_unique($domains));
+    $domains = array_values(array_unique($domains));
+    return $domains ?: ['nixorcollege.edu.pk'];
 }
 
 function email_domain_allowed(string $email, array $domains): bool {
@@ -1086,9 +1311,18 @@ function establish_login_session(array $user): void {
     $update->execute([$userId]);
     session_regenerate_id(true);
     $_SESSION['user_id'] = $userId;
+    $_SESSION['session_version'] = (int)($user['session_version'] ?? 0);
 }
 
 function complete_login(array $user): void {
     establish_login_session($user);
-    respond(['ok' => true, 'data' => ['user' => sanitize_user($user)]]);
+    $requiresPasswordSetup = auth_user_requires_password_setup($user);
+    respond([
+        'ok' => true,
+        'data' => [
+            'user' => sanitize_user($user),
+            'requires_password_setup' => $requiresPasswordSetup,
+            'redirect' => $requiresPasswordSetup ? '/reset_password.html?mode=session' : null,
+        ],
+    ]);
 }

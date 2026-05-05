@@ -2,6 +2,7 @@
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/TestClient.php';
+require_once __DIR__ . '/../api/routes/auth.php';
 
 final class ApiTest extends TestCase {
     private static $serverProcess;
@@ -37,6 +38,27 @@ final class ApiTest extends TestCase {
 
         // Clear rate limits
         array_map('unlink', glob(sys_get_temp_dir() . '/nixor_rate_*'));
+        $mailLog = rtrim((string)env_value('LOG_PATH', sys_get_temp_dir()), "\\/") . '/mail.log';
+        if (is_file($mailLog)) {
+            unlink($mailLog);
+        }
+    }
+
+    public function testLegalPagesAreReachableLoggedOutAndLinkedAfterLogin(): void {
+        $client = new TestClient(self::$baseUrl);
+        $privacy = $client->request('GET', '/privacy.html');
+        $terms = $client->request('GET', '/terms.html');
+        $settings = $client->request('GET', '/settings.html');
+        $sidebar = $client->request('GET', '/assets/sidebar.js');
+
+        $this->assertSame(200, $privacy['status']);
+        $this->assertSame(200, $terms['status']);
+        $this->assertSame(200, $settings['status']);
+        $this->assertSame(200, $sidebar['status']);
+        $this->assertStringContainsString('Privacy Policy', file_get_contents(__DIR__ . '/../public/settings.html'));
+        $this->assertStringContainsString('Terms &amp; Conditions', file_get_contents(__DIR__ . '/../public/settings.html'));
+        $this->assertStringContainsString('/privacy.html', file_get_contents(__DIR__ . '/../public/assets/sidebar.js'));
+        $this->assertStringContainsString('/terms.html', file_get_contents(__DIR__ . '/../public/assets/sidebar.js'));
     }
 
     public function testCsrfBootstrapReturnsTokenAndSetsSessionCookie(): void {
@@ -124,6 +146,183 @@ final class ApiTest extends TestCase {
         ], ["X-CSRF-Token: {$token}"]);
         $this->assertSame(400, $missing['status']);
         $this->assertSame('Email and password are required', $missing['data']['error']);
+    }
+
+    public function testNonNixorEmailPasswordLoginWorks(): void {
+        $this->createUser('external.partner@example.com', 'Password123!', 'staff');
+        $client = $this->loginClient('external.partner@example.com', 'Password123!');
+        $me = $client->request('GET', '/api/auth/me');
+        $this->assertSame(200, $me['status']);
+        $this->assertSame('external.partner@example.com', $me['data']['data']['user']['email'] ?? null);
+    }
+
+    public function testForgotPasswordIsGenericAndStoresOnlyTokenHash(): void {
+        $this->createUser('reset-user@example.com', 'Password123!', 'staff');
+        $client = new TestClient(self::$baseUrl);
+        $csrf = $client->request('GET', '/api/auth/csrf');
+        $token = $csrf['data']['data']['csrfToken'] ?? '';
+
+        $existing = $client->request('POST', '/api/auth/forgot-password', [
+            'email' => 'reset-user@example.com'
+        ], ["X-CSRF-Token: {$token}"]);
+        $missing = $client->request('POST', '/api/auth/forgot-password', [
+            'email' => 'missing-user@example.com'
+        ], ["X-CSRF-Token: {$token}"]);
+
+        $this->assertSame(200, $existing['status']);
+        $this->assertSame(200, $missing['status']);
+        $this->assertSame($existing['data']['data']['message'], $missing['data']['data']['message']);
+        $this->assertSame('If an account exists, a reset link has been sent.', $existing['data']['data']['message']);
+
+        $tokens = db()->query('SELECT token_hash, token_type, used_at FROM auth_tokens')->fetchAll();
+        $this->assertCount(1, $tokens);
+        $this->assertSame('password_reset', $tokens[0]['token_type']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $tokens[0]['token_hash']);
+        $this->assertNull($tokens[0]['used_at']);
+
+        $mailLog = rtrim((string)env_value('LOG_PATH', sys_get_temp_dir()), "\\/") . '/mail.log';
+        $this->assertFileExists($mailLog);
+        $mail = file_get_contents($mailLog);
+        $this->assertStringContainsString('reset-user@example.com', $mail);
+        $this->assertStringNotContainsString($tokens[0]['token_hash'], $mail);
+    }
+
+    public function testPasswordResetTokenValidationExpiryReuseAndStrength(): void {
+        $userId = $this->createUser('token-user@example.com', 'Password123!', 'staff');
+        $client = new TestClient(self::$baseUrl);
+        $csrf = $client->request('GET', '/api/auth/csrf');
+        $csrfToken = $csrf['data']['data']['csrfToken'] ?? '';
+
+        $invalid = $client->request('POST', '/api/auth/reset-password/validate', [
+            'token' => 'not-a-valid-token'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(400, $invalid['status']);
+
+        $expiredToken = $this->passwordResetToken();
+        $this->createAuthToken($userId, $expiredToken, 'password_reset', '-5 minutes');
+        $expired = $client->request('POST', '/api/auth/reset-password', [
+            'token' => $expiredToken,
+            'password' => 'NewStrongPassword123!',
+            'password_confirmation' => 'NewStrongPassword123!'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(400, $expired['status']);
+
+        $usableToken = $this->passwordResetToken();
+        $this->createAuthToken($userId, $usableToken);
+        $weak = $client->request('POST', '/api/auth/reset-password', [
+            'token' => $usableToken,
+            'password' => 'short',
+            'password_confirmation' => 'short'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(400, $weak['status']);
+        $this->assertSame('Password does not meet security requirements', $weak['data']['error']);
+
+        db()->prepare('INSERT INTO mobile_sessions (user_id, token_hash, platform, expires_at) VALUES (?, ?, "ios", UTC_TIMESTAMP() + INTERVAL 1 DAY)')
+            ->execute([$userId, hash('sha256', 'mobile-token-to-revoke')]);
+        db()->prepare('UPDATE users SET force_password_reset = 1, password_setup_required = 1 WHERE id = ?')->execute([$userId]);
+        $success = $client->request('POST', '/api/auth/reset-password', [
+            'token' => $usableToken,
+            'password' => 'NewStrongPassword123!',
+            'password_confirmation' => 'NewStrongPassword123!'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(200, $success['status']);
+
+        $row = db()->prepare('SELECT password_hash, force_password_reset, password_setup_required, password_changed_at, session_version FROM users WHERE id = ?');
+        $row->execute([$userId]);
+        $user = $row->fetch();
+        $this->assertTrue(password_verify('NewStrongPassword123!', $user['password_hash']));
+        $this->assertSame(0, (int)$user['force_password_reset']);
+        $this->assertSame(0, (int)$user['password_setup_required']);
+        $this->assertNotEmpty($user['password_changed_at']);
+        $this->assertSame(1, (int)$user['session_version']);
+
+        $used = db()->prepare('SELECT used_at FROM auth_tokens WHERE token_hash = ?');
+        $used->execute([hash('sha256', $usableToken)]);
+        $this->assertNotEmpty($used->fetchColumn());
+        $revoked = db()->query('SELECT revoked_at FROM mobile_sessions LIMIT 1')->fetchColumn();
+        $this->assertNotEmpty($revoked);
+
+        $reuse = $client->request('POST', '/api/auth/reset-password', [
+            'token' => $usableToken,
+            'password' => 'AnotherStrongPassword123!',
+            'password_confirmation' => 'AnotherStrongPassword123!'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(400, $reuse['status']);
+    }
+
+    public function testForcedResetBlocksProtectedAccessAndSessionSetupClearsFlags(): void {
+        $userId = $this->createUser('forced-admin@example.com', 'Password123!', 'admin');
+        db()->prepare('UPDATE users SET force_password_reset = 1 WHERE id = ?')->execute([$userId]);
+        $client = new TestClient(self::$baseUrl);
+        $csrf = $client->request('GET', '/api/auth/csrf');
+        $csrfToken = $csrf['data']['data']['csrfToken'] ?? '';
+        $login = $client->request('POST', '/api/auth/login', [
+            'email' => 'forced-admin@example.com',
+            'password' => 'Password123!'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(200, $login['status']);
+        $this->assertTrue((bool)($login['data']['data']['requires_password_setup'] ?? false));
+        $this->assertSame('/reset_password.html?mode=session', $login['data']['data']['redirect'] ?? null);
+
+        $blocked = $client->request('GET', '/api/admin/summary');
+        $this->assertSame(403, $blocked['status']);
+        $this->assertSame('Password setup required', $blocked['data']['error']);
+
+        $setup = $client->request('POST', '/api/auth/password/setup', [
+            'password' => 'SessionStrongPassword123!',
+            'password_confirmation' => 'SessionStrongPassword123!'
+        ], ["X-CSRF-Token: {$csrfToken}"]);
+        $this->assertSame(200, $setup['status']);
+
+        $allowed = $client->request('GET', '/api/admin/summary');
+        $this->assertSame(200, $allowed['status']);
+        $flags = db()->prepare('SELECT force_password_reset, password_setup_required FROM users WHERE id = ?');
+        $flags->execute([$userId]);
+        $row = $flags->fetch();
+        $this->assertSame(0, (int)$row['force_password_reset']);
+        $this->assertSame(0, (int)$row['password_setup_required']);
+    }
+
+    public function testGoogleDomainRestrictionForSso(): void {
+        $this->assertSame(['nixorcollege.edu.pk'], allowed_google_domains());
+        $this->expectException(AuthRouteException::class);
+        try {
+            find_or_create_google_user([
+                'sub' => 'external-google-id',
+                'email' => 'external@example.com',
+                'email_verified' => true,
+                'name' => 'External User',
+            ]);
+        } catch (AuthRouteException $e) {
+            $this->assertSame(403, $e->status());
+            $this->assertSame('domain_not_allowed', $e->clientErrorCode());
+            throw $e;
+        }
+    }
+
+    public function testNixorGoogleSsoCanResolveExistingUser(): void {
+        $userId = $this->createUser('student@nixorcollege.edu.pk', 'Password123!', 'staff');
+        $user = find_or_create_google_user([
+            'sub' => 'nixor-google-id',
+            'email' => 'student@nixorcollege.edu.pk',
+            'email_verified' => true,
+            'name' => 'Nixor Student',
+        ]);
+        $this->assertSame($userId, (int)$user['id']);
+        $this->assertSame('nixor-google-id', $user['google_id']);
+    }
+
+    public function testForgotPasswordRateLimitBlocksAbuse(): void {
+        $client = new TestClient(self::$baseUrl);
+        $csrf = $client->request('GET', '/api/auth/csrf');
+        $token = $csrf['data']['data']['csrfToken'] ?? '';
+        $last = null;
+        for ($i = 0; $i < 7; $i++) {
+            $last = $client->request('POST', '/api/auth/forgot-password', [
+                'email' => "abuse{$i}@example.com"
+            ], ["X-CSRF-Token: {$token}"]);
+        }
+        $this->assertSame(429, $last['status']);
     }
 
     public function testMobilePasswordLoginIssuesBearerTokenAndRevokesIt(): void {
@@ -360,18 +559,51 @@ final class ApiTest extends TestCase {
         $user = $adminClient->request('POST', '/api/admin/users', [
             'email' => 'new-user@example.com',
             'full_name' => 'New User',
+            'global_role' => 'staff',
+            'status' => 'active',
+            'send_invite' => true
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(200, $user['status']);
+        $newUserId = (int)$user['data']['data']['id'];
+        $createdUser = db()->prepare('SELECT password_hash, force_password_reset, password_setup_required FROM users WHERE id = ?');
+        $createdUser->execute([$newUserId]);
+        $createdUserRow = $createdUser->fetch();
+        $this->assertNull($createdUserRow['password_hash']);
+        $this->assertSame(1, (int)$createdUserRow['force_password_reset']);
+        $this->assertSame(1, (int)$createdUserRow['password_setup_required']);
+        $setupTokens = db()->prepare('SELECT COUNT(*) FROM auth_tokens WHERE user_id = ? AND token_type = "password_setup" AND used_at IS NULL');
+        $setupTokens->execute([$newUserId]);
+        $this->assertSame(1, (int)$setupTokens->fetchColumn());
+
+        $manualPassword = $adminClient->request('POST', '/api/admin/users', [
+            'email' => 'manual-password@example.com',
+            'full_name' => 'Manual Password',
             'password' => 'AnotherPassword123!',
             'global_role' => 'staff'
         ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
-        $this->assertSame(200, $user['status']);
+        $this->assertSame(400, $manualPassword['status']);
 
         $duplicateUser = $adminClient->request('POST', '/api/admin/users', [
             'email' => 'new-user@example.com',
             'full_name' => 'Duplicate User',
-            'password' => 'AnotherPassword123!',
             'global_role' => 'staff'
         ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
         $this->assertSame(409, $duplicateUser['status']);
+
+        $staffForce = $staffClient->request('POST', "/api/users/{$newUserId}/force-password-reset", [
+            'send_email' => true
+        ], ["X-CSRF-Token: {$staffClient->csrfToken}"]);
+        $this->assertSame(403, $staffForce['status']);
+
+        $adminForce = $adminClient->request('POST', "/api/users/{$newUserId}/force-password-reset", [
+            'send_email' => true
+        ], ["X-CSRF-Token: {$adminClient->csrfToken}"]);
+        $this->assertSame(200, $adminForce['status']);
+        $forced = db()->prepare('SELECT force_password_reset, password_reset_forced_by FROM users WHERE id = ?');
+        $forced->execute([$newUserId]);
+        $forcedRow = $forced->fetch();
+        $this->assertSame(1, (int)$forcedRow['force_password_reset']);
+        $this->assertSame(1, (int)$forcedRow['password_reset_forced_by']);
     }
 
     public function testAdminSetupBlockedForNonAdmin(): void {
@@ -1142,6 +1374,20 @@ final class ApiTest extends TestCase {
 
     private function mobileAuthCode(): string {
         return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+    }
+
+    private function passwordResetToken(): string {
+        return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+    }
+
+    private function createAuthToken(int $userId, string $token, string $type = 'password_reset', string $expiresModifier = '+30 minutes'): int {
+        $expiresAt = (new DateTimeImmutable($expiresModifier, new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+        $stmt = db()->prepare(
+            'INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at, created_ip)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$userId, $type, hash('sha256', $token), $expiresAt, '127.0.0.1']);
+        return (int)db()->lastInsertId();
     }
 
     private function loginClient(string $email, string $password): object {

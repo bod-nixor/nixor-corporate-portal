@@ -4,6 +4,8 @@ Nixor Corporate Portal is a PHP 8.1+ and static-JS internal portal for entity op
 
 ## What the product includes
 - Session-based authentication with CSRF bootstrapped from `GET /api/auth/csrf`.
+- Email/password login for Nixor and non-Nixor accounts, with Google SSO restricted to `@nixorcollege.edu.pk`.
+- Password reset and first-login setup links backed by hashed, expiring, single-use tokens.
 - Entity dashboard with announcements, meetings, deadlines, and documentation progress.
 - Entity endeavour lifecycle management with approvals, volunteer registration, and document attachment flows.
 - Entity drive with folders, files, links, sharing scopes, previews, and bulk actions.
@@ -103,6 +105,8 @@ Seed notes:
 - `sql/dev/seed_reference_data.sql` creates base entity/type data.
 - `sql/dev/seed_sample_data.sql` creates example users and sample records.
 - Seeded sample user password: `Password123!`
+
+Admin-created users do not receive admin-set temporary passwords. New accounts are created with password setup required and receive a setup link through the configured mail helper.
 
 ### 5. Create the first admin
 If you are not using dev seeds, create the first admin through `POST /api/admin/setup`.

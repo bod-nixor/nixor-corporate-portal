@@ -24,13 +24,13 @@
       <p class="text-[10px] text-[var(--text-tertiary)] uppercase tracking-[0.2em] font-bold mb-3">Nixor Corporate
         Portal</p>
       <h1 class="text-2xl font-bold tracking-tight mb-2">Welcome back</h1>
-      <p class="text-sm text-[var(--text-secondary)]">Sign in to securely access your workspace.</p>
+      <p class="text-sm text-[var(--text-secondary)]">Use email/password for portal accounts, or Google for Nixor College accounts.</p>
       <form id="login-form" class="space-y-4 text-left" novalidate>
         <div class="space-y-1.5">
           <label for="email-input" class="block text-sm font-medium text-[var(--text-secondary)]">Email address</label>
           <div class="relative">
             <input id="email-input" type="email" name="email" autocomplete="email" class="input-field pl-10"
-              placeholder="name@nixor.io" required aria-describedby="email-error" />
+              placeholder="name@example.com" required aria-describedby="email-error" />
             <svg
               class="w-4 h-4 text-[var(--text-tertiary)] absolute top-1/2 left-3.5 -translate-y-1/2 pointer-events-none"
               fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -43,8 +43,8 @@
         <div class="space-y-1.5">
           <div class="flex items-center justify-between">
             <label for="password-input" class="block text-sm font-medium text-[var(--text-secondary)]">Password</label>
-            <a href="#"
-              class="text-xs font-medium text-[var(--text-primary)] hover:underline decoration-[var(--border-strong)] underline-offset-4">Forgot?</a>
+            <a href="/forgot_password.html"
+              class="text-xs font-medium text-[var(--text-primary)] hover:underline decoration-[var(--border-strong)] underline-offset-4">Forgot password?</a>
           </div>
           <div class="relative">
             <input id="password-input" type="password" name="password" autocomplete="current-password"
@@ -93,14 +93,17 @@
           <path fill="#1976D2"
             d="M43.6 20.3H42V20H24v8h11.3c-1.1 3.1-3.6 5.5-7 6.8l6 4.9c-.4.4 4.7-3.4 6.7-9.7 1.4-4.1.6-9.1-.4-9.7z" />
         </svg>
-        <span>Google Workspace</span>
+        <span>Google for Nixor College</span>
       </div>
       <div id="google-button" class="hidden flex justify-center"></div>
 
       <p class="text-[11px] text-[var(--text-tertiary)] text-center mt-8">
         Protected by Nixor Zero Trust. <a
           class="hover:text-[var(--text-secondary)] underline decoration-[var(--border-subtle)] underline-offset-4"
-          href="#">Privacy Policy</a>.
+          href="/privacy.html">Privacy Policy</a>
+        <span aria-hidden="true"> · </span>
+        <a class="hover:text-[var(--text-secondary)] underline decoration-[var(--border-subtle)] underline-offset-4"
+          href="/terms.html">Terms &amp; Conditions</a>.
       </p>
     </div>
   </div>
@@ -315,18 +318,22 @@
       }
       google.accounts.id.initialize({
         client_id: clientId,
-        callback: async (response) => {
-          if (!response?.credential) {
+        callback: async (googleResponse) => {
+          if (!googleResponse?.credential) {
             const errText = errorEl.querySelector('span');
             if (errText) errText.textContent = 'Google sign-in failed.';
             errorEl.classList.remove('hidden');
             return;
           }
           try {
-            await apiFetch('/auth/google_callback', {
+            const response = await apiFetch('/auth/google_callback', {
               method: 'POST',
-              body: JSON.stringify({ id_token: response.credential })
+              body: JSON.stringify({ id_token: googleResponse.credential })
             });
+            if (response?.data?.redirect) {
+              window.location.href = response.data.redirect;
+              return;
+            }
             window.location.href = safeNext();
           } catch (err) {
             showLoginError(friendlyError(err, 'Google sign-in failed. Please try again.'));
@@ -377,6 +384,8 @@
     const urlError = new URLSearchParams(window.location.search).get('error');
     if (urlError === 'google_auth_failed') {
       showLoginError('Google sign-in could not be completed. Please try again.');
+    } else if (urlError === 'google_domain_not_allowed') {
+      showLoginError('Google sign-in is available only for Nixor College accounts. Use email and password for this account.');
     }
 
     if (isNativeRuntime()) {
@@ -405,6 +414,10 @@
             body: JSON.stringify({ ...payload, platform: getNativePlatform() })
           });
           await persistMobileAuthSession(response?.data);
+          if (response?.data?.redirect) {
+            window.location.href = response.data.redirect;
+            return;
+          }
           const verification = await apiFetch('/auth/me');
           if (!verification?.data?.user) {
             throw new Error('Sign-in completed, but the mobile session could not be verified. Please sign in again.');
@@ -412,7 +425,11 @@
         } else {
           const csrf = await ensureCsrfToken();
           loginDebugLog(`[NCP Login] submitting with csrf present ${csrf ? 'yes' : 'no'}`);
-          await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+          const response = await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
+          if (response?.data?.redirect) {
+            window.location.href = response.data.redirect;
+            return;
+          }
         }
         errorEl.classList.add('hidden');
         window.location.href = safeNext();

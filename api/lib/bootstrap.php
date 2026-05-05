@@ -54,3 +54,5 @@ require_once __DIR__ . '/drive.php';
 require_once __DIR__ . '/websocket.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/validation.php';
+require_once __DIR__ . '/password_policy.php';
+require_once __DIR__ . '/auth_tokens.php';

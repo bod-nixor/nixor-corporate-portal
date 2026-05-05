@@ -10,6 +10,11 @@ Use this checklist for release candidates, major feature work, and any agent-dri
 
 ## Authentication
 - Login works with valid credentials.
+- Non-Nixor email/password accounts can sign in.
+- Google SSO only authorizes `@nixorcollege.edu.pk` accounts.
+- Forgot-password returns the same generic response for existing and missing emails.
+- Reset/setup links expire, are single-use, and enforce the strong password policy.
+- Users with forced password reset cannot access protected pages until setup is complete.
 - Invalid credentials show a clean inline error.
 - Logout clears the active session.
 - Protected routes return `401` or `403` cleanly without fatal output.

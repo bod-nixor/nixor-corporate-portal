@@ -206,9 +206,7 @@ function handle_setup(): void {
     $email = validate_email_address($data['email'] ?? '', 'email');
     $fullName = require_non_empty($data['full_name'] ?? '', 'full_name', 190);
     $password = $data['password'] ?? '';
-    if (strlen($password) < 12) {
-        respond(['ok' => false, 'error' => 'Password must be at least 12 characters'], 400);
-    }
+    require_strong_password((string)$password, (string)($data['password_confirmation'] ?? ''), $email, $fullName);
     $appEnv = env_value('APP_ENV', 'production');
     if ($appEnv === 'production') {
         $setupToken = env_value('SETUP_TOKEN', '');

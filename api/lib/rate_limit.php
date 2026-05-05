@@ -21,11 +21,23 @@ function get_client_ip(): string {
 
 function rate_limit(string $key, int $limit, int $windowSeconds): bool {
     $ip = get_client_ip();
-    $bucket = sys_get_temp_dir() . '/nixor_rate_' . md5($key . $ip);
+    return rate_limit_bucket($key . ':ip:' . $ip, $limit, $windowSeconds);
+}
+
+function rate_limit_subject(string $key, string $subject, int $limit, int $windowSeconds): bool {
+    $subject = trim($subject);
+    if ($subject === '') {
+        return true;
+    }
+    return rate_limit_bucket($key . ':subject:' . hash('sha256', $subject), $limit, $windowSeconds);
+}
+
+function rate_limit_bucket(string $bucketKey, int $limit, int $windowSeconds): bool {
+    $bucket = sys_get_temp_dir() . '/nixor_rate_' . md5($bucketKey);
     $now = time();
     $handle = fopen($bucket, 'c+');
     if ($handle === false) {
-        error_log("Rate limit bucket open failed for key={$key} ip={$ip}");
+        error_log("Rate limit bucket open failed for key_hash=" . substr(hash('sha256', $bucketKey), 0, 16));
         return true;
     }
     flock($handle, LOCK_EX);
