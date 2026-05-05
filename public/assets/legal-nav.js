@@ -7,9 +7,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   let backUrl = null;
   let backText = 'Back';
 
-  if (returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')) {
-    backUrl = returnTo;
-  } else if (document.referrer) {
+  if (returnTo && !returnTo.includes('\\')) {
+    try {
+      const resolved = new URL(returnTo, window.location.origin);
+      if (resolved.origin === window.location.origin && !resolved.pathname.startsWith('/api/')) {
+        backUrl = `${resolved.pathname}${resolved.search}${resolved.hash}`;
+      }
+    } catch (e) {
+      // invalid return_to
+    }
+  }
+
+  if (!backUrl && document.referrer) {
     try {
       const referrerUrl = new URL(document.referrer);
       if (referrerUrl.origin === window.location.origin) {
