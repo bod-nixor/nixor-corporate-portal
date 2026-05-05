@@ -8,7 +8,7 @@ function handle_announcements(string $method, array $segments): void {
         if ($entityId <= 0) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
-        ensure_entity_access($entityId, []);
+        require_permission('entity.view', $entityId, $user);
         $stmt = db()->prepare('SELECT a.*, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 20');
         $stmt->execute([$entityId]);
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
@@ -20,7 +20,7 @@ function handle_announcements(string $method, array $segments): void {
         if ($entityId <= 0) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
-        ensure_entity_access($entityId, ['communications', 'management']);
+        require_permission('entity.announce', $entityId, $user);
         $title = require_non_empty($data['title'] ?? '', 'title', 190);
         $message = require_non_empty($data['message'] ?? '', 'message', 2000);
         $stmt = db()->prepare('INSERT INTO dashboard_announcements (entity_id, title, message, created_by) VALUES (?, ?, ?, ?)');
@@ -39,8 +39,8 @@ function handle_announcements(string $method, array $segments): void {
         if (!$row) {
             respond(['ok' => false, 'error' => 'Announcement not found'], 404);
         }
-        ensure_entity_access((int)$row['entity_id'], []);
-        if ($user['global_role'] !== 'admin' && (int)$row['created_by'] !== (int)$user['id']) {
+        require_permission('entity.view', (int)$row['entity_id'], $user);
+        if (!can_permission($user, 'entity.announce', (int)$row['entity_id']) && (int)$row['created_by'] !== (int)$user['id']) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
         $del = db()->prepare('DELETE FROM dashboard_announcements WHERE id = ?');

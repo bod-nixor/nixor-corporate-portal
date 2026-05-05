@@ -61,6 +61,10 @@ try {
             require_once __DIR__ . '/routes/notifications.php';
             handle_notifications($method, $segments);
             break;
+        case 'settings':
+            require_once __DIR__ . '/routes/settings.php';
+            handle_settings($method, $segments);
+            break;
         case 'public':
             require_once __DIR__ . '/routes/public.php';
             handle_public($method, $segments);

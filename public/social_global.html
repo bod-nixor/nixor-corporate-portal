@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <script src="/assets/theme-init.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>NCP Global Feed</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+
+<body class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen">
+  <main class="max-w-3xl mx-auto px-6 py-10">
+    <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <div>
+        <p class="text-xs uppercase tracking-[0.25em] text-[var(--text-tertiary)] font-bold">Nixor Corporate Portal</p>
+        <h1 class="mt-2 text-3xl font-bold tracking-tight">Global Feed</h1>
+      </div>
+      <a class="btn btn-primary" href="/login.html?next=/social.html">Sign in to post</a>
+    </header>
+    <section id="global-feed" class="mt-8 space-y-5"></section>
+    <p id="global-empty" class="hidden mt-8 text-sm text-[var(--text-secondary)]">No global posts are published yet.</p>
+  </main>
+  <script type="module" src="/assets/social_global.js"></script>
+</body>
+
+</html>

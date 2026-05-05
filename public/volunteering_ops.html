@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <script src="/assets/theme-init.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Volunteer Operations</title>
+  <link rel="stylesheet" href="/assets/app.css" />
+</head>
+
+<body class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen selection:bg-[var(--text-secondary)] selection:text-[var(--bg-base)]">
+  <div class="app-shell">
+    <div id="sidebar-container"></div>
+    <main class="app-main app-main--wide">
+      <header class="app-page-header">
+        <h1 class="text-3xl font-bold tracking-tight">Volunteer Operations</h1>
+        <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Presence and transport records for shortlisted students.</p>
+      </header>
+
+      <section class="mt-6 card p-5">
+        <form id="ops-filters" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]" for="filter-student">Student ID</label>
+            <input id="filter-student" name="student_id" class="input-field mt-1" autocomplete="off" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]" for="filter-entity">Entity ID</label>
+            <input id="filter-entity" name="entity_id" type="number" min="1" class="input-field mt-1" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]" for="filter-q">Project or Endeavour</label>
+            <input id="filter-q" name="q" class="input-field mt-1" autocomplete="off" />
+          </div>
+          <div class="flex items-end gap-2">
+            <button class="btn btn-primary w-full" type="submit">Filter</button>
+            <button id="ops-clear" class="btn btn-ghost" type="button">Clear</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="mt-6 card p-0 overflow-hidden">
+        <div class="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between gap-4">
+          <h2 class="text-lg font-bold">Shortlisted Volunteers</h2>
+          <div id="ops-status" class="hidden text-sm font-semibold"></div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[760px] text-sm">
+            <thead class="text-left text-[var(--text-tertiary)] uppercase tracking-wider text-xs border-b border-[var(--border-subtle)]">
+              <tr>
+                <th class="px-5 py-3">Student</th>
+                <th class="px-5 py-3">Entity</th>
+                <th class="px-5 py-3">Endeavour</th>
+                <th class="px-5 py-3">Presence</th>
+                <th class="px-5 py-3">Transport</th>
+                <th class="px-5 py-3"></th>
+              </tr>
+            </thead>
+            <tbody id="ops-body"></tbody>
+          </table>
+        </div>
+        <div id="ops-empty" class="hidden px-5 py-10 text-center text-sm text-[var(--text-secondary)]">No shortlisted volunteers match these filters.</div>
+      </section>
+    </main>
+  </div>
+  <script type="module" src="/assets/volunteering_ops.js"></script>
+</body>
+
+</html>

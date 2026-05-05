@@ -109,9 +109,10 @@
         card.appendChild(desc);
         card.appendChild(meta);
         const loginLink = document.createElement('a');
-        loginLink.href = '/login.html';
+        const endeavourId = post.endeavour_id || post.id || '';
+        loginLink.href = `/volunteer_detail.html?endeavour_id=${encodeURIComponent(endeavourId)}`;
         loginLink.className = 'mt-6 bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors text-sm px-4 py-2 rounded-xl text-center';
-        loginLink.textContent = 'Apply via Volunteer Login';
+        loginLink.textContent = 'View Volunteer Details';
         card.appendChild(loginLink);
         grid.appendChild(card);
       });

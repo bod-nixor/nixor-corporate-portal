@@ -75,10 +75,9 @@ function handle_updates(string $method, array $_segments): void {
 
     // Filter events
     $filteredEvents = $rawEvents;
-    if (!in_array($user['global_role'], ['admin', 'board'], true)) {
-        $entityStmt = db()->prepare('SELECT entity_id FROM entity_memberships WHERE user_id = ?');
-        $entityStmt->execute([$user['id']]);
-        $userEntityIds = array_map(fn($row) => (int)$row['entity_id'], $entityStmt->fetchAll());
+    $isGlobalEntityViewer = rbac_has_global_permission($user, 'entity.view');
+    if (!$isGlobalEntityViewer) {
+        $userEntityIds = rbac_entity_ids_for_permission($user, 'entity.view');
 
         $filteredEvents = array_values(array_filter($rawEvents, function($event) use ($userEntityIds, $relatedMap) {
             $type = $event['entity_type'];
@@ -105,6 +104,18 @@ function handle_updates(string $method, array $_segments): void {
 
             return in_array($parentEntityId, $userEntityIds, true);
         }));
+
+        $allowedRelatedIds = [];
+        foreach ($filteredEvents as $event) {
+            $type = $event['entity_type'];
+            $allowedRelatedIds[$type] = $allowedRelatedIds[$type] ?? [];
+            $allowedRelatedIds[$type][(int)$event['entity_id']] = true;
+        }
+        foreach ($relatedList as $type => $rows) {
+            $relatedList[$type] = array_values(array_filter($rows, static function ($row) use ($allowedRelatedIds, $type) {
+                return isset($allowedRelatedIds[$type][(int)($row['id'] ?? 0)]);
+            }));
+        }
     }
 
     respond([

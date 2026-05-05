@@ -7,7 +7,7 @@ function handle_dashboard(string $method, array $_segments): void {
     if ($entityId <= 0) {
         respond(['ok' => false, 'error' => 'entity_id required'], 400);
     }
-    $user = ensure_entity_access($entityId, []);
+    $user = require_permission('entity.view', $entityId);
     $endeavourStmt = db()->prepare('SELECT COUNT(*) as total FROM endeavours WHERE entity_id = ?');
     $endeavourStmt->execute([$entityId]);
     $totalEndeavours = (int)$endeavourStmt->fetch()['total'];
@@ -119,17 +119,7 @@ function handle_dashboard(string $method, array $_segments): void {
     $announcementStmt = db()->prepare('SELECT a.*, u.full_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 5');
     $announcementStmt->execute([$entityId]);
 
-    $canPost = in_array($user['global_role'], ['admin', 'board'], true);
-    if (!$canPost) {
-        $membership = db()->prepare('SELECT department FROM entity_memberships WHERE entity_id = ? AND user_id = ?');
-        $membership->execute([$entityId, $user['id']]);
-        $dept = $membership->fetch();
-        if (!$dept) {
-            $canPost = false;
-        } else {
-            $canPost = in_array($dept['department'], ['communications', 'management'], true);
-        }
-    }
+    $canPost = can_permission($user, 'entity.announce', $entityId);
 
     respond([
         'ok' => true,

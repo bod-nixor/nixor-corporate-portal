@@ -7,6 +7,51 @@ function handle_public(string $method, array $segments): void {
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
+    if ($action === 'volunteer_detail' && $method === 'GET') {
+        if (!rate_limit('volunteer_detail', 60, 600)) {
+            respond(['ok' => false, 'error' => 'Too many requests'], 429);
+        }
+        $endeavourId = (int)($_GET['endeavour_id'] ?? ($_GET['id'] ?? 0));
+        if ($endeavourId <= 0) {
+            respond(['ok' => false, 'error' => 'endeavour_id required'], 400);
+        }
+        $stmt = db()->prepare(
+            'SELECT e.id, e.name, e.title, e.description, e.long_description, e.start_at, e.end_at,
+                    e.event_start_at, e.event_end_at, e.venue, e.volunteering_enabled,
+                    e.volunteer_signup_deadline, e.transport_fee_enabled, e.transport_fee_amount,
+                    en.name AS entity_name
+             FROM endeavours e
+             JOIN entities en ON en.id = e.entity_id
+             WHERE e.id = ? AND e.volunteering_enabled = 1'
+        );
+        $stmt->execute([$endeavourId]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            respond(['ok' => false, 'error' => 'Volunteer opportunity not found'], 404);
+        }
+        respond(['ok' => true, 'data' => [
+            'id' => (int)$row['id'],
+            'title' => $row['title'] ?: $row['name'],
+            'description' => $row['description'],
+            'long_description' => $row['long_description'],
+            'entity_name' => $row['entity_name'],
+            'venue' => $row['venue'],
+            'start_at' => $row['event_start_at'] ?: $row['start_at'],
+            'end_at' => $row['event_end_at'] ?: $row['end_at'],
+            'volunteer_signup_deadline' => $row['volunteer_signup_deadline'],
+            'transport_fee_enabled' => (bool)$row['transport_fee_enabled'],
+            'transport_fee_amount' => $row['transport_fee_amount'],
+        ]]);
+    }
+
+    if ($action === 'social_global' && $method === 'GET') {
+        if (!rate_limit('social_global', 120, 600)) {
+            respond(['ok' => false, 'error' => 'Too many requests'], 429);
+        }
+        require_once __DIR__ . '/social.php';
+        respond(['ok' => true, 'data' => social_fetch_feed(null, 'global', null)]);
+    }
+
     if ($action === 'interest' && $method === 'POST') {
         if (!rate_limit('interest', 10, 600)) {
             respond(['ok' => false, 'error' => 'Too many requests'], 429);

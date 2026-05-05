@@ -125,7 +125,22 @@
     const googleButton = document.getElementById('google-button');
     const defaultSubmitText = submitBtn?.textContent || 'Sign In to Dashboard';
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const requestedNext = new URLSearchParams(window.location.search).get('next') || '';
     let googleNativeBusy = false;
+    const safeNext = () => {
+      if (!requestedNext || requestedNext.includes('\\')) {
+        return '/dashboard.html';
+      }
+      try {
+        const resolved = new URL(requestedNext, window.location.origin);
+        if (resolved.origin !== window.location.origin || resolved.pathname.startsWith('/api/')) {
+          return '/dashboard.html';
+        }
+        return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+      } catch (err) {
+        return '/dashboard.html';
+      }
+    };
     const loginDebugEnabled = () => {
       try {
         return window.NCP_AUTH_DEBUG === true
@@ -312,7 +327,7 @@
               method: 'POST',
               body: JSON.stringify({ id_token: response.credential })
             });
-            window.location.href = '/dashboard.html';
+            window.location.href = safeNext();
           } catch (err) {
             showLoginError(friendlyError(err, 'Google sign-in failed. Please try again.'));
           }
@@ -400,7 +415,7 @@
           await apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(payload) });
         }
         errorEl.classList.add('hidden');
-        window.location.href = '/dashboard.html';
+        window.location.href = safeNext();
       } catch (err) {
         showLoginError(friendlyError(err));
         submitBtn.disabled = false;

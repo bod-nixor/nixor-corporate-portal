@@ -46,6 +46,7 @@ if (empty($_SESSION['csrf_token'])) {
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/responses.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/rbac.php';
 require_once __DIR__ . '/rate_limit.php';
 require_once __DIR__ . '/activity.php';
 require_once __DIR__ . '/uploads.php';

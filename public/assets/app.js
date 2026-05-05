@@ -679,11 +679,85 @@ function currentPageRequiresAuth() {
     '/endeavours.html',
     '/entity_drive.html',
     '/entity_endeavours.html',
+    '/volunteering_ops.html',
     '/settings.html',
     '/social.html'
   ];
   const path = (window.location.pathname.replace(/\/+$/, '') || '/').toLowerCase();
   return authenticatedPaths.includes(path);
+}
+
+const pagePermissionMap = {
+  '/admin.html': 'nav.admin',
+  '/calendar.html': 'nav.calendar',
+  '/dashboard.html': 'nav.dashboard',
+  '/endeavour_view.html': 'nav.entity_endeavours',
+  '/endeavours.html': 'nav.volunteering',
+  '/entity_drive.html': 'nav.entity_drive',
+  '/entity_endeavours.html': 'nav.entity_endeavours',
+  '/volunteering_ops.html': 'nav.volunteering_ops',
+  '/settings.html': 'nav.settings',
+  '/social.html': 'nav.social'
+};
+
+function intendedDestination() {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+export function loginUrlForCurrentPage() {
+  return `/login.html?next=${encodeURIComponent(intendedDestination())}`;
+}
+
+function authHomeFor(me) {
+  const navigation = me?.data?.navigation || [];
+  const dashboard = navigation.find(link => link.href === '/dashboard.html');
+  if (dashboard) {
+    return '/dashboard.html';
+  }
+  const first = navigation.find(link => link.href && link.href !== window.location.pathname);
+  return first?.href || '/home.html';
+}
+
+function userHasPagePermission(me, permission) {
+  if (!permission) {
+    return true;
+  }
+  const permissions = me?.data?.permissions || [];
+  if (permissions.includes(permission)) {
+    return true;
+  }
+  return (me?.data?.navigation || []).some(link => link.permission === permission);
+}
+
+export async function requireAuthPage(requiredPermission = null) {
+  const response = await apiFetch('/auth/me', { skipFallback: true });
+  if (!response?.data?.user) {
+    window.location.replace(loginUrlForCurrentPage());
+    return null;
+  }
+  const permission = requiredPermission || pagePermissionMap[(window.location.pathname.replace(/\/+$/, '') || '/').toLowerCase()];
+  if (!userHasPagePermission(response, permission)) {
+    window.location.replace(authHomeFor(response));
+    return null;
+  }
+  return response;
+}
+
+let globalAuthGuardStarted = false;
+function initGlobalAuthGuard() {
+  if (globalAuthGuardStarted || typeof window === 'undefined' || !currentPageRequiresAuth()) {
+    return;
+  }
+  globalAuthGuardStarted = true;
+  requireAuthPage().catch((err) => {
+    if (err?.status === 401) {
+      window.location.replace(loginUrlForCurrentPage());
+      return;
+    }
+    if (err?.status === 403) {
+      window.location.replace('/home.html');
+    }
+  });
 }
 
 export async function apiFetch(path, options = {}) {
@@ -1036,3 +1110,4 @@ export async function subscribeUpdates(onEvent) {
 }
 
 initMobileAuthListener();
+initGlobalAuthGuard();

@@ -306,7 +306,10 @@ final class ApiTest extends TestCase {
         $blocked = $client->request('POST', '/api/endeavours', [
             'entity_id' => $otherEntityId,
             'name' => 'Cross Entity Attempt',
-            'event_start_at' => '2026-05-01T12:00'
+            'description' => 'Should be blocked before creation.',
+            'venue' => 'Auditorium',
+            'event_start_at' => '2026-05-01T12:00',
+            'event_end_at' => '2026-05-01T14:00'
         ], ["X-CSRF-Token: {$client->csrfToken}"]);
 
         $this->assertSame(403, $blocked['status']);
@@ -459,15 +462,18 @@ final class ApiTest extends TestCase {
     }
 
     public function testEndeavourCreationRejectsImpossibleDates(): void {
-        $userId = $this->createUser('exec@example.com', 'Password123!', 'staff');
+        $userId = $this->createUser('exec@example.com', 'Password123!', 'ceo');
         $entityId = $this->createEntity('Strict Date Entity');
-        $this->addMembership($entityId, $userId, 'operations', 'executive');
+        $this->addMembership($entityId, $userId, 'management', 'manager');
 
         $client = $this->loginClient('exec@example.com', 'Password123!');
         $invalid = $client->request('POST', '/api/endeavours', [
             'entity_id' => $entityId,
             'name' => 'Impossible Date',
-            'event_start_at' => '2026-02-31T12:00'
+            'description' => 'Invalid date attempt.',
+            'venue' => 'Auditorium',
+            'event_start_at' => '2026-02-31T12:00',
+            'event_end_at' => '2026-03-01T13:00'
         ], ["X-CSRF-Token: {$client->csrfToken}"]);
 
         $this->assertSame(400, $invalid['status']);
@@ -476,7 +482,10 @@ final class ApiTest extends TestCase {
         $valid = $client->request('POST', '/api/endeavours', [
             'entity_id' => $entityId,
             'name' => 'Normalized Date',
-            'event_start_at' => '2026-03-01T12:00'
+            'description' => 'Valid normalized date.',
+            'venue' => 'Auditorium',
+            'event_start_at' => '2026-03-01T12:00',
+            'event_end_at' => '2026-03-01T13:00'
         ], ["X-CSRF-Token: {$client->csrfToken}"]);
         $this->assertSame(200, $valid['status']);
         $stored = db()->prepare('SELECT event_start_at FROM endeavours WHERE id = ?');
@@ -537,11 +546,10 @@ final class ApiTest extends TestCase {
         $this->assertSame(1, (int)$afterFee['data']['data'][0]['transport_fee_paid']);
     }
 
-    public function testHrDepartmentCanReadApplicationsAndMarkAttendance(): void {
-        $hrId = $this->createUser('hr@example.com', 'Password123!', 'staff');
+    public function testStudentAffairsCanReadApplicationsAndMarkAttendance(): void {
+        $hrId = $this->createUser('hr@example.com', 'Password123!', 'student_affairs');
         $studentUserId = $this->createUser('student@example.com', 'Password123!', 'volunteer');
         $entityId = $this->createEntity('HR Entity');
-        $this->addMembership($entityId, $hrId, 'hr', 'member');
         $endeavourId = $this->createEndeavour($entityId, $hrId, 'HR Managed Event', 'ON_DAY', true, '+5 days');
         $postId = $this->createVolunteerPost($endeavourId, $hrId);
         $studentId = $this->createStudent($studentUserId, 'S-100');
@@ -801,6 +809,220 @@ final class ApiTest extends TestCase {
         $this->assertSame(404, $afterDelete['status']);
     }
 
+    public function testCustomRbacRoleAssignmentControlsAuthMeNavigation(): void {
+        $adminId = $this->createUser('rbac-admin@example.com', 'Password123!', 'admin');
+        $staffId = $this->createUser('rbac-staff@example.com', 'Password123!', 'staff');
+        $this->seedRbacPermissionCodes(['nav.admin', 'settings.view']);
+
+        $admin = $this->loginClient('rbac-admin@example.com', 'Password123!');
+        $role = $admin->request('POST', '/api/admin/roles', [
+            'code' => 'custom_auditor',
+            'name' => 'Custom Auditor',
+            'scope' => 'global',
+            'permissions' => ['nav.admin']
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(200, $role['status']);
+
+        $assignment = $admin->request('POST', '/api/users/' . $staffId . '/roles', [
+            'role_id' => (int)$role['data']['data']['id']
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(200, $assignment['status']);
+
+        $staff = $this->loginClient('rbac-staff@example.com', 'Password123!');
+        $me = $staff->request('GET', '/api/auth/me');
+        $this->assertSame(200, $me['status']);
+        $this->assertContains('nav.admin', $me['data']['data']['permissions']);
+        $navIds = array_column($me['data']['data']['navigation'], 'id');
+        $this->assertContains('admin', $navIds);
+        $this->assertNotContains('dashboard', $navIds);
+    }
+
+    public function testEndeavourDeadlinesApprovalsAndResubmissionRules(): void {
+        $execId = $this->createUser('deadline-exec@example.com', 'Password123!', 'staff');
+        $this->createUser('deadline-board@example.com', 'Password123!', 'board');
+        $this->createUser('deadline-sa@example.com', 'Password123!', 'student_affairs');
+        $entityId = $this->createEntity('Deadline Entity');
+        $this->addMembership($entityId, $execId, 'hr', 'executive');
+        $eventStart = (new DateTimeImmutable('+10 days'))->format('Y-m-d H:i:s');
+        $eventEnd = (new DateTimeImmutable('+10 days +2 hours'))->format('Y-m-d H:i:s');
+        $endeavourId = $this->createEndeavourWithDates($entityId, $execId, 'Deadline Workflow', $eventStart, $eventEnd);
+        $fileId = $this->createDriveItem($entityId, 'Ops Plan', 'entity', $execId);
+        $secondFileId = $this->createDriveItem($entityId, 'Ops Plan v2', 'entity', $execId);
+
+        $period = db()->prepare('INSERT INTO corporate_periods (name, starts_at, ends_at, created_by) VALUES (?, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 30 DAY, ?)');
+        $period->execute(['Current Period', $execId]);
+        $periodId = (int)db()->lastInsertId();
+        db()->prepare('INSERT INTO corporate_period_plan_deadlines (corporate_period_id, doc_type, due_at, is_tentative) VALUES (?, "operational_plan", NOW() + INTERVAL 5 DAY, 1)')->execute([$periodId]);
+        db()->prepare('INSERT INTO corporate_period_plan_deadlines (corporate_period_id, doc_type, due_at, is_tentative) VALUES (?, "operational_plan", NOW() + INTERVAL 2 DAY, 0)')->execute([$periodId]);
+
+        $exec = $this->loginClient('deadline-exec@example.com', 'Password123!');
+        $submit = $exec->request('POST', "/api/endeavours/{$endeavourId}/submissions", [
+            'doc_type' => 'operational_plan',
+            'file_drive_item_id' => $fileId
+        ], ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(200, $submit['status']);
+        $submissionId = (int)$submit['data']['data']['id'];
+        $storedDue = db()->prepare('SELECT due_at, is_overdue FROM endeavour_submissions WHERE id = ?');
+        $storedDue->execute([$submissionId]);
+        $firstSubmission = $storedDue->fetch();
+        $this->assertSame(0, (int)$firstSubmission['is_overdue']);
+        $this->assertNotEmpty($firstSubmission['due_at']);
+
+        $sa = $this->loginClient('deadline-sa@example.com', 'Password123!');
+        $saEarly = $sa->request('POST', "/api/endeavours/{$endeavourId}/submissions/{$submissionId}/approve", [
+            'decision' => 'approved'
+        ], ["X-CSRF-Token: {$sa->csrfToken}"]);
+        $this->assertSame(400, $saEarly['status']);
+        $this->assertSame('Member of Board approval is required first', $saEarly['data']['error']);
+
+        $board = $this->loginClient('deadline-board@example.com', 'Password123!');
+        $rejectMissingComment = $board->request('POST', "/api/endeavours/{$endeavourId}/submissions/{$submissionId}/approve", [
+            'decision' => 'rejected'
+        ], ["X-CSRF-Token: {$board->csrfToken}"]);
+        $this->assertSame(400, $rejectMissingComment['status']);
+
+        $boardReject = $board->request('POST', "/api/endeavours/{$endeavourId}/submissions/{$submissionId}/approve", [
+            'decision' => 'rejected',
+            'comment' => 'Please resubmit with venue details.'
+        ], ["X-CSRF-Token: {$board->csrfToken}"]);
+        $this->assertSame(200, $boardReject['status']);
+
+        db()->prepare('UPDATE corporate_period_plan_deadlines SET due_at = NOW() - INTERVAL 1 DAY WHERE corporate_period_id = ? AND doc_type = "operational_plan"')->execute([$periodId]);
+        $resubmit = $exec->request('POST', "/api/endeavours/{$endeavourId}/submissions", [
+            'doc_type' => 'operational_plan',
+            'file_drive_item_id' => $secondFileId
+        ], ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(200, $resubmit['status']);
+        $resubmissionId = (int)$resubmit['data']['data']['id'];
+        $resubmission = db()->prepare('SELECT is_overdue, resubmission_of_id FROM endeavour_submissions WHERE id = ?');
+        $resubmission->execute([$resubmissionId]);
+        $row = $resubmission->fetch();
+        $this->assertSame(0, (int)$row['is_overdue']);
+        $this->assertSame($submissionId, (int)$row['resubmission_of_id']);
+
+        $boardApprove = $board->request('POST', "/api/endeavours/{$endeavourId}/submissions/{$resubmissionId}/approve", [
+            'decision' => 'approved'
+        ], ["X-CSRF-Token: {$board->csrfToken}"]);
+        $this->assertSame(200, $boardApprove['status']);
+        $saApprove = $sa->request('POST', "/api/endeavours/{$endeavourId}/submissions/{$resubmissionId}/approve", [
+            'decision' => 'approved'
+        ], ["X-CSRF-Token: {$sa->csrfToken}"]);
+        $this->assertSame(200, $saApprove['status']);
+        $status = db()->prepare('SELECT status FROM endeavour_submissions WHERE id = ?');
+        $status->execute([$resubmissionId]);
+        $this->assertSame('approved', $status->fetchColumn());
+    }
+
+    public function testEndeavourEditApprovalAndDirectSubmissionLinkAuthorization(): void {
+        $execId = $this->createUser('edit-exec@example.com', 'Password123!', 'staff');
+        $otherId = $this->createUser('edit-other@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Edit Approval Entity');
+        $this->addMembership($entityId, $execId, 'operations', 'executive');
+        $endeavourId = $this->createEndeavourWithDates($entityId, $execId, 'Original Title', '2026-05-10 10:00:00', '2026-05-10 12:00:00');
+        $fileId = $this->createDriveItem($entityId, 'Confidential Submission', 'private', $execId);
+        db()->prepare('INSERT INTO endeavour_submissions (endeavour_id, doc_type, file_drive_item_id, version_no, submitted_by, status) VALUES (?, "operational_plan", ?, 1, ?, "approved")')
+            ->execute([$endeavourId, $fileId, $execId]);
+        $submissionId = (int)db()->lastInsertId();
+
+        $exec = $this->loginClient('edit-exec@example.com', 'Password123!');
+        $edit = $exec->request('PUT', '/api/endeavours/' . $endeavourId, [
+            'name' => 'Changed Title'
+        ], ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(200, $edit['status']);
+        $this->assertTrue((bool)($edit['data']['data']['edit_approval_required'] ?? false));
+
+        $other = $this->loginClient('edit-other@example.com', 'Password123!');
+        $blocked = $other->request('GET', '/api/files/download?type=endeavour_submission&id=' . $submissionId);
+        $this->assertSame(403, $blocked['status']);
+
+        $authorized = $exec->request('GET', '/api/files/download?type=endeavour_submission&id=' . $submissionId);
+        $this->assertNotSame(403, $authorized['status']);
+    }
+
+    public function testVolunteeringOpsAndCalendarParticipantsMinutes(): void {
+        $opsId = $this->createUser('ops-sa@example.com', 'Password123!', 'student_affairs');
+        $regularId = $this->createUser('ops-regular@example.com', 'Password123!', 'staff');
+        $creatorId = $this->createUser('calendar-cco@example.com', 'Password123!', 'staff');
+        $entityA = $this->createEntity('Calendar Entity A');
+        $entityB = $this->createEntity('Calendar Entity B');
+        $this->addMembership($entityA, $regularId, 'operations', 'member');
+        $this->addMembership($entityA, $creatorId, 'communications', 'manager');
+        $this->addMembership($entityB, $regularId, 'operations', 'member');
+        $endeavourId = $this->createEndeavour($entityA, $creatorId, 'Ops Panel Event', 'ON_DAY', true, '+5 days');
+        $this->setEndeavourTransportFeeRequired($endeavourId);
+        $this->createStudent($regularId, 'OPS-REGULAR-1');
+        $registrationId = $this->createRegistration($endeavourId, $entityA, $regularId);
+        db()->prepare('UPDATE volunteer_registrations SET status = "shortlisted" WHERE id = ?')->execute([$registrationId]);
+
+        $regular = $this->loginClient('ops-regular@example.com', 'Password123!');
+        $blockedOps = $regular->request('GET', '/api/endeavours/volunteering_ops');
+        $this->assertSame(403, $blockedOps['status']);
+
+        $ops = $this->loginClient('ops-sa@example.com', 'Password123!');
+        $opsList = $ops->request('GET', '/api/endeavours/volunteering_ops?student_id=ops-regular&entity_id=' . $entityA . '&q=Ops');
+        $this->assertSame(200, $opsList['status']);
+        $this->assertCount(1, $opsList['data']['data']);
+        $mark = $ops->request('POST', '/api/endeavours/volunteering_ops', [
+            'registration_id' => $registrationId,
+            'attendance_status' => 'present',
+            'transport_fee_paid' => true
+        ], ["X-CSRF-Token: {$ops->csrfToken}"]);
+        $this->assertSame(200, $mark['status']);
+
+        $creator = $this->loginClient('calendar-cco@example.com', 'Password123!');
+        $event = $creator->request('POST', '/api/calendar', [
+            'entity_id' => $entityA,
+            'participant_entity_ids' => [$entityA, $entityB],
+            'title' => 'Cross Entity Meeting',
+            'event_date' => '2026-05-11T10:00',
+            'end_date' => '2026-05-11T11:00'
+        ], ["X-CSRF-Token: {$creator->csrfToken}"]);
+        $this->assertSame(200, $event['status']);
+        $eventId = (int)$event['data']['data']['id'];
+
+        $rsvp = $regular->request('POST', "/api/calendar/{$eventId}/rsvp", [
+            'entity_id' => $entityB,
+            'status' => 'absent',
+            'absence_comment' => 'Class conflict'
+        ], ["X-CSRF-Token: {$regular->csrfToken}"]);
+        $this->assertSame(200, $rsvp['status']);
+
+        $minutesFile = $this->createDriveItem($entityA, 'Meeting Minutes', 'entity', $creatorId);
+        $minutes = $creator->request('POST', "/api/calendar/{$eventId}/minutes", [
+            'entity_id' => $entityA,
+            'file_drive_item_id' => $minutesFile
+        ], ["X-CSRF-Token: {$creator->csrfToken}"]);
+        $this->assertSame(200, $minutes['status']);
+
+        $participantList = $regular->request('GET', '/api/calendar?entity_id=' . $entityB);
+        $this->assertSame(200, $participantList['status']);
+        $listed = array_values(array_filter($participantList['data']['data'], fn($row) => (int)$row['id'] === $eventId))[0] ?? null;
+        $this->assertNotNull($listed);
+        $this->assertNotEmpty($listed['minutes']);
+    }
+
+    public function testPublicGlobalSocialFeedAndAuthenticatedRestrictions(): void {
+        $this->createUser('global-author@example.com', 'Password123!', 'volunteer');
+        $client = $this->loginClient('global-author@example.com', 'Password123!');
+        $post = $client->request('POST', '/api/social', [
+            'feed_scope' => 'global',
+            'content' => '**Global** update https://example.com',
+            'image_urls' => ['https://example.com/image.jpg']
+        ], ["X-CSRF-Token: {$client->csrfToken}"]);
+        $this->assertSame(200, $post['status']);
+
+        $public = (new TestClient(self::$baseUrl))->request('GET', '/api/public/social_global');
+        $this->assertSame(200, $public['status']);
+        $this->assertCount(1, $public['data']['data']['posts']);
+        $this->assertStringContainsString('<strong>Global</strong>', $public['data']['data']['posts'][0]['safe_html']);
+
+        $anonymousPost = (new TestClient(self::$baseUrl))->request('POST', '/api/social', [
+            'feed_scope' => 'global',
+            'content' => 'Blocked'
+        ]);
+        $this->assertSame(401, $anonymousPost['status']);
+    }
+
     private function createEntity(string $name): int {
         $stmt = db()->prepare('INSERT INTO entities (name) VALUES (?)');
         $stmt->execute([$name]);
@@ -833,6 +1055,22 @@ final class ApiTest extends TestCase {
         return (int)db()->lastInsertId();
     }
 
+    private function createEndeavourWithDates(int $entityId, int $creatorId, string $name, string $eventStart, string $eventEnd): int {
+        $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, description, venue, phase, volunteering_enabled, event_start_at, event_end_at, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, "PRE_EVENT", 0, ?, ?, ?, ?, "draft")');
+        $stmt->execute([
+            $entityId,
+            $creatorId,
+            $name,
+            'Detailed description',
+            'Auditorium',
+            $eventStart,
+            $eventEnd,
+            substr($eventStart, 0, 10),
+            substr($eventEnd, 0, 10)
+        ]);
+        return (int)db()->lastInsertId();
+    }
+
     private function createCalendarEvent(int $entityId, int $creatorId, string $title): int {
         $stmt = db()->prepare('INSERT INTO calendar_events (entity_id, title, event_date, created_by) VALUES (?, ?, ?, ?)');
         $stmt->execute([$entityId, $title, '2026-05-01 12:00:00', $creatorId]);
@@ -849,6 +1087,13 @@ final class ApiTest extends TestCase {
         $stmt = db()->prepare('INSERT INTO social_comments (post_id, user_id, comment) VALUES (?, ?, ?)');
         $stmt->execute([$postId, $userId, $comment]);
         return (int)db()->lastInsertId();
+    }
+
+    private function seedRbacPermissionCodes(array $codes): void {
+        $stmt = db()->prepare('INSERT IGNORE INTO rbac_permissions (code, description) VALUES (?, ?)');
+        foreach ($codes as $code) {
+            $stmt->execute([$code, $code]);
+        }
     }
 
     private function setEndeavourPhase(int $endeavourId, string $phase): void {
