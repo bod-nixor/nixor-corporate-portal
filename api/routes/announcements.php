@@ -9,7 +9,7 @@ function handle_announcements(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         require_permission('entity.view', $entityId, $user);
-        $offset = (int)($_GET['offset'] ?? 0);
+        $offset = max(0, (int)($_GET['offset'] ?? 0));
         $limit = min(50, max(1, (int)($_GET['limit'] ?? 20)));
         $stmt = db()->prepare('SELECT a.*, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT ? OFFSET ?');
         $stmt->bindValue(1, $entityId, PDO::PARAM_INT);

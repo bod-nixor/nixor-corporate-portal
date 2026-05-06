@@ -55,40 +55,6 @@ async function hydrateSidebar(activeId) {
     }
     const nav = sidebar.querySelector('[data-sidebar-nav]');
     if (nav) {
-  return safeLinks.map(link => {
-    const isActive = link.id === activeId;
-    const classes = isActive
-      ? 'block px-4 py-2.5 rounded-xl bg-[var(--text-primary)] text-[var(--bg-base)] font-semibold cursor-default shadow-sm'
-      : 'block px-4 py-2.5 rounded-xl text-[var(--text-secondary)] hover:bg-[rgba(255,255,255,0.05)] hover:text-[var(--text-primary)] transition-colors font-medium';
-    const aria = isActive ? ' aria-current="page"' : '';
-    return `<a class="${classes}" href="${escapeHtml(link.href)}"${aria} data-link-id="${escapeHtml(link.id)}">${escapeHtml(link.text)}</a>`;
-  }).join('\n        ');
-}
-
-function renderAvatar(user) {
-  const name = user?.full_name || user?.name || '';
-  const email = user?.email || '';
-  const picture = user?.google_picture_url || user?.picture || '';
-  if (picture) {
-    return `<img src="${escapeHtml(picture)}" alt="" referrerpolicy="no-referrer" class="w-8 h-8 rounded-full object-cover border border-[var(--border-strong)]" />`;
-  }
-  return `<div class="w-8 h-8 rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-strong)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">${escapeHtml(initialsFor(name, email))}</div>`;
-}
-
-async function hydrateSidebar(activeId) {
-  const sidebar = document.getElementById('sidebar');
-  if (!sidebar) {
-    return;
-  }
-  try {
-    const response = await apiFetch('/auth/me', { skipFallback: true });
-    const user = response?.data?.user;
-    if (!user) {
-      window.location.href = loginUrlForCurrentPage();
-      return;
-    }
-    const nav = sidebar.querySelector('[data-sidebar-nav]');
-    if (nav) {
       nav.innerHTML = renderNavLinks(response?.data?.navigation || [], activeId);
     }
     const avatar = sidebar.querySelector('[data-sidebar-avatar]');

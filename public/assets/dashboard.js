@@ -295,11 +295,10 @@ const renderAnnouncement = (announcement, canPost) => {
         delBtn.onclick = async () => {
             if (confirm('Delete this announcement?')) {
                 try {
-                    const res = await fetch(`/api/announcements/${announcement.id}`, { method: 'DELETE' });
-                    if (!res.ok) throw new Error('Delete failed');
+                    await apiFetch(`/announcements/${announcement.id}`, { method: 'DELETE' });
                     acard.remove();
                 } catch (e) {
-                    alert('Error deleting announcement');
+                    alert(normalizeError(e) || 'Error deleting announcement');
                 }
             }
         };
@@ -347,6 +346,8 @@ const loadDashboard = async (entityId) => {
     announcementsOffset = 0;
     if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
     resetAnnouncementsMessage();
+    currentPendingDocs = [];
+    renderPendingDocs();
     setListMessage(pendingDocsList, 'Loading pending docs...');
     setListMessage(meetingsList, 'Loading meetings...');
     setListMessage(deadlinesList, 'Loading deadlines...');
@@ -393,6 +394,8 @@ const loadDashboard = async (entityId) => {
     } catch (err) {
         const message = normalizeError(err) || 'Unable to load dashboard.';
         logDashboard('dashboard data failure', { status: err?.status || null, message });
+        currentPendingDocs = [];
+        renderPendingDocs();
         setDashboardUnavailable(message);
     }
 };

@@ -42,6 +42,7 @@ function handle_dashboard(string $method, array $_segments): void {
     
     $edaStmt = db()->prepare('SELECT e.id as endeavour_id, e.name as endeavour_name, eda.doc_type, eda.approver_group, eda.status FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ? AND eda.status IN ("pending", "rejected") ORDER BY eda.created_at DESC');
     $edaStmt->execute([$entityId]);
+    $seenDocKeys = [];
     foreach ($edaStmt->fetchAll() as $row) {
         $category = null;
         if ($row['status'] === 'rejected' && $isExecutive) {
@@ -54,6 +55,8 @@ function handle_dashboard(string $method, array $_segments): void {
             }
         }
         if ($category) {
+            $docKey = $row['endeavour_id'] . '_' . $row['doc_type'];
+            $seenDocKeys[$docKey] = true;
             $pendingDocs[] = [
                 'endeavour_id' => $row['endeavour_id'],
                 'endeavour_name' => $row['endeavour_name'],
@@ -83,6 +86,10 @@ function handle_dashboard(string $method, array $_segments): void {
                 $docType = 'epilogue';
             }
             if ($docType) {
+                $docKey = $row['id'] . '_' . $docType;
+                if (isset($seenDocKeys[$docKey])) {
+                    continue;
+                }
                 $pendingDocs[] = [
                     'endeavour_id' => $row['id'],
                     'endeavour_name' => $row['name'],
