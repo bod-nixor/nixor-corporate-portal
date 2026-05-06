@@ -9,8 +9,13 @@ function handle_announcements(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         require_permission('entity.view', $entityId, $user);
-        $stmt = db()->prepare('SELECT a.*, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 20');
-        $stmt->execute([$entityId]);
+        $offset = (int)($_GET['offset'] ?? 0);
+        $limit = min(50, max(1, (int)($_GET['limit'] ?? 20)));
+        $stmt = db()->prepare('SELECT a.*, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT ? OFFSET ?');
+        $stmt->bindValue(1, $entityId, PDO::PARAM_INT);
+        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
+        $stmt->execute();
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
@@ -47,6 +52,28 @@ function handle_announcements(string $method, array $segments): void {
         $del->execute([$announcementId]);
         log_activity($user['id'], 'announcement', $announcementId, 'deleted', 'Announcement deleted');
         emit_ws_event('announcement.deleted', ['id' => $announcementId]);
+        respond(['ok' => true]);
+    }
+
+    if ($method === 'PUT' && $id) {
+        $announcementId = (int)$id;
+        $data = read_json();
+        $check = db()->prepare('SELECT * FROM dashboard_announcements WHERE id = ?');
+        $check->execute([$announcementId]);
+        $row = $check->fetch();
+        if (!$row) {
+            respond(['ok' => false, 'error' => 'Announcement not found'], 404);
+        }
+        require_permission('entity.view', (int)$row['entity_id'], $user);
+        if (!can_permission($user, 'entity.announce', (int)$row['entity_id']) && (int)$row['created_by'] !== (int)$user['id']) {
+            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+        $title = require_non_empty($data['title'] ?? $row['title'], 'title', 190);
+        $message = require_non_empty($data['message'] ?? $row['message'], 'message', 2000);
+        $stmt = db()->prepare('UPDATE dashboard_announcements SET title = ?, message = ? WHERE id = ?');
+        $stmt->execute([$title, $message, $announcementId]);
+        log_activity($user['id'], 'announcement', $announcementId, 'updated', 'Announcement updated');
+        emit_ws_event('announcement.updated', ['id' => $announcementId]);
         respond(['ok' => true]);
     }
 

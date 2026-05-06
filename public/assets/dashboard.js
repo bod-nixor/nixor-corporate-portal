@@ -94,52 +94,88 @@ const setDashboardUnavailable = (message) => {
     modalOpen.classList.add('opacity-60', 'cursor-not-allowed');
 };
 
-const renderPendingDocs = (listEl, docs) => {
+let currentPendingDocs = [];
+const pendingDocsFilter = document.getElementById('pending-docs-filter');
+
+const renderPendingDocs = () => {
+    const listEl = document.getElementById('pending-docs-list');
     listEl.innerHTML = '';
+    const filterValue = pendingDocsFilter?.value || 'all';
+    
+    const docs = currentPendingDocs.filter(doc => {
+        if (filterValue === 'all') return true;
+        if (filterValue === 'actionable') return doc.is_actionable;
+        return doc.category === filterValue;
+    });
+
     if (docs?.length) {
         docs.forEach((item) => {
             const li = document.createElement('li');
-            li.className = 'p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors min-w-0';
+            li.className = 'p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors min-w-0';
 
             const nameSpan = document.createElement('div');
-            nameSpan.className = 'text-slate-100 font-medium text-sm mb-1 truncate';
+            nameSpan.className = 'text-[var(--text-primary)] font-medium text-sm mb-1.5 truncate';
             nameSpan.textContent = item.endeavour_name;
 
-            const labelsContainer = document.createElement('div');
-            labelsContainer.className = 'flex flex-wrap gap-1 mt-1';
-
-            item.pending.forEach((pending) => {
-                const group = pending.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
-                const docName = pending.doc_type.replace(/_/g, ' ');
-                const badge = document.createElement('span');
-                badge.className = 'badge badge-warning text-[10px] py-0.5';
-                badge.textContent = `${docName} (${group})`;
-                labelsContainer.appendChild(badge);
-            });
+            const docName = item.doc_type.replace(/_/g, ' ');
+            const badge = document.createElement('span');
+            badge.className = 'badge text-[10px] py-0.5 max-w-full truncate';
+            
+            if (item.category === 'rejected') {
+                badge.classList.add('badge-danger');
+                badge.textContent = `${docName} (Needs Changes)`;
+            } else if (item.category === 'pending_approval') {
+                badge.classList.add('badge-warning');
+                const group = item.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
+                badge.textContent = `${docName} (To Approve - ${group})`;
+            } else if (item.category === 'pending_approval_waiting') {
+                badge.classList.add('bg-slate-700', 'text-slate-300');
+                const group = item.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
+                badge.textContent = `${docName} (Awaiting ${group})`;
+            } else if (item.category === 'pending_submission') {
+                badge.classList.add('badge-primary');
+                badge.textContent = `${docName} (To Submit)`;
+            } else if (item.category === 'overdue') {
+                badge.classList.add('badge-danger');
+                badge.textContent = `${docName} (Overdue)`;
+            } else {
+                badge.classList.add('badge-ghost');
+                badge.textContent = docName;
+            }
 
             li.appendChild(nameSpan);
-            li.appendChild(labelsContainer);
+            li.appendChild(badge);
             listEl.appendChild(li);
         });
     } else {
         const empty = document.createElement('li');
-        empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
-        empty.textContent = 'All caught up.';
+        empty.className = 'text-[var(--text-secondary)] text-sm flex flex-col items-center justify-center p-6 h-full border border-dashed border-[var(--border-strong)] rounded-lg gap-2 text-center';
+        let emptyMsg = 'All caught up.';
+        if (filterValue === 'actionable') emptyMsg = 'No actionable docs right now.';
+        if (filterValue === 'pending_submission') emptyMsg = 'No docs need submission.';
+        if (filterValue === 'pending_approval') emptyMsg = 'No docs waiting for your approval.';
+        if (filterValue === 'rejected') emptyMsg = 'No rejected docs.';
+        if (filterValue === 'overdue') emptyMsg = 'No overdue docs.';
+        empty.textContent = emptyMsg;
         listEl.appendChild(empty);
     }
 };
+
+if (pendingDocsFilter) {
+    pendingDocsFilter.addEventListener('change', renderPendingDocs);
+}
 
 const renderMeetings = (listEl, meetings) => {
     listEl.innerHTML = '';
     if (meetings?.length) {
         meetings.forEach((event) => {
             const item = document.createElement('li');
-            item.className = 'flex flex-col p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 min-w-0';
+            item.className = 'flex flex-col p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors min-w-0';
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-slate-200 truncate';
+            left.className = 'text-sm font-medium text-[var(--text-primary)] truncate';
             left.textContent = event.title;
             const right = document.createElement('span');
-            right.className = 'text-slate-400 text-xs mt-1';
+            right.className = 'text-[var(--text-tertiary)] text-xs mt-1';
             right.textContent = new Date(event.event_date).toLocaleString(undefined, {
                 weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
             });
@@ -149,7 +185,7 @@ const renderMeetings = (listEl, meetings) => {
         });
     } else {
         const empty = document.createElement('li');
-        empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+        empty.className = 'text-[var(--text-secondary)] text-sm flex flex-col items-center justify-center p-6 h-full border border-dashed border-[var(--border-strong)] rounded-lg text-center';
         empty.textContent = 'No upcoming meetings.';
         listEl.appendChild(empty);
     }
@@ -169,10 +205,10 @@ const renderDeadlines = (listEl, deadlines) => {
         validDeadlines.forEach((deadline) => {
             const daysUntil = Number(deadline.days_until);
             const item = document.createElement('li');
-            item.className = 'flex flex-col sm:flex-row sm:items-start sm:justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50 gap-2 min-w-0';
+            item.className = 'flex flex-col xl:flex-row xl:items-start xl:justify-between p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors gap-2 min-w-0';
 
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-slate-200 min-w-0 max-w-full break-words leading-snug';
+            left.className = 'text-sm font-medium text-[var(--text-primary)] min-w-0 max-w-full truncate leading-snug';
             left.textContent = deadline.name;
 
             const right = document.createElement('span');
@@ -191,28 +227,125 @@ const renderDeadlines = (listEl, deadlines) => {
                 badgeClass += 'badge-warning';
             } else {
                 right.textContent = `${label}${daysUntil}d left`;
-                badgeClass += 'bg-slate-700 text-slate-300 border border-slate-600';
+                badgeClass += 'bg-[rgba(255,255,255,0.05)] text-[var(--text-secondary)] border border-[var(--border-subtle)]';
             }
 
-            right.className = badgeClass + ' max-w-full whitespace-normal break-words text-left sm:text-right leading-snug';
+            right.className = badgeClass + ' max-w-full truncate text-left xl:text-right leading-snug shrink-0';
             item.appendChild(left);
             item.appendChild(right);
             listEl.appendChild(item);
         });
     } else {
         const empty = document.createElement('li');
-        empty.className = 'text-slate-500 text-sm flex items-center justify-center p-4 h-full border border-dashed border-slate-700 rounded-lg';
+        empty.className = 'text-[var(--text-secondary)] text-sm flex flex-col items-center justify-center p-6 h-full border border-dashed border-[var(--border-strong)] rounded-lg text-center';
         empty.textContent = 'No critical deadlines.';
         listEl.appendChild(empty);
     }
 };
+
+let currentUser = null;
+let currentEntityId = null;
+let announcementsOffset = 0;
+const ANNOUNCEMENTS_LIMIT = 5;
+const loadMoreBtn = document.getElementById('load-more-announcements');
+
+const renderAnnouncement = (announcement, canPost) => {
+    const acard = document.createElement('div');
+    acard.className = 'card card-hoverable group relative';
+    
+    const headerRow = document.createElement('div');
+    headerRow.className = 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2 min-w-0';
+
+    const title = document.createElement('h3');
+    title.className = 'text-lg font-semibold tracking-tight min-w-0 break-words text-[var(--text-primary)] pr-12';
+    title.textContent = announcement.title;
+
+    const metaInfo = document.createElement('div');
+    metaInfo.className = 'flex flex-col sm:items-end min-w-0 shrink-0';
+
+    const author = document.createElement('p');
+    author.className = 'text-xs font-medium text-[var(--text-secondary)] truncate';
+    author.textContent = `${announcement.creator_name || announcement.full_name || 'System'}`;
+    
+    const time = document.createElement('p');
+    time.className = 'text-[10px] text-[var(--text-tertiary)]';
+    const dateObj = new Date(announcement.created_at);
+    time.textContent = isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleString();
+
+    metaInfo.appendChild(author);
+    metaInfo.appendChild(time);
+
+    headerRow.appendChild(title);
+    headerRow.appendChild(metaInfo);
+
+    const message = document.createElement('p');
+    message.className = 'text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words';
+    message.textContent = announcement.message;
+
+    acard.appendChild(headerRow);
+    acard.appendChild(message);
+
+    if (canPost || (currentUser && announcement.created_by == currentUser.id)) {
+        const actions = document.createElement('div');
+        actions.className = 'absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2';
+        
+        const delBtn = document.createElement('button');
+        delBtn.className = 'text-[var(--text-tertiary)] hover:text-red-400 p-1 bg-[var(--bg-base)] rounded shadow-sm border border-[var(--border-subtle)]';
+        delBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
+        delBtn.onclick = async () => {
+            if (confirm('Delete this announcement?')) {
+                try {
+                    const res = await fetch(`/api/announcements/${announcement.id}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error('Delete failed');
+                    acard.remove();
+                } catch (e) {
+                    alert('Error deleting announcement');
+                }
+            }
+        };
+        actions.appendChild(delBtn);
+        acard.appendChild(actions);
+    }
+
+    return acard;
+};
+
+if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', async () => {
+        if (!currentEntityId) return;
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = 'Loading...';
+        try {
+            const res = await dashboardApiFetch(`/announcements?entity_id=${encodeURIComponent(currentEntityId)}&offset=${announcementsOffset}&limit=${ANNOUNCEMENTS_LIMIT}`);
+            if (res?.data && res.data.length > 0) {
+                res.data.forEach(ann => {
+                    announcementsList.appendChild(renderAnnouncement(ann, window._canPostAnnouncements));
+                });
+                announcementsOffset += res.data.length;
+                if (res.data.length < ANNOUNCEMENTS_LIMIT) {
+                    loadMoreBtn.classList.add('hidden');
+                }
+            } else {
+                loadMoreBtn.classList.add('hidden');
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.textContent = 'Load More';
+        }
+    });
+}
 
 const loadDashboard = async (entityId) => {
     if (!entityId) {
         setDashboardUnavailable('Select an entity to load dashboard data.');
         return;
     }
+    currentEntityId = entityId;
     announcementsList.innerHTML = '';
+    announcementsOffset = 0;
+    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
     resetAnnouncementsMessage();
     setListMessage(pendingDocsList, 'Loading pending docs...');
     setListMessage(meetingsList, 'Loading meetings...');
@@ -234,32 +367,17 @@ const loadDashboard = async (entityId) => {
             ? `${approvedDocs} of ${totalDocs} docs approved across ${data.total_endeavours || 0} endeavours.`
             : `Tracking ${data.total_endeavours || 0} endeavours. No document approvals are active yet.`;
 
+        window._canPostAnnouncements = data.can_post_announcements;
+
         if (data.announcements?.length) {
+            announcementsEmpty.classList.add('hidden');
             data.announcements.forEach((announcement) => {
-                const acard = document.createElement('div');
-                acard.className = 'card card-hoverable';
-                const headerRow = document.createElement('div');
-                headerRow.className = 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2 min-w-0';
-
-                const title = document.createElement('h3');
-                title.className = 'text-lg font-semibold tracking-tight min-w-0 break-words';
-                title.textContent = announcement.title;
-
-                const meta = document.createElement('p');
-                meta.className = 'text-xs font-medium text-slate-500 min-w-0 truncate';
-                meta.textContent = `${announcement.creator_name || announcement.full_name || 'System'}`;
-
-                headerRow.appendChild(title);
-                headerRow.appendChild(meta);
-
-                const message = document.createElement('p');
-                message.className = 'text-sm text-slate-300 leading-relaxed whitespace-pre-wrap break-words';
-                message.textContent = announcement.message;
-
-                acard.appendChild(headerRow);
-                acard.appendChild(message);
-                announcementsList.appendChild(acard);
+                announcementsList.appendChild(renderAnnouncement(announcement, data.can_post_announcements));
             });
+            announcementsOffset = data.announcements.length;
+            if (data.announcements.length >= ANNOUNCEMENTS_LIMIT && loadMoreBtn) {
+                loadMoreBtn.classList.remove('hidden');
+            }
         } else {
             announcementsEmpty.classList.remove('hidden');
         }
@@ -268,7 +386,8 @@ const loadDashboard = async (entityId) => {
         modalOpen.classList.toggle('opacity-60', !data.can_post_announcements);
         modalOpen.classList.toggle('cursor-not-allowed', !data.can_post_announcements);
 
-        renderPendingDocs(pendingDocsList, data.pending_docs);
+        currentPendingDocs = data.pending_docs || [];
+        renderPendingDocs();
         renderMeetings(meetingsList, data.calendar);
         renderDeadlines(deadlinesList, data.deadlines);
     } catch (err) {
@@ -291,6 +410,7 @@ const initDashboard = async () => {
     try {
         const response = await dashboardApiFetch('/auth/me');
         const userPresent = Boolean(response?.data?.user);
+        currentUser = response?.data?.user;
         logDashboard(`user present ${userPresent ? 'yes' : 'no'}`);
         if (!userPresent) {
             throw new Error('Session not found. Please sign in again.');

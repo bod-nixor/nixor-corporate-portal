@@ -56,8 +56,18 @@
         </div>
 
         <div class="card card-hoverable flex flex-col min-h-[156px] max-h-[320px]">
-          <h2 class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Pending Docs</h2>
-          <ul id="pending-docs-list" class="mt-3 space-y-2.5 flex-1 overflow-y-auto overflow-x-hidden pr-1 text-sm text-[var(--text-primary)]">
+          <div class="flex items-center justify-between mb-2">
+            <h2 class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-widest">Pending Docs</h2>
+            <select id="pending-docs-filter" class="text-xs bg-transparent border-none text-[var(--text-primary)] font-medium cursor-pointer outline-none hover:text-[var(--text-secondary)] transition-colors">
+              <option value="all">All</option>
+              <option value="actionable">Action Needed</option>
+              <option value="pending_submission">To Submit</option>
+              <option value="pending_approval">To Approve</option>
+              <option value="rejected">Rejected</option>
+              <option value="overdue">Overdue</option>
+            </select>
+          </div>
+          <ul id="pending-docs-list" class="space-y-2.5 flex-1 overflow-y-auto overflow-x-hidden pr-1 text-sm text-[var(--text-primary)]">
           </ul>
         </div>
         <div class="card card-hoverable flex flex-col min-h-[156px] max-h-[320px]">
@@ -87,6 +97,9 @@
           </div>
           <p class="text-[var(--text-secondary)] font-medium">No announcements yet</p>
           <p class="text-[var(--text-tertiary)] text-sm mt-1">This space will show broadcasts sent to this entity.</p>
+        </div>
+        <div class="mt-6 flex justify-center">
+          <button id="load-more-announcements" class="btn btn-ghost hidden">Load More</button>
         </div>
       </section>
     </main>
