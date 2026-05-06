@@ -83,8 +83,7 @@ function handle_users(string $method, array $segments): void {
             $emailSent = auth_send_password_token_email(
                 ['email' => $email, 'full_name' => $fullName],
                 'password_setup',
-                $token['token'],
-                $token['expires_at']
+                $token['token']
             );
         }
         log_activity($user['id'], 'user', $userId, 'created', 'User created with password setup required', ['invite_email_attempted' => $sendInvite && $status === 'active', 'invite_email_sent' => $emailSent]);
@@ -186,7 +185,7 @@ function handle_user_force_password_reset(string $method, int $userId, array $ac
     if ($sendEmail && ($target['status'] ?? '') === 'active') {
         $tokenType = trim((string)($target['password_hash'] ?? '')) !== '' ? 'password_reset' : 'password_setup';
         $token = auth_create_password_token($userId, $tokenType, (int)$actor['id']);
-        $emailSent = auth_send_password_token_email($target, $tokenType, $token['token'], $token['expires_at']);
+        $emailSent = auth_send_password_token_email($target, $tokenType, $token['token']);
     }
 
     log_activity($actor['id'], 'user', $userId, 'password_reset_forced', 'Admin forced password reset', ['email_requested' => $sendEmail, 'email_sent' => $emailSent]);

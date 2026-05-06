@@ -177,7 +177,7 @@ function auth_password_token_email_body(array $user, string $type, string $url):
 HTML;
 }
 
-function auth_send_password_token_email(array $user, string $type, string $token, string $expiresAt): bool {
+function auth_send_password_token_email(array $user, string $type, string $token): bool {
     $email = trim((string)($user['email'] ?? ''));
 
     file_put_contents(
