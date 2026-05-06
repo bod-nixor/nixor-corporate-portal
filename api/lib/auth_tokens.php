@@ -131,24 +131,53 @@ function auth_mask_email(string $email): string {
     return $prefix . str_repeat('*', max(2, min(6, strlen($local) - 1))) . '@' . $domain;
 }
 
-function auth_password_token_email_subject(string $type): string {
-    return $type === 'password_setup' ? 'Set up your Nixor Portal password' : 'Reset your Nixor Portal password';
+function auth_format_token_lifetime(int $seconds): string {
+    $minutes = (int)round($seconds / 60);
+    if ($minutes < 60) {
+        return $minutes . ' ' . ($minutes === 1 ? 'minute' : 'minutes');
+    }
+    $hours = (int)round($minutes / 60);
+    if ($hours < 48) {
+        return $hours . ' ' . ($hours === 1 ? 'hour' : 'hours');
+    }
+    $days = (int)round($hours / 24);
+    return $days . ' ' . ($days === 1 ? 'day' : 'days');
 }
 
-function auth_password_token_email_body(array $user, string $type, string $url, string $expiresAt): string {
+function auth_password_token_email_subject(string $type): string {
+    return $type === 'password_setup' 
+        ? 'Nixor Corporate Portal: Set up your password' 
+        : 'Nixor Corporate Portal: Reset your password';
+}
+
+function auth_password_token_email_body(array $user, string $type, string $url): string {
     $name = htmlspecialchars((string)($user['full_name'] ?? 'Portal user'), ENT_QUOTES, 'UTF-8');
     $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-    $purpose = $type === 'password_setup' ? 'set up your password' : 'reset your password';
-    $expires = htmlspecialchars($expiresAt . ' UTC', ENT_QUOTES, 'UTF-8');
+    
+    $lifetimeSeconds = auth_password_token_lifetime_seconds();
+    $durationStr = auth_format_token_lifetime($lifetimeSeconds);
+    $expiresText = htmlspecialchars($durationStr, ENT_QUOTES, 'UTF-8');
+
+    if ($type === 'password_setup') {
+        $purposeText = 'Use the secure link below to set up your Nixor Corporate Portal password.';
+        $ignoreText = 'If you did not expect this password setup email, you can safely ignore this email or contact Nixor Corporate administration.';
+        $ctaText = 'Set up password';
+    } else {
+        $purposeText = 'Use the secure link below to reset your Nixor Corporate Portal password.';
+        $ignoreText = 'If you did not request this password reset, you can safely ignore this email.';
+        $ctaText = 'Reset password';
+    }
+
     return <<<HTML
 <p>Hello {$name},</p>
-<p>Use the secure link below to {$purpose} for the Nixor Corporate Portal. The link expires at {$expires} and can only be used once.</p>
-<p><a href="{$safeUrl}">Continue to Nixor Portal</a></p>
-<p>If you did not request this, contact Nixor College/Nixor Corporate administration.</p>
+<p>{$purposeText}</p>
+<p>This link expires in {$expiresText} and can only be used once.</p>
+<p><a href="{$safeUrl}">{$ctaText}</a></p>
+<p>{$ignoreText}</p>
 HTML;
 }
 
-function auth_send_password_token_email(array $user, string $type, string $token, string $expiresAt): bool {
+function auth_send_password_token_email(array $user, string $type, string $token): bool {
     $email = trim((string)($user['email'] ?? ''));
 
     file_put_contents(
@@ -175,7 +204,7 @@ function auth_send_password_token_email(array $user, string $type, string $token
     );
 
     $subject = auth_password_token_email_subject($type);
-    $body = auth_password_token_email_body($user, $type, $url, $expiresAt);
+    $body = auth_password_token_email_body($user, $type, $url);
 
     file_put_contents(
         dirname(__DIR__, 2) . '/logs/reset-debug.log',

@@ -281,7 +281,7 @@ function handle_forgot_password(): void {
                     FILE_APPEND
                 );
                 
-                $mailSent = auth_send_password_token_email($user, 'password_reset', $token['token'], $token['expires_at']);
+                $mailSent = auth_send_password_token_email($user, 'password_reset', $token['token']);
                 
                 file_put_contents(
                     dirname(__DIR__, 2) . '/logs/reset-debug.log',
