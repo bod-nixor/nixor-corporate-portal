@@ -856,8 +856,6 @@ async function submitPost(event) {
     formData.append("content", content);
     if (editingPost) {
       formData.append("keep_image_ids", existingImages.map((image) => String(image.id)).join(","));
-    } else {
-      existingImages.forEach((image) => formData.append("keep_image_ids[]", String(image.id)));
     }
     selectedImages.forEach((image) => formData.append("images[]", image.file, image.file.name));
 
