@@ -34,27 +34,85 @@ function handle_dashboard(string $method, array $_segments): void {
     }
     $docProgress = $totalDocs > 0 ? min(100, (int)round(($approvedDocs / $totalDocs) * 100)) : 0;
 
-    $pendingStmt = db()->prepare('SELECT e.id, e.name, eda.doc_type, eda.approver_group FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ? AND eda.status = "pending" ORDER BY e.created_at DESC');
-    $pendingStmt->execute([$entityId]);
-    $pendingRows = $pendingStmt->fetchAll();
+    $isExecutive = can_permission($user, 'endeavour.submit_docs', $entityId);
+    $isMobApprover = can_permission($user, 'endeavour.approve_mob', $entityId);
+    $isSaApprover = can_permission($user, 'endeavour.approve_sa', $entityId);
+
     $pendingDocs = [];
-    foreach ($pendingRows as $row) {
-        $key = (int)$row['id'];
-        if (!isset($pendingDocs[$key])) {
-            $pendingDocs[$key] = [
-                'endeavour_id' => $key,
-                'endeavour_name' => $row['name'],
-                'pending' => []
+    
+    $edaStmt = db()->prepare('SELECT e.id as endeavour_id, e.name as endeavour_name, eda.doc_type, eda.approver_group, eda.status FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ? AND eda.status IN ("pending", "rejected") ORDER BY eda.created_at DESC');
+    $edaStmt->execute([$entityId]);
+    $seenDocKeys = [];
+    foreach ($edaStmt->fetchAll() as $row) {
+        $category = null;
+        if ($row['status'] === 'rejected' && $isExecutive) {
+            $category = 'rejected';
+        } elseif ($row['status'] === 'pending') {
+            if (($row['approver_group'] === 'bod' && $isMobApprover) || ($row['approver_group'] === 'student_affairs' && $isSaApprover)) {
+                $category = 'pending_approval';
+            } elseif ($isExecutive) {
+                $category = 'pending_approval_waiting';
+            }
+        }
+        if ($category) {
+            $docKey = $row['endeavour_id'] . '_' . $row['doc_type'];
+            $seenDocKeys[$docKey] = true;
+            $pendingDocs[] = [
+                'endeavour_id' => $row['endeavour_id'],
+                'endeavour_name' => $row['endeavour_name'],
+                'doc_type' => $row['doc_type'],
+                'approver_group' => $row['approver_group'],
+                'category' => $category,
+                'is_actionable' => ($category === 'rejected' || $category === 'pending_approval')
             ];
         }
-        $pendingDocs[$key]['pending'][] = [
-            'doc_type' => $row['doc_type'],
-            'approver_group' => $row['approver_group']
-        ];
     }
 
-    $calendarStmt = db()->prepare('SELECT c.*, u.full_name FROM calendar_events c JOIN users u ON c.created_by = u.id WHERE c.entity_id = ? AND c.event_date >= NOW() ORDER BY c.event_date ASC LIMIT 5');
-    $calendarStmt->execute([$entityId]);
+    if ($isExecutive) {
+        $missingStmt = db()->prepare('SELECT id, name, status, pre_financial_deadline, post_financial_deadline FROM endeavours WHERE entity_id = ? AND status IN ("board_approved_ops_plan_required", "mou_approved_pre_financial_required", "closed_ops_epilogue_required") ORDER BY created_at DESC');
+        $missingStmt->execute([$entityId]);
+        $now = time();
+        foreach ($missingStmt->fetchAll() as $row) {
+            $docType = '';
+            $isOverdue = false;
+            if ($row['status'] === 'board_approved_ops_plan_required') {
+                $docType = 'operational_plan';
+            } elseif ($row['status'] === 'mou_approved_pre_financial_required') {
+                $docType = 'pre_financial';
+                if ($row['pre_financial_deadline'] && strtotime($row['pre_financial_deadline']) < $now) {
+                    $isOverdue = true;
+                }
+            } elseif ($row['status'] === 'closed_ops_epilogue_required') {
+                $docType = 'epilogue';
+            }
+            if ($docType) {
+                $docKey = $row['id'] . '_' . $docType;
+                if (isset($seenDocKeys[$docKey])) {
+                    continue;
+                }
+                $pendingDocs[] = [
+                    'endeavour_id' => $row['id'],
+                    'endeavour_name' => $row['name'],
+                    'doc_type' => $docType,
+                    'approver_group' => null,
+                    'category' => $isOverdue ? 'overdue' : 'pending_submission',
+                    'is_actionable' => true
+                ];
+            }
+        }
+    }
+
+    $calendarStmt = db()->prepare('
+        SELECT DISTINCT c.*, u.full_name 
+        FROM calendar_events c 
+        JOIN users u ON c.created_by = u.id 
+        LEFT JOIN calendar_event_entities cee ON cee.event_id = c.id
+        WHERE (c.entity_id = ? OR cee.entity_id = ?) 
+          AND c.event_date >= ? 
+        ORDER BY c.event_date ASC 
+        LIMIT 5
+    ');
+    $calendarStmt->execute([$entityId, $entityId, date('Y-m-d H:i:s')]);
 
     $deadlineStmt = db()->prepare('SELECT id, name, status, phase, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, start_date, end_date FROM endeavours WHERE entity_id = ? AND phase NOT IN ("COMPLETED") ORDER BY created_at DESC LIMIT 20');
     $deadlineStmt->execute([$entityId]);

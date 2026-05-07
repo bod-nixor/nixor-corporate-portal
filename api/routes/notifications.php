@@ -1,8 +1,17 @@
 <?php
 function handle_notifications(string $method, array $segments): void {
     $user = require_auth();
-    $id = isset($segments[1]) ? (int)$segments[1] : null;
+    $rawSegment1 = $segments[1] ?? null;
     $action = $segments[2] ?? null;
+
+    // Match "read-all" before casting segment 1 to int
+    if ($method === 'POST' && $rawSegment1 === 'read-all') {
+        $stmt = db()->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0');
+        $stmt->execute([$user['id']]);
+        respond(['ok' => true]);
+    }
+
+    $id = $rawSegment1 !== null ? (int)$rawSegment1 : null;
 
     if ($method === 'GET' && !$id) {
         $limit = isset($_GET['limit']) ? min(50, max(1, (int)$_GET['limit'])) : 20;
@@ -21,6 +30,7 @@ function handle_notifications(string $method, array $segments): void {
         $stmt->execute([$id, $user['id']]);
         respond(['ok' => true]);
     }
+
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
 }
