@@ -40,7 +40,7 @@ function handle_dashboard(string $method, array $_segments): void {
 
     $pendingDocs = [];
     
-    $edaStmt = db()->prepare('SELECT e.id as endeavour_id, e.name as endeavour_name, eda.doc_type, eda.approver_group, eda.status FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ? AND eda.status IN ("pending", "rejected") ORDER BY eda.created_at DESC');
+    $edaStmt = db()->prepare('SELECT e.id as endeavour_id, e.name as endeavour_name, e.pre_financial_deadline, e.post_financial_deadline, eda.doc_type, eda.approver_group, eda.status FROM endeavour_doc_approvals eda JOIN endeavours e ON eda.endeavour_id = e.id WHERE e.entity_id = ? AND eda.status IN ("pending", "rejected") ORDER BY eda.created_at DESC');
     $edaStmt->execute([$entityId]);
     $seenDocKeys = [];
     foreach ($edaStmt->fetchAll() as $row) {
@@ -61,8 +61,11 @@ function handle_dashboard(string $method, array $_segments): void {
                 'endeavour_id' => $row['endeavour_id'],
                 'endeavour_name' => $row['endeavour_name'],
                 'doc_type' => $row['doc_type'],
+                'doc_label' => dashboard_doc_label((string)$row['doc_type']),
                 'approver_group' => $row['approver_group'],
                 'category' => $category,
+                'action_label' => dashboard_doc_action_label($category, $row['approver_group']),
+                'due_at' => dashboard_doc_due_at((string)$row['doc_type'], $row),
                 'is_actionable' => ($category === 'rejected' || $category === 'pending_approval')
             ];
         }
@@ -94,8 +97,11 @@ function handle_dashboard(string $method, array $_segments): void {
                     'endeavour_id' => $row['id'],
                     'endeavour_name' => $row['name'],
                     'doc_type' => $docType,
+                    'doc_label' => dashboard_doc_label($docType),
                     'approver_group' => null,
                     'category' => $isOverdue ? 'overdue' : 'pending_submission',
+                    'action_label' => $isOverdue ? 'Overdue' : 'To submit',
+                    'due_at' => dashboard_doc_due_at($docType, $row),
                     'is_actionable' => true
                 ];
             }
@@ -168,16 +174,21 @@ function handle_dashboard(string $method, array $_segments): void {
             'status' => $row['status'],
             'phase' => $row['phase'],
             'deadline_label' => $nextLabel,
+            'deadline_at' => date('Y-m-d H:i:s', $nextTs),
             'days_until' => $days
         ];
     }
     usort($deadlines, static fn($a, $b) => $a['days_until'] <=> $b['days_until']);
     $deadlines = array_slice($deadlines, 0, 5);
 
-    $announcementStmt = db()->prepare('SELECT a.*, u.full_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 5');
+    $announcementStmt = db()->prepare('SELECT a.*, u.full_name, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.entity_id = ? ORDER BY a.created_at DESC LIMIT 5');
     $announcementStmt->execute([$entityId]);
 
     $canPost = can_permission($user, 'entity.announce', $entityId);
+    $announcements = array_map(
+        fn($row) => dashboard_announcement_row($row, $canPost),
+        $announcementStmt->fetchAll()
+    );
 
     respond([
         'ok' => true,
@@ -189,8 +200,58 @@ function handle_dashboard(string $method, array $_segments): void {
             'pending_docs' => array_values($pendingDocs),
             'calendar' => $calendarStmt->fetchAll(),
             'deadlines' => $deadlines,
-            'announcements' => $announcementStmt->fetchAll(),
-            'can_post_announcements' => $canPost
+            'announcements' => $announcements,
+            'can_post_announcements' => $canPost,
+            'can_manage_announcements' => $canPost
         ]
     ]);
+}
+
+function dashboard_doc_label(string $docType): string {
+    $labels = [
+        'operational_plan' => 'Operational plan',
+        'ops_plan' => 'Operational plan',
+        'budget_plan' => 'Budget plan',
+        'pre_financial' => 'Pre-financial report',
+        'post_financial' => 'Post-financial report',
+        'epilogue' => 'Epilogue',
+        'mou' => 'MOU',
+    ];
+    return $labels[$docType] ?? ucwords(str_replace('_', ' ', $docType));
+}
+
+function dashboard_doc_action_label(?string $category, ?string $approverGroup): string {
+    $group = $approverGroup === 'bod' ? 'MoB' : ($approverGroup === 'student_affairs' ? 'Student Affairs' : '');
+    if ($category === 'rejected') {
+        return 'Rejected';
+    }
+    if ($category === 'pending_approval') {
+        return $group ? "To approve - {$group}" : 'To approve';
+    }
+    if ($category === 'pending_approval_waiting') {
+        return $group ? "Awaiting {$group}" : 'Awaiting approval';
+    }
+    if ($category === 'pending_submission') {
+        return 'To submit';
+    }
+    if ($category === 'overdue') {
+        return 'Overdue';
+    }
+    return 'Pending';
+}
+
+function dashboard_doc_due_at(string $docType, array $row): ?string {
+    if ($docType === 'pre_financial') {
+        return $row['pre_financial_deadline'] ?? null;
+    }
+    if ($docType === 'post_financial') {
+        return $row['post_financial_deadline'] ?? null;
+    }
+    return null;
+}
+
+function dashboard_announcement_row(array $row, bool $canManage): array {
+    $row['can_edit'] = $canManage;
+    $row['can_delete'] = $canManage;
+    return $row;
 }
