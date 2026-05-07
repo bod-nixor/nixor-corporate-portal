@@ -133,7 +133,6 @@ function promptSignIn(action = "continue") {
   if (signInButton) {
     signInButton.href = loginUrlForFeed("global");
     signInButton.classList.remove("hidden");
-    signInButton.focus();
   }
 }
 
@@ -827,7 +826,7 @@ function openDeleteModal(type, id, text, trigger = document.activeElement) {
   deleteMessage.textContent = `Delete this ${type}${preview ? `: "${preview}${String(text || "").length > 120 ? "..." : ""}"` : ""}?`;
   deleteModal.classList.remove("hidden");
   lockBodyScroll();
-  deleteConfirmBtn?.focus();
+  (deleteCancelBtn || deleteCloseBtn)?.focus();
 }
 
 function closeDeleteModal() {
@@ -909,7 +908,7 @@ imageInput?.addEventListener("change", () => {
   addSelectedFiles(imageInput.files || []);
   imageInput.value = "";
 });
-entitySelect?.addEventListener("change", loadPosts);
+entitySelect?.addEventListener("change", () => loadPosts({ preserveScroll: true }));
 form?.addEventListener("submit", submitPost);
 
 deleteCancelBtn?.addEventListener("click", closeDeleteModal);
@@ -959,6 +958,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 function populateEntityOptions(entities) {
+  if (!entitySelect) return;
   entitySelect.innerHTML = "";
   entities.forEach((entity) => {
     const option = document.createElement("option");

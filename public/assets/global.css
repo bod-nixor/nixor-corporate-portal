@@ -692,7 +692,6 @@ textarea {
 
 body.modal-scroll-lock {
   overflow: hidden;
-  touch-action: none;
 }
 
 /* Social feed */
@@ -1055,6 +1054,7 @@ body.modal-scroll-lock {
   background: rgba(0, 0, 0, 0.62);
   backdrop-filter: blur(8px);
   isolation: isolate;
+  touch-action: pan-y;
 }
 
 .social-modal-backdrop.hidden {

@@ -4,6 +4,9 @@ function handle_social(string $method, array $segments): void {
     $action = $segments[2] ?? '';
 
     if ($method === 'GET' && $id === 'global') {
+        if ($action !== '' || count($segments) !== 2) {
+            respond(['ok' => false, 'error' => 'Not Found'], 404);
+        }
         $user = current_user();
         respond([
             'ok' => true,
