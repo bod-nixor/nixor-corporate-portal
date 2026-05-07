@@ -54,11 +54,30 @@ function handle_social(string $method, array $segments): void {
         $endeavourId = social_validate_endeavour_id($data['endeavour_id'] ?? null, $entityId);
         social_validate_mentions($data, $feedScope);
 
-        $stmt = db()->prepare('INSERT INTO social_posts (endeavour_id, entity_id, feed_scope, user_id, content) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$endeavourId, $entityId, $feedScope, $user['id'], $content]);
-        $postId = (int)db()->lastInsertId();
-        social_sync_post_images($postId, $data, $user, $entityId, $uploadedImages);
-        social_sync_mentions($postId, null, $data, $feedScope);
+        $pdo = db();
+        $imageCleanup = ['delete_after_commit' => [], 'delete_on_rollback' => []];
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare('INSERT INTO social_posts (endeavour_id, entity_id, feed_scope, user_id, content) VALUES (?, ?, ?, ?, ?)');
+            $stmt->execute([$endeavourId, $entityId, $feedScope, $user['id'], $content]);
+            $postId = (int)$pdo->lastInsertId();
+            $imageCleanup = social_sync_post_images($postId, $data, $user, $entityId, $uploadedImages);
+            social_sync_mentions($postId, null, $data, $feedScope);
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            social_cleanup_storage_paths($imageCleanup['delete_on_rollback'] ?? []);
+            social_upload_log('handle_social.create_failed', [
+                'uploaded_count' => count($uploadedImages),
+                'feed_scope' => $feedScope,
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+        social_cleanup_storage_paths($imageCleanup['delete_after_commit'] ?? []);
         log_activity($user['id'], 'social_post', $postId, 'created', $feedScope === 'global' ? 'Global social post created' : 'Social post created');
         emit_ws_event('social.created', ['id' => $postId, 'feed_scope' => $feedScope]);
         respond(['ok' => true, 'data' => ['id' => $postId]]);
@@ -113,10 +132,29 @@ function handle_social(string $method, array $segments): void {
         $uploadedImages = social_uploaded_image_files();
         $content = require_non_empty($data['content'] ?? $post['content'], 'content', 4000);
         social_validate_mentions($data, $post['feed_scope'] ?? 'entity');
-        $stmt = db()->prepare('UPDATE social_posts SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-        $stmt->execute([$content, (int)$post['id']]);
-        social_sync_post_images((int)$post['id'], $data, $user, $post['entity_id'] ? (int)$post['entity_id'] : null, $uploadedImages);
-        social_sync_mentions((int)$post['id'], null, $data, $post['feed_scope'] ?? 'entity');
+        $pdo = db();
+        $imageCleanup = ['delete_after_commit' => [], 'delete_on_rollback' => []];
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare('UPDATE social_posts SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+            $stmt->execute([$content, (int)$post['id']]);
+            $imageCleanup = social_sync_post_images((int)$post['id'], $data, $user, $post['entity_id'] ? (int)$post['entity_id'] : null, $uploadedImages);
+            social_sync_mentions((int)$post['id'], null, $data, $post['feed_scope'] ?? 'entity');
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            social_cleanup_storage_paths($imageCleanup['delete_on_rollback'] ?? []);
+            social_upload_log('handle_social.update_failed', [
+                'post_id' => (int)$post['id'],
+                'uploaded_count' => count($uploadedImages),
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+        social_cleanup_storage_paths($imageCleanup['delete_after_commit'] ?? []);
         log_activity($user['id'], 'social_post', (int)$post['id'], 'updated', 'Social post updated');
         emit_ws_event('social.updated', ['id' => (int)$post['id']]);
         respond(['ok' => true]);
@@ -183,6 +221,15 @@ function social_read_request_data(): array {
     if (!str_contains($contentType, 'multipart/form-data')) {
         return read_json();
     }
+    $contentLength = (int)($_SERVER['CONTENT_LENGTH'] ?? 0);
+    $postMaxBytes = upload_ini_bytes((string)ini_get('post_max_size'));
+    if ($contentLength > 0 && $postMaxBytes > 0 && $contentLength > $postMaxBytes && empty($_POST) && empty($_FILES)) {
+        social_upload_log('social_read_request_data.post_max_exceeded', [
+            'content_length' => $contentLength,
+            'post_max_size' => $postMaxBytes,
+        ]);
+        respond(['ok' => false, 'error' => 'Image is too large.'], 400);
+    }
 
     $data = $_POST;
     foreach (['image_urls', 'image_file_ids', 'keep_image_ids', 'mentioned_user_ids', 'mentioned_entity_ids'] as $field) {
@@ -206,10 +253,12 @@ function social_request_array($value): array {
 
 function social_uploaded_image_files(): array {
     if (empty($_FILES['images'])) {
+        social_upload_log('social_uploaded_image_files.empty');
         return [];
     }
     $raw = $_FILES['images'];
     $files = [];
+    $uploadErrors = [];
     if (is_array($raw['name'] ?? null)) {
         foreach ($raw['name'] as $index => $name) {
             $file = [
@@ -222,15 +271,22 @@ function social_uploaded_image_files(): array {
             if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
                 continue;
             }
+            $uploadErrors[] = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
             $files[] = $file;
         }
     } else {
         if (($raw['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $uploadErrors[] = (int)($raw['error'] ?? UPLOAD_ERR_NO_FILE);
             $files[] = $raw;
         }
     }
 
     $limits = social_image_upload_limits();
+    social_upload_log('social_uploaded_image_files.collected', [
+        'count' => count($files),
+        'errors' => $uploadErrors,
+        'max_files' => $limits['max_files'],
+    ]);
     if (count($files) > $limits['max_files']) {
         respond(['ok' => false, 'error' => 'Posts may include up to 10 images'], 400);
     }
@@ -415,13 +471,19 @@ function social_validate_endeavour_id($raw, ?int $entityId): ?int {
     return (int)$endeavourId;
 }
 
-function social_sync_post_images(int $postId, array $data, array $user, ?int $entityId, array $uploadedFiles = []): void {
+function social_sync_post_images(int $postId, array $data, array $user, ?int $entityId, array $uploadedFiles = []): array {
+    $cleanup = ['delete_after_commit' => [], 'delete_on_rollback' => []];
     $hasImages = array_key_exists('image_urls', $data)
         || array_key_exists('image_file_ids', $data)
         || array_key_exists('keep_image_ids', $data)
         || count($uploadedFiles) > 0;
+    social_upload_log('social_sync_post_images.start', [
+        'post_id' => $postId,
+        'has_images' => $hasImages,
+        'uploaded_count' => count($uploadedFiles),
+    ]);
     if (!$hasImages) {
-        return;
+        return $cleanup;
     }
     $images = [];
     $keptStoragePaths = [];
@@ -500,7 +562,10 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
     $newStoragePaths = [];
 
     $pdo = db();
-    $pdo->beginTransaction();
+    $ownsTransaction = !$pdo->inTransaction();
+    if ($ownsTransaction) {
+        $pdo->beginTransaction();
+    }
     try {
         foreach ($uploadedFiles as $file) {
             $uploaded = save_social_image_file($file);
@@ -514,12 +579,18 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
             ];
             $newStoragePaths[] = $uploaded['path'];
         }
+        $cleanup['delete_on_rollback'] = $newStoragePaths;
 
         $pdo->prepare('DELETE FROM social_post_images WHERE post_id = ?')->execute([$postId]);
         $stmt = $pdo->prepare(
             'INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
+        social_upload_log('social_sync_post_images.insert_start', [
+            'post_id' => $postId,
+            'image_count' => count($images),
+            'uploaded_count' => count($uploadedFiles),
+        ]);
         foreach (array_values($images) as $index => $image) {
             $stmt->execute([
                 $postId,
@@ -532,20 +603,42 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
                 $index
             ]);
         }
-        $pdo->commit();
+        if ($ownsTransaction) {
+            $pdo->commit();
+        }
     } catch (\Throwable $e) {
-        $pdo->rollBack();
+        if ($ownsTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         foreach ($newStoragePaths as $path) {
             delete_uploaded_relative_path($path);
         }
+        social_upload_log('social_sync_post_images.failed', [
+            'post_id' => $postId,
+            'uploaded_count' => count($uploadedFiles),
+            'exception' => get_class($e),
+            'message' => $e->getMessage(),
+        ]);
         throw $e;
     }
 
+    $staleStoragePaths = [];
     foreach ($oldStoragePaths as $path) {
         if (!in_array($path, $keptStoragePaths, true)) {
-            delete_uploaded_relative_path($path);
+            $staleStoragePaths[] = $path;
         }
     }
+    if ($ownsTransaction) {
+        social_cleanup_storage_paths($staleStoragePaths);
+        $staleStoragePaths = [];
+    }
+    social_upload_log('social_sync_post_images.ok', [
+        'post_id' => $postId,
+        'image_count' => count($images),
+        'delete_after_commit_count' => count($staleStoragePaths),
+    ]);
+    $cleanup['delete_after_commit'] = $staleStoragePaths;
+    return $cleanup;
 }
 
 function social_existing_images(int $postId, array $imageIds): array {
@@ -563,6 +656,12 @@ function social_storage_paths_for_post(int $postId): array {
     $stmt = db()->prepare('SELECT storage_path FROM social_post_images WHERE post_id = ? AND storage_path IS NOT NULL AND storage_path <> ""');
     $stmt->execute([$postId]);
     return array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+}
+
+function social_cleanup_storage_paths(array $paths): void {
+    foreach (array_values(array_unique(array_filter(array_map('strval', $paths)))) as $path) {
+        delete_uploaded_relative_path($path);
+    }
 }
 
 
