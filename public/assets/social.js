@@ -854,7 +854,9 @@ async function submitPost(event) {
       return;
     }
     formData.append("content", content);
-    existingImages.forEach((image) => formData.append("keep_image_ids[]", String(image.id)));
+    if (editingPost) {
+      formData.append("keep_image_ids", existingImages.map((image) => String(image.id)).join(","));
+    }
     selectedImages.forEach((image) => formData.append("images[]", image.file, image.file.name));
 
     if (editingPost) {
@@ -908,6 +910,7 @@ imageInput?.addEventListener("change", () => {
   addSelectedFiles(imageInput.files || []);
   imageInput.value = "";
 });
+window.addEventListener("pagehide", clearSelectedImages);
 entitySelect?.addEventListener("change", () => loadPosts({ preserveScroll: true }));
 form?.addEventListener("submit", submitPost);
 
