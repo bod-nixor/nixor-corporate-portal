@@ -699,6 +699,16 @@ body.modal-scroll-lock {
   max-width: min(76rem, 100%);
 }
 
+.social-public-mode .app-shell {
+  display: block;
+}
+
+.social-public-mode .app-main {
+  max-width: min(76rem, 100%);
+  margin-inline: auto;
+  padding-top: calc(2rem + var(--safe-area-top));
+}
+
 .social-feed-shell {
   width: min(100%, 52rem);
   margin-inline: auto;
@@ -1035,14 +1045,16 @@ body.modal-scroll-lock {
 .social-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 60;
   display: grid;
   place-items: center;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: max(1rem, var(--safe-area-top)) max(1rem, var(--safe-area-right)) max(1rem, var(--safe-area-bottom)) max(1rem, var(--safe-area-left));
-  background: rgba(0, 0, 0, 0.68);
-  backdrop-filter: blur(14px);
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(8px);
+  isolation: isolate;
+  touch-action: pan-y;
 }
 
 .social-modal-backdrop.hidden {
@@ -1050,6 +1062,8 @@ body.modal-scroll-lock {
 }
 
 .social-modal-card {
+  position: relative;
+  z-index: 1;
   display: flex;
   width: min(100%, 40rem);
   max-height: min(44rem, calc(100dvh - 2rem));

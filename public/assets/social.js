@@ -1,12 +1,12 @@
 import { apiFetch, normalizeError } from "/assets/app.js";
 import { renderSidebar } from "/assets/sidebar.js";
 
-document.getElementById("sidebar-container").outerHTML = renderSidebar("social");
-
 const MAX_IMAGES = 10;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
+const initialParams = new URLSearchParams(window.location.search);
+const sidebarMount = document.getElementById("sidebar-container");
 const entitySelect = document.getElementById("social-entity");
 const entityFilterWrap = document.getElementById("entity-filter-wrap");
 const postsEl = document.getElementById("social-posts");
@@ -15,6 +15,8 @@ const emptyTitle = document.getElementById("social-empty-title");
 const emptySubtitle = document.getElementById("social-empty-subtitle");
 const loadingEl = document.getElementById("social-loading");
 const openPostModalBtn = document.getElementById("open-post-modal");
+const signInButton = document.getElementById("social-signin-button");
+const feedNotice = document.getElementById("social-feed-notice");
 const newPostLabel = document.getElementById("new-post-label");
 const postModal = document.getElementById("post-modal");
 const modalCard = postModal?.querySelector(".social-modal-card");
@@ -36,15 +38,22 @@ const deleteConfirmBtn = document.getElementById("delete-confirm");
 const deleteCancelBtn = document.getElementById("delete-cancel");
 const deleteCloseBtn = document.getElementById("delete-close");
 
-let activeFeed = new URLSearchParams(window.location.search).get("feed") === "global" ? "global" : "entity";
+if (postModal && postModal.parentElement !== document.body) {
+  document.body.appendChild(postModal);
+}
+
+let activeFeed = initialParams.get("feed") === "global" ? "global" : "entity";
 let commentsByPost = new Map();
 let selectedImages = [];
 let existingImages = [];
 let editingPost = null;
 let deletingItem = null;
+let deleteTrigger = null;
 let isSubmitting = false;
 let modalTrigger = null;
 let lockedScrollY = 0;
+let currentUser = null;
+let isAuthenticated = false;
 let currentFeedPermissions = {
   scope: activeFeed,
   can_view: false,
@@ -52,7 +61,7 @@ let currentFeedPermissions = {
   can_interact: false,
   can_like: false,
   can_comment: false,
-  authenticated: true
+  authenticated: false
 };
 
 const icons = {
@@ -87,8 +96,44 @@ function defaultFeedPermissions(feed = activeFeed) {
     can_interact: false,
     can_like: false,
     can_comment: false,
-    authenticated: true
+    authenticated: isAuthenticated
   };
+}
+
+function loginUrlForFeed(feed = activeFeed) {
+  const next = feed === "global" ? "/social.html?feed=global" : "/social.html";
+  return `/login.html?next=${encodeURIComponent(next)}`;
+}
+
+function publicGlobalMode() {
+  return activeFeed === "global" && !isAuthenticated;
+}
+
+function userRequiresPasswordSetup(user) {
+  return Number(user?.force_password_reset || 0) === 1 || Number(user?.password_setup_required || 0) === 1;
+}
+
+function renderAuthenticatedShell() {
+  document.body.classList.remove("social-public-mode");
+  if (sidebarMount && !document.getElementById("sidebar")) {
+    sidebarMount.outerHTML = renderSidebar("social");
+  }
+}
+
+function renderPublicShell() {
+  document.body.classList.add("social-public-mode");
+  sidebarMount?.remove();
+}
+
+function promptSignIn(action = "continue") {
+  if (feedNotice) {
+    feedNotice.textContent = `Sign in to ${action}.`;
+    feedNotice.classList.remove("hidden");
+  }
+  if (signInButton) {
+    signInButton.href = loginUrlForFeed("global");
+    signInButton.classList.remove("hidden");
+  }
 }
 
 function postPermissionMessage() {
@@ -98,23 +143,42 @@ function postPermissionMessage() {
 }
 
 function updatePostControls() {
+  const publicGlobal = publicGlobalMode();
   if (newPostLabel) {
     newPostLabel.textContent = activeFeed === "global" ? "New Global Post" : "New Entity Post";
   }
+  if (signInButton) {
+    signInButton.href = loginUrlForFeed("global");
+    signInButton.classList.toggle("hidden", !publicGlobal);
+  }
   if (!openPostModalBtn) return;
   const canPost = Boolean(currentFeedPermissions.can_post);
-  openPostModalBtn.classList.toggle("hidden", !canPost);
+  openPostModalBtn.classList.toggle("hidden", !canPost || publicGlobal);
   openPostModalBtn.disabled = !canPost;
   openPostModalBtn.title = canPost ? "" : postPermissionMessage();
+}
+
+function updateFeedNotice() {
+  if (!feedNotice) return;
+  let message = "";
+  if (publicGlobalMode()) {
+    message = "Public view: global posts are read-only. Sign in to like or comment.";
+  } else if (activeFeed === "global" && isAuthenticated && !currentFeedPermissions.can_post) {
+    message = "Only C-level executives can post to the Global Feed.";
+  }
+  feedNotice.textContent = message;
+  feedNotice.classList.toggle("hidden", !message);
 }
 
 function applyFeedPermissions(permissions = {}) {
   currentFeedPermissions = {
     ...defaultFeedPermissions(activeFeed),
     ...permissions,
-    scope: permissions.scope || activeFeed
+    scope: permissions.scope || activeFeed,
+    authenticated: Boolean(permissions.authenticated ?? isAuthenticated)
   };
   updatePostControls();
+  updateFeedNotice();
 }
 
 function canInteractWithRecord(record, action = "interact") {
@@ -276,6 +340,7 @@ function openPostModal(post = null, trigger = document.activeElement) {
     setStatus(postPermissionMessage(), false);
     return;
   }
+  const modalFeed = post?.feed_scope || activeFeed;
   modalTrigger = trigger;
   editingPost = post;
   isSubmitting = false;
@@ -285,16 +350,22 @@ function openPostModal(post = null, trigger = document.activeElement) {
   form?.reset();
   if (contentInput) contentInput.value = post?.content || "";
   if (scopeSelect) {
-    scopeSelect.value = post?.feed_scope || activeFeed;
+    scopeSelect.value = modalFeed;
     scopeSelect.disabled = true;
   }
-  if (postModalTitle) postModalTitle.textContent = post ? "Edit Post" : "New Post";
+  if (postModalTitle) {
+    postModalTitle.textContent = post ? "Edit Post" : modalFeed === "global" ? "New Global Post" : "New Entity Post";
+  }
   if (postModalDesc) {
     postModalDesc.textContent = post
       ? "Update the post content and attached images."
-      : "Share an update with the selected feed.";
+      : modalFeed === "global"
+        ? "Share a public update with the Global Feed."
+        : "Share an update with the selected entity feed.";
   }
-  if (submitBtn) submitBtn.textContent = post ? "Save Changes" : "Publish Update";
+  if (submitBtn) {
+    submitBtn.textContent = post ? "Save Changes" : modalFeed === "global" ? "Publish Global Post" : "Publish Entity Post";
+  }
   cancelEditBtn?.classList.toggle("hidden", !post);
   renderImagePreviews();
   postModal?.classList.remove("hidden");
@@ -305,8 +376,8 @@ function openPostModal(post = null, trigger = document.activeElement) {
   });
 }
 
-function closePostModal() {
-  if (isSubmitting) return;
+function closePostModal(force = false) {
+  if (isSubmitting && !force) return;
   postModal?.classList.add("hidden");
   unlockBodyScroll();
   editingPost = null;
@@ -323,6 +394,11 @@ function closePostModal() {
 
 function setActiveFeed(feed, options = {}) {
   activeFeed = feed === "global" ? "global" : "entity";
+  if (activeFeed === "entity" && !isAuthenticated) {
+    window.location.href = loginUrlForFeed("entity");
+    return;
+  }
+  document.body.classList.toggle("social-public-mode", publicGlobalMode());
   applyFeedPermissions(defaultFeedPermissions(activeFeed));
   feedTabs.forEach((tab) => {
     const selected = tab.dataset.feed === activeFeed;
@@ -330,6 +406,7 @@ function setActiveFeed(feed, options = {}) {
   });
   entityFilterWrap?.classList.toggle("hidden", activeFeed === "global");
   updatePostControls();
+  updateFeedNotice();
   if (scopeSelect && !editingPost) scopeSelect.value = activeFeed;
   const url = new URL(window.location.href);
   if (activeFeed === "global") {
@@ -343,8 +420,12 @@ function setActiveFeed(feed, options = {}) {
 
 function setEmptyState(kind) {
   if (kind === "global") {
-    emptyTitle.textContent = "No global updates yet.";
-    emptySubtitle.textContent = "Share a public update for the wider NCP community.";
+    emptyTitle.textContent = "No posts yet.";
+    emptySubtitle.textContent = publicGlobalMode()
+      ? "Sign in to like or comment."
+      : currentFeedPermissions.can_post
+        ? "Share a public update for the wider NCP community."
+        : "Only C-level executives can post to the Global Feed.";
   } else if (kind === "error") {
     emptyTitle.textContent = "Failed to load posts.";
     emptySubtitle.textContent = "Please try again later.";
@@ -352,7 +433,7 @@ function setEmptyState(kind) {
     emptyTitle.textContent = "No entity feed is available.";
     emptySubtitle.textContent = "Switch to the global feed or ask an admin to verify your entity access.";
   } else {
-    emptyTitle.textContent = "No posts yet for this entity.";
+    emptyTitle.textContent = "No posts yet.";
     emptySubtitle.textContent = "Share the first professional update with this feed.";
   }
 }
@@ -383,7 +464,7 @@ function buildManageActions(post) {
   deleteBtn.title = "Delete post";
   deleteBtn.setAttribute("aria-label", "Delete post");
   deleteBtn.innerHTML = icons.trash;
-  deleteBtn.addEventListener("click", () => openDeleteModal("post", post.id, post.content));
+  deleteBtn.addEventListener("click", () => openDeleteModal("post", post.id, post.content, deleteBtn));
 
   actions.append(editBtn, deleteBtn);
   return actions;
@@ -424,7 +505,7 @@ async function toggleLike(button, targetType, id) {
   try {
     const url = targetType === "comment" ? `/social/comments/${id}/like` : `/social/${id}/like`;
     await apiFetch(url, { method: "POST", body: JSON.stringify({}) });
-    await loadPosts();
+    await loadPosts({ preserveScroll: true });
   } catch (err) {
     setStatus(normalizeError(err), false);
   } finally {
@@ -511,7 +592,7 @@ function renderComment(comment) {
       cancel.type = "button";
       cancel.className = "btn btn-ghost px-3 py-2 text-xs";
       cancel.textContent = "Cancel";
-      cancel.addEventListener("click", loadPosts);
+      cancel.addEventListener("click", () => loadPosts({ preserveScroll: true }));
       editForm.append(input, save, cancel);
       editForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -523,7 +604,7 @@ function renderComment(comment) {
             method: "PUT",
             body: JSON.stringify({ comment: nextValue })
           });
-          await loadPosts();
+          await loadPosts({ preserveScroll: true });
         } catch (err) {
           setStatus(normalizeError(err), false);
         } finally {
@@ -537,7 +618,7 @@ function renderComment(comment) {
     del.type = "button";
     del.textContent = "Delete";
     del.className = "text-[var(--color-danger)]";
-    del.addEventListener("click", () => openDeleteModal("comment", comment.id, comment.comment));
+    del.addEventListener("click", () => openDeleteModal("comment", comment.id, comment.comment, del));
     tools.append(edit, del);
   }
 
@@ -601,7 +682,15 @@ function renderPost(post) {
   actions.className = "social-actions";
   const canLike = canInteractWithRecord(post, "like");
   const canComment = canInteractWithRecord(post, "comment");
-  if (canLike) {
+  if (publicGlobalMode()) {
+    const likeButton = buildActionButton("Like", icons.like);
+    likeButton.addEventListener("click", () => promptSignIn("like this update"));
+    actions.appendChild(likeButton);
+
+    const commentButton = buildActionButton("Comment", icons.comment);
+    commentButton.addEventListener("click", () => promptSignIn("comment on this update"));
+    actions.appendChild(commentButton);
+  } else if (canLike) {
     const likeButton = buildActionButton(post.liked_by_me ? "Liked" : "Like", icons.like, {
       active: post.liked_by_me,
       pressed: post.liked_by_me
@@ -609,7 +698,7 @@ function renderPost(post) {
     likeButton.addEventListener("click", () => toggleLike(likeButton, "post", post.id));
     actions.appendChild(likeButton);
   }
-  if (canComment) {
+  if (!publicGlobalMode() && canComment) {
     const commentButton = buildActionButton("Comment", icons.comment);
     commentButton.addEventListener("click", () => focusCommentInput(post.id));
     actions.appendChild(commentButton);
@@ -651,7 +740,7 @@ function renderPost(post) {
           body: JSON.stringify({ comment: value })
         });
         commentInput.value = "";
-        await loadPosts();
+        await loadPosts({ preserveScroll: true });
       } catch (err) {
         setStatus(normalizeError(err), false);
       } finally {
@@ -659,6 +748,13 @@ function renderPost(post) {
       }
     });
     commentsWrap.appendChild(commentForm);
+  } else if (publicGlobalMode()) {
+    const prompt = document.createElement("button");
+    prompt.type = "button";
+    prompt.className = "btn btn-secondary w-full";
+    prompt.textContent = "Sign in to comment";
+    prompt.addEventListener("click", () => promptSignIn("comment on this update"));
+    commentsWrap.appendChild(prompt);
   } else {
     const note = document.createElement("p");
     note.className = "text-xs font-semibold text-[var(--text-tertiary)]";
@@ -670,7 +766,9 @@ function renderPost(post) {
   return card;
 }
 
-async function loadPosts() {
+async function loadPosts(options = {}) {
+  const preserveScroll = Boolean(options.preserveScroll);
+  const previousScrollY = window.scrollY || 0;
   postsEl.innerHTML = "";
   emptyEl.classList.add("hidden");
   loadingEl.classList.remove("hidden");
@@ -705,7 +803,7 @@ async function loadPosts() {
     }
 
     posts.forEach((post) => postsEl.appendChild(renderPost(post)));
-    if (/^#post-\d+$/.test(window.location.hash)) {
+    if (!preserveScroll && /^#post-\d+$/.test(window.location.hash)) {
       document.querySelector(window.location.hash)?.scrollIntoView({ block: "center" });
     }
   } catch (err) {
@@ -715,20 +813,30 @@ async function loadPosts() {
     emptyEl.classList.remove("hidden");
   } finally {
     loadingEl.classList.add("hidden");
+    if (preserveScroll) {
+      window.scrollTo(0, previousScrollY);
+    }
   }
 }
 
-function openDeleteModal(type, id, text) {
+function openDeleteModal(type, id, text, trigger = document.activeElement) {
   deletingItem = { type, id };
+  deleteTrigger = trigger;
   const preview = String(text || "").slice(0, 120);
   deleteMessage.textContent = `Delete this ${type}${preview ? `: "${preview}${String(text || "").length > 120 ? "..." : ""}"` : ""}?`;
   deleteModal.classList.remove("hidden");
-  deleteCancelBtn?.focus();
+  lockBodyScroll();
+  (deleteCancelBtn || deleteCloseBtn)?.focus();
 }
 
 function closeDeleteModal() {
   deleteModal.classList.add("hidden");
   deletingItem = null;
+  unlockBodyScroll();
+  if (deleteTrigger && typeof deleteTrigger.focus === "function") {
+    deleteTrigger.focus();
+  }
+  deleteTrigger = null;
 }
 
 async function submitPost(event) {
@@ -751,8 +859,8 @@ async function submitPost(event) {
 
     if (editingPost) {
       await apiFetch(`/social/${editingPost.id}/update`, { method: "POST", body: formData });
-      closePostModal();
-      await loadPosts();
+      closePostModal(true);
+      await loadPosts({ preserveScroll: true });
       return;
     }
 
@@ -771,7 +879,7 @@ async function submitPost(event) {
       formData.append("entity_id", entityId);
     }
     await apiFetch("/social", { method: "POST", body: formData });
-    closePostModal();
+    closePostModal(true);
     setActiveFeed(feedScope, { skipLoad: true });
     await loadPosts();
   } catch (err) {
@@ -784,12 +892,15 @@ async function submitPost(event) {
 }
 
 feedTabs.forEach((tab) => {
-  tab.addEventListener("click", () => setActiveFeed(tab.dataset.feed));
+  tab.addEventListener("click", (event) => {
+    event.preventDefault();
+    setActiveFeed(tab.dataset.feed);
+  });
 });
 
 openPostModalBtn?.addEventListener("click", () => openPostModal(null, openPostModalBtn));
-closePostModalBtn?.addEventListener("click", closePostModal);
-cancelEditBtn?.addEventListener("click", closePostModal);
+closePostModalBtn?.addEventListener("click", () => closePostModal());
+cancelEditBtn?.addEventListener("click", () => closePostModal());
 postModal?.addEventListener("click", (event) => {
   if (event.target === postModal) closePostModal();
 });
@@ -797,7 +908,7 @@ imageInput?.addEventListener("change", () => {
   addSelectedFiles(imageInput.files || []);
   imageInput.value = "";
 });
-entitySelect?.addEventListener("change", loadPosts);
+entitySelect?.addEventListener("change", () => loadPosts({ preserveScroll: true }));
 form?.addEventListener("submit", submitPost);
 
 deleteCancelBtn?.addEventListener("click", closeDeleteModal);
@@ -812,7 +923,7 @@ deleteConfirmBtn?.addEventListener("click", async () => {
     const url = deletingItem.type === "comment" ? `/social/comments/${deletingItem.id}` : `/social/${deletingItem.id}`;
     await apiFetch(url, { method: "DELETE" });
     closeDeleteModal();
-    await loadPosts();
+    await loadPosts({ preserveScroll: true });
   } catch (err) {
     deleteMessage.textContent = normalizeError(err);
   } finally {
@@ -846,28 +957,55 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-apiFetch("/auth/me")
-  .then((response) => {
-    const entities = response?.data?.entities || [];
-    entitySelect.innerHTML = "";
-    entities.forEach((entity) => {
-      const option = document.createElement("option");
-      option.value = entity.id;
-      option.textContent = entity.name;
-      entitySelect.appendChild(option);
-    });
-    if (!entities.length) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = "No entities available";
-      entitySelect.appendChild(option);
-    }
-    setActiveFeed(activeFeed, { skipLoad: true });
-    loadPosts();
-  })
+function populateEntityOptions(entities) {
+  if (!entitySelect) return;
+  entitySelect.innerHTML = "";
+  entities.forEach((entity) => {
+    const option = document.createElement("option");
+    option.value = entity.id;
+    option.textContent = entity.name;
+    entitySelect.appendChild(option);
+  });
+  if (!entities.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No entities available";
+    entitySelect.appendChild(option);
+  }
+}
+
+function initializeSocialPage(response = null) {
+  currentUser = response?.data?.user || null;
+  isAuthenticated = Boolean(currentUser);
+
+  if (userRequiresPasswordSetup(currentUser)) {
+    window.location.replace("/reset_password.html?mode=session");
+    return;
+  }
+
+  if (isAuthenticated) {
+    renderAuthenticatedShell();
+  } else if (activeFeed === "global") {
+    renderPublicShell();
+  } else {
+    window.location.replace(loginUrlForFeed("entity"));
+    return;
+  }
+
+  populateEntityOptions(isAuthenticated ? response?.data?.entities || [] : []);
+  setActiveFeed(activeFeed, { skipLoad: true });
+  loadPosts();
+}
+
+apiFetch("/auth/me", { skipFallback: true })
+  .then(initializeSocialPage)
   .catch((err) => {
+    if ((err.status === 401 || err.status === 403 || /Unauthorized|Forbidden/.test(String(err.message))) && activeFeed === "global") {
+      initializeSocialPage(null);
+      return;
+    }
     if (err.status === 401 || err.status === 403 || /Unauthorized|Forbidden/.test(String(err.message))) {
-      window.location.replace("/login.html?next=/social.html");
+      window.location.replace(loginUrlForFeed("entity"));
       return;
     }
     console.error("Failed to load social access:", err);

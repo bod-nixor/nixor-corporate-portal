@@ -916,6 +916,28 @@ final class ApiTest extends TestCase {
         $blockedPost = $memberClient->request('DELETE', '/api/social/' . $postId, null, ["X-CSRF-Token: {$memberClient->csrfToken}"]);
         $this->assertSame(403, $blockedPost['status']);
 
+        $ownPostId = $this->createSocialPost($entityId, $authorId, 'Author owned post');
+        $ownCommentId = $this->createSocialComment($ownPostId, $commenterId, 'Commenter owned reply');
+
+        $authorClient = $this->loginClient('social-author@example.com', 'Password123!');
+        $authorFeed = $authorClient->request('GET', '/api/social?entity_id=' . $entityId);
+        $this->assertSame(200, $authorFeed['status']);
+        $listedOwnPost = array_values(array_filter($authorFeed['data']['data']['posts'], fn($post) => (int)$post['id'] === $ownPostId))[0] ?? null;
+        $this->assertTrue((bool)($listedOwnPost['can_manage'] ?? false));
+
+        $commenterClient = $this->loginClient('social-commenter@example.com', 'Password123!');
+        $commenterFeed = $commenterClient->request('GET', '/api/social?entity_id=' . $entityId);
+        $this->assertSame(200, $commenterFeed['status']);
+        $listedOwnComment = array_values(array_filter($commenterFeed['data']['data']['comments'], fn($comment) => (int)$comment['id'] === $ownCommentId))[0] ?? null;
+        $this->assertTrue((bool)($listedOwnComment['can_manage'] ?? false));
+
+        $blockedOwnComment = $memberClient->request('DELETE', '/api/social/comments/' . $ownCommentId, null, ["X-CSRF-Token: {$memberClient->csrfToken}"]);
+        $this->assertSame(403, $blockedOwnComment['status']);
+        $deleteOwnComment = $commenterClient->request('DELETE', '/api/social/comments/' . $ownCommentId, null, ["X-CSRF-Token: {$commenterClient->csrfToken}"]);
+        $this->assertSame(200, $deleteOwnComment['status']);
+        $deleteOwnPost = $authorClient->request('DELETE', '/api/social/' . $ownPostId, null, ["X-CSRF-Token: {$authorClient->csrfToken}"]);
+        $this->assertSame(200, $deleteOwnPost['status']);
+
         $deleteComment = $managerClient->request('DELETE', '/api/social/comments/' . $commentId, null, ["X-CSRF-Token: {$managerClient->csrfToken}"]);
         $this->assertSame(200, $deleteComment['status']);
         $deletePost = $managerClient->request('DELETE', '/api/social/' . $postId, null, ["X-CSRF-Token: {$managerClient->csrfToken}"]);
@@ -1322,6 +1344,13 @@ final class ApiTest extends TestCase {
         $this->assertCount(1, $public['data']['data']['posts']);
         $this->assertStringContainsString('<strong>Global</strong>', $public['data']['data']['posts'][0]['safe_html']);
 
+        $publicUnified = (new TestClient(self::$baseUrl))->request('GET', '/api/social/global');
+        $this->assertSame(200, $publicUnified['status']);
+        $this->assertCount(1, $publicUnified['data']['data']['posts']);
+        $this->assertFalse((bool)$publicUnified['data']['meta']['permissions']['authenticated']);
+        $this->assertFalse((bool)$publicUnified['data']['meta']['permissions']['can_like']);
+        $this->assertArrayNotHasKey('user_id', $publicUnified['data']['data']['posts'][0]);
+
         $anonymous = new TestClient(self::$baseUrl);
         $anonymousCsrf = $anonymous->request('GET', '/api/auth/csrf');
         $anonymousToken = $anonymousCsrf['data']['data']['csrfToken'] ?? '';
@@ -1433,6 +1462,14 @@ final class ApiTest extends TestCase {
             'comment' => 'Visible global comment.'
         ], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
         $this->assertSame(200, $globalComment['status']);
+        $globalCommentId = (int)$globalComment['data']['data']['id'];
+
+        $blockedGlobalDelete = $exec->request('DELETE', "/api/social/{$globalPostId}", null, ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(403, $blockedGlobalDelete['status']);
+        $deleteGlobalComment = $volunteer->request('DELETE', "/api/social/comments/{$globalCommentId}", null, ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(200, $deleteGlobalComment['status']);
+        $deleteGlobalPost = $ceo->request('DELETE', "/api/social/{$globalPostId}", null, ["X-CSRF-Token: {$ceo->csrfToken}"]);
+        $this->assertSame(200, $deleteGlobalPost['status']);
     }
 
     private function createEntity(string $name): int {
