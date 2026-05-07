@@ -504,8 +504,36 @@ async function toggleLike(button, targetType, id) {
   button.disabled = true;
   try {
     const url = targetType === "comment" ? `/social/comments/${id}/like` : `/social/${id}/like`;
-    await apiFetch(url, { method: "POST", body: JSON.stringify({}) });
-    await loadPosts({ preserveScroll: true });
+    const resp = await apiFetch(url, { method: "POST", body: JSON.stringify({}) });
+    const liked = Boolean(resp?.data?.liked);
+    const likesCount = typeof resp?.data?.likes_count === 'number' ? resp.data.likes_count : null;
+
+    // Update button state
+    try {
+      button.classList.toggle('is-active', liked);
+      if (liked) button.setAttribute('aria-pressed', 'true'); else button.setAttribute('aria-pressed', 'false');
+      // Update label if present
+      if (button.querySelector && button.querySelector('span')) {
+        const label = button.querySelector('span');
+        const base = label.textContent.replace(/\s*\(.*\)$/, '');
+        label.textContent = `${base}${likesCount !== null ? ` (${likesCount})` : ''}`;
+      }
+    } catch (e) {
+      // ignore DOM update errors
+    }
+
+    // If toggling a post like, update the like-count display
+    if (targetType === 'post') {
+      const countEl = document.getElementById(`post-like-count-${id}`);
+      if (countEl && likesCount !== null) {
+        countEl.textContent = `${likesCount} ${likesCount === 1 ? 'like' : 'likes'}`;
+      }
+    }
+
+    // If toggling a comment like, update the comment's like button text (handled above) and the comment list counts where applicable
+    if (targetType === 'comment') {
+      // update comment likes count display if present (button text already updated)
+    }
   } catch (err) {
     setStatus(normalizeError(err), false);
   } finally {
@@ -538,6 +566,7 @@ function buildActionButton(label, icon, options = {}) {
 function renderComment(comment) {
   const row = document.createElement("div");
   row.className = "social-comment group/comment";
+  if (comment?.id) row.dataset.commentId = comment.id;
 
   row.appendChild(buildAvatar(comment.full_name, "social-comment-avatar"));
 
@@ -631,6 +660,8 @@ function renderPost(post) {
   const card = document.createElement("article");
   card.id = `post-${post.id}`;
   card.className = "social-post-card";
+  card.dataset.postUserId = post.user_id ?? '';
+  card.dataset.feedScope = post.feed_scope ?? '';
 
   const header = document.createElement("header");
   header.className = "social-post-header";
@@ -672,8 +703,10 @@ function renderPost(post) {
   const stats = document.createElement("div");
   stats.className = "social-stats-row";
   const likeCount = document.createElement("span");
+  likeCount.id = `post-like-count-${post.id}`;
   likeCount.textContent = `${post.likes_count || 0} ${Number(post.likes_count || 0) === 1 ? "like" : "likes"}`;
   const commentCount = document.createElement("span");
+  commentCount.id = `post-comment-count-${post.id}`;
   commentCount.textContent = `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`;
   stats.append(likeCount, commentCount);
   card.appendChild(stats);
@@ -713,7 +746,7 @@ function renderPost(post) {
   comments.forEach((comment) => commentsWrap.appendChild(renderComment(comment)));
 
   if (canComment) {
-    const commentForm = document.createElement("form");
+  const commentForm = document.createElement("form");
     commentForm.className = "social-comment-form";
     const commentInput = document.createElement("input");
     commentInput.id = `comment-input-${post.id}`;
@@ -735,12 +768,35 @@ function renderPost(post) {
       if (!value) return;
       commentSubmit.disabled = true;
       try {
-        await apiFetch(`/social/${post.id}/comments`, {
+        const resp = await apiFetch(`/social/${post.id}/comments`, {
           method: "POST",
           body: JSON.stringify({ comment: value })
         });
+        // Build a minimal comment object to render in-place
+        const newComment = {
+          id: resp?.data?.id || Date.now(),
+          post_id: post.id,
+          comment: value,
+          safe_html: null,
+          full_name: currentUser?.full_name || 'NCP User',
+          created_at: new Date().toISOString(),
+          likes_count: 0,
+          liked_by_me: false,
+          can_manage: currentUser ? (currentUser.id === (post.user_id ?? null) || true) : false,
+        };
+        // append to comments list
+        const commentsWrap = commentForm.parentElement;
+        if (commentsWrap) {
+          commentsWrap.insertBefore(renderComment(newComment), commentForm);
+        }
+        // clear input and update counts
         commentInput.value = "";
-        await loadPosts({ preserveScroll: true });
+        const countEl = document.getElementById(`post-comment-count-${post.id}`);
+        if (countEl) {
+          const prev = parseInt((countEl.textContent || '0').replace(/\D/g, ''), 10) || 0;
+          const next = prev + 1;
+          countEl.textContent = `${next} ${next === 1 ? 'comment' : 'comments'}`;
+        }
       } catch (err) {
         setStatus(normalizeError(err), false);
       } finally {
@@ -851,6 +907,9 @@ async function submitPost(event) {
     const content = contentInput.value.trim();
     if (!content) {
       setStatus("Post content is required.", false);
+      isSubmitting = false;
+      submitBtn.disabled = false;
+      closePostModalBtn.disabled = false;
       return;
     }
     formData.append("content", content);
@@ -926,7 +985,26 @@ deleteConfirmBtn?.addEventListener("click", async () => {
     const url = deletingItem.type === "comment" ? `/social/comments/${deletingItem.id}` : `/social/${deletingItem.id}`;
     await apiFetch(url, { method: "DELETE" });
     closeDeleteModal();
-    await loadPosts({ preserveScroll: true });
+    // remove the deleted item from the DOM in-place
+    if (deletingItem.type === 'post') {
+      const el = document.getElementById(`post-${deletingItem.id}`);
+      if (el && el.parentElement) el.parentElement.removeChild(el);
+    } else if (deletingItem.type === 'comment') {
+      const selector = `[data-comment-id='${deletingItem.id}']`;
+      const found = document.querySelector(selector);
+      if (found && found.parentElement) found.parentElement.removeChild(found);
+      // best-effort: decrement the comment count on the parent post
+      const postCard = deleteTrigger?.closest ? deleteTrigger.closest('article') : null;
+      if (postCard && postCard.id) {
+        const pid = postCard.id.replace('post-', '');
+        const countEl = document.getElementById(`post-comment-count-${pid}`);
+        if (countEl) {
+          const prev = parseInt((countEl.textContent || '0').replace(/\D/g, ''), 10) || 0;
+          const next = Math.max(0, prev - 1);
+          countEl.textContent = `${next} ${next === 1 ? 'comment' : 'comments'}`;
+        }
+      }
+    }
   } catch (err) {
     deleteMessage.textContent = normalizeError(err);
   } finally {

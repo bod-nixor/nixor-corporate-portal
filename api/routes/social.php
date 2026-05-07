@@ -74,6 +74,7 @@ function handle_social(string $method, array $segments): void {
                 'feed_scope' => $feedScope,
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
+                'trace' => method_exists($e, 'getTraceAsString') ? $e->getTraceAsString() : null,
             ]);
             throw $e;
         }
@@ -151,6 +152,7 @@ function handle_social(string $method, array $segments): void {
                 'uploaded_count' => count($uploadedImages),
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
+                'trace' => method_exists($e, 'getTraceAsString') ? $e->getTraceAsString() : null,
             ]);
             throw $e;
         }
@@ -253,10 +255,23 @@ function social_request_array($value): array {
 
 function social_uploaded_image_files(): array {
     if (empty($_FILES['images'])) {
-        social_upload_log('social_uploaded_image_files.empty');
-        return [];
+        // tolerate alternative field names from clients (image, file, files)
+        social_upload_log('social_uploaded_image_files.empty', ['available_files' => array_keys($_FILES)]);
+        $foundKey = null;
+        foreach (array_keys($_FILES) as $k) {
+            if (stripos($k, 'image') !== false || stripos($k, 'file') !== false) {
+                $foundKey = $k;
+                break;
+            }
+        }
+        if ($foundKey === null) {
+            return [];
+        }
+        social_upload_log('social_uploaded_image_files.found_alternative', ['key' => $foundKey]);
+        $raw = $_FILES[$foundKey];
+    } else {
+        $raw = $_FILES['images'];
     }
-    $raw = $_FILES['images'];
     $files = [];
     $uploadErrors = [];
     if (is_array($raw['name'] ?? null)) {
