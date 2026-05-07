@@ -111,6 +111,190 @@ function rbac_roles_for_user(array $user): array {
     return $stmt->fetchAll();
 }
 
+function social_entity_memberships_for_user(array $user, int $entityId): array {
+    if (!$user || empty($user['id']) || $entityId <= 0) {
+        return [];
+    }
+    $stmt = db()->prepare('SELECT * FROM entity_memberships WHERE user_id = ? AND entity_id = ?');
+    $stmt->execute([(int)$user['id'], $entityId]);
+    return $stmt->fetchAll();
+}
+
+function social_entity_rbac_roles_for_user(array $user, int $entityId): array {
+    if (!$user || empty($user['id']) || $entityId <= 0 || !rbac_tables_ready()) {
+        return [];
+    }
+    $stmt = db()->prepare(
+        'SELECT r.id, r.code, r.name, r.scope, ur.entity_id
+         FROM rbac_user_roles ur
+         JOIN rbac_roles r ON r.id = ur.role_id
+         WHERE ur.user_id = ?
+           AND ur.entity_id = ?
+           AND (ur.expires_at IS NULL OR ur.expires_at > NOW())'
+    );
+    $stmt->execute([(int)$user['id'], $entityId]);
+    return $stmt->fetchAll();
+}
+
+function social_role_is_entity_executive(array $role): bool {
+    $code = preg_replace('/[^a-z0-9]+/', '_', strtolower((string)($role['code'] ?? '')));
+    if (in_array($code, ['entity_executive', 'ceo', 'cco', 'cm', 'chro', 'hrm'], true)) {
+        return true;
+    }
+    if (social_role_is_c_level($role)) {
+        return true;
+    }
+    $name = strtolower((string)($role['name'] ?? ''));
+    return (str_contains($code, 'executive') || str_contains($name, 'executive') || str_contains($name, 'manager'))
+        && !str_contains($code, 'member')
+        && !str_contains($code, 'volunteer')
+        && !str_contains($name, 'member')
+        && !str_contains($name, 'volunteer');
+}
+
+function social_user_has_entity_membership(array $user, int $entityId): bool {
+    if (count(social_entity_memberships_for_user($user, $entityId)) > 0) {
+        return true;
+    }
+    foreach (social_entity_rbac_roles_for_user($user, $entityId) as $role) {
+        if (($role['scope'] ?? '') === 'entity') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function social_user_has_entity_executive_membership(array $user, int $entityId): bool {
+    foreach (social_entity_memberships_for_user($user, $entityId) as $membership) {
+        if (in_array($membership['role'] ?? '', ['manager', 'executive'], true)) {
+            return true;
+        }
+    }
+    foreach (social_entity_rbac_roles_for_user($user, $entityId) as $role) {
+        if (social_role_is_entity_executive($role)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function social_c_level_role_codes(): array {
+    return ['ceo', 'cfo', 'coo', 'cco', 'chro', 'cto', 'cio', 'cmo', 'cpo'];
+}
+
+function social_role_is_c_level(array $role): bool {
+    $code = preg_replace('/[^a-z0-9]+/', '_', strtolower((string)($role['code'] ?? '')));
+    if (in_array($code, social_c_level_role_codes(), true)) {
+        return true;
+    }
+
+    $name = strtoupper((string)($role['name'] ?? ''));
+    foreach (['CEO', 'CFO', 'COO', 'CCO', 'CHRO', 'CTO', 'CIO', 'CMO', 'CPO'] as $label) {
+        if (preg_match('/\b' . preg_quote($label, '/') . '\b/', $name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function social_user_has_c_level_entity_role(array $user): bool {
+    if (!$user || empty($user['id'])) {
+        return false;
+    }
+
+    if (rbac_user_has_assignments((int)$user['id'])) {
+        foreach (rbac_roles_for_user($user) as $role) {
+            if (social_role_is_c_level($role)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    $memberships = legacy_memberships_for_user((int)$user['id']);
+    if (!$memberships) {
+        return false;
+    }
+    if (($user['global_role'] ?? '') === 'ceo') {
+        return true;
+    }
+    foreach ($memberships as $membership) {
+        $department = $membership['department'] ?? '';
+        $role = $membership['role'] ?? '';
+        if ($role === 'manager' && in_array($department, ['communications', 'hr'], true)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function social_user_has_high_level_social_role(array $user): bool {
+    if (!$user || empty($user['id'])) {
+        return false;
+    }
+
+    if (rbac_user_has_assignments((int)$user['id'])) {
+        foreach (rbac_roles_for_user($user) as $role) {
+            $code = preg_replace('/[^a-z0-9]+/', '_', strtolower((string)($role['code'] ?? '')));
+            if (($role['entity_id'] ?? null) === null && in_array($code, ['site_admin', 'member_board', 'student_affairs'], true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    return in_array($user['global_role'] ?? '', ['admin', 'board', 'student_affairs'], true);
+}
+
+function social_can_view_entity_feed(?array $user, int $entityId): bool {
+    if (!$user || $entityId <= 0) {
+        return false;
+    }
+    return social_user_has_entity_membership($user, $entityId)
+        || rbac_has_global_permission($user, 'social.view');
+}
+
+function social_can_post_entity_feed(?array $user, int $entityId): bool {
+    if (!$user || $entityId <= 0) {
+        return false;
+    }
+    return (
+        social_user_has_entity_executive_membership($user, $entityId)
+        && can_permission($user, 'social.create', $entityId)
+    ) || (
+        social_user_has_high_level_social_role($user)
+        && can_permission($user, 'social.create', $entityId)
+    );
+}
+
+function social_can_interact_entity_feed(?array $user, int $entityId): bool {
+    if (!$user || $entityId <= 0 || !social_user_has_entity_membership($user, $entityId)) {
+        return false;
+    }
+    return can_permission($user, 'social.like', $entityId)
+        || can_permission($user, 'social.create', $entityId);
+}
+
+function social_can_view_global_feed(?array $user = null): bool {
+    return true;
+}
+
+function social_can_post_global_feed(?array $user): bool {
+    if (!$user) {
+        return false;
+    }
+    return social_user_has_c_level_entity_role($user)
+        && can_permission($user, 'social.create');
+}
+
+function social_can_interact_global_feed(?array $user): bool {
+    if (!$user) {
+        return false;
+    }
+    return can_permission($user, 'social.like')
+        || can_permission($user, 'social.create');
+}
+
 function rbac_visible_nav(array $user): array {
     $links = [
         'dashboard' => ['permission' => 'nav.dashboard', 'href' => '/dashboard.html', 'text' => 'Entity Dashboard'],

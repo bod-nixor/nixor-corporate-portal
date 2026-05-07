@@ -816,7 +816,7 @@ final class ApiTest extends TestCase {
         $userId = $this->createUser('member@example.com', 'Password123!', 'staff');
         $entityId = $this->createEntity('Social Entity');
         $otherEntityId = $this->createEntity('Other Social Entity');
-        $this->addMembership($entityId, $userId, 'communications', 'member');
+        $this->addMembership($entityId, $userId, 'communications', 'executive');
         $otherEndeavourId = $this->createEndeavour($otherEntityId, $userId, 'Other Entity Endeavour', 'PRE_EVENT', false, '+5 days');
 
         $client = $this->loginClient('member@example.com', 'Password123!');
@@ -1302,7 +1302,12 @@ final class ApiTest extends TestCase {
     }
 
     public function testPublicGlobalSocialFeedAndAuthenticatedRestrictions(): void {
-        $this->createUser('global-author@example.com', 'Password123!', 'volunteer');
+        $entityId = $this->createEntity('Global Entity');
+        $authorId = $this->createUser('global-author@example.com', 'Password123!', 'ceo');
+        $volunteerId = $this->createUser('global-volunteer@example.com', 'Password123!', 'staff');
+        $this->addMembership($entityId, $authorId, 'management', 'manager');
+        $this->addMembership($entityId, $volunteerId, 'operations', 'volunteer');
+
         $client = $this->loginClient('global-author@example.com', 'Password123!');
         $post = $client->request('POST', '/api/social', [
             'feed_scope' => 'global',
@@ -1310,17 +1315,124 @@ final class ApiTest extends TestCase {
             'image_urls' => ['https://example.com/image.jpg']
         ], ["X-CSRF-Token: {$client->csrfToken}"]);
         $this->assertSame(200, $post['status']);
+        $postId = (int)$post['data']['data']['id'];
 
         $public = (new TestClient(self::$baseUrl))->request('GET', '/api/public/social_global');
         $this->assertSame(200, $public['status']);
         $this->assertCount(1, $public['data']['data']['posts']);
         $this->assertStringContainsString('<strong>Global</strong>', $public['data']['data']['posts'][0]['safe_html']);
 
-        $anonymousPost = (new TestClient(self::$baseUrl))->request('POST', '/api/social', [
+        $anonymous = new TestClient(self::$baseUrl);
+        $anonymousCsrf = $anonymous->request('GET', '/api/auth/csrf');
+        $anonymousToken = $anonymousCsrf['data']['data']['csrfToken'] ?? '';
+        $anonymousPost = $anonymous->request('POST', '/api/social', [
             'feed_scope' => 'global',
             'content' => 'Blocked'
-        ]);
+        ], ["X-CSRF-Token: {$anonymousToken}"]);
         $this->assertSame(401, $anonymousPost['status']);
+
+        $anonymousLike = $anonymous->request('POST', "/api/social/{$postId}/like", [], ["X-CSRF-Token: {$anonymousToken}"]);
+        $this->assertSame(401, $anonymousLike['status']);
+        $anonymousComment = $anonymous->request('POST', "/api/social/{$postId}/comments", [
+            'comment' => 'Blocked'
+        ], ["X-CSRF-Token: {$anonymousToken}"]);
+        $this->assertSame(401, $anonymousComment['status']);
+
+        $volunteer = $this->loginClient('global-volunteer@example.com', 'Password123!');
+        $volunteerPost = $volunteer->request('POST', '/api/social', [
+            'feed_scope' => 'global',
+            'content' => 'Volunteers cannot publish globally.'
+        ], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(403, $volunteerPost['status']);
+    }
+
+    public function testSocialFeedBusinessPermissions(): void {
+        $entityA = $this->createEntity('Entity Feed A');
+        $entityB = $this->createEntity('Entity Feed B');
+        $volunteerId = $this->createUser('feed-volunteer@example.com', 'Password123!', 'staff');
+        $execId = $this->createUser('feed-exec@example.com', 'Password123!', 'staff');
+        $otherExecId = $this->createUser('feed-other-exec@example.com', 'Password123!', 'staff');
+        $ceoId = $this->createUser('feed-ceo@example.com', 'Password123!', 'ceo');
+
+        $this->addMembership($entityA, $volunteerId, 'operations', 'volunteer');
+        $this->addMembership($entityA, $execId, 'operations', 'executive');
+        $this->addMembership($entityB, $otherExecId, 'operations', 'executive');
+        $this->addMembership($entityA, $ceoId, 'management', 'manager');
+
+        $publicEntityFeed = (new TestClient(self::$baseUrl))->request('GET', '/api/social?entity_id=' . $entityA);
+        $this->assertSame(401, $publicEntityFeed['status']);
+
+        $volunteer = $this->loginClient('feed-volunteer@example.com', 'Password123!');
+        $volunteerFeed = $volunteer->request('GET', '/api/social?entity_id=' . $entityA);
+        $this->assertSame(200, $volunteerFeed['status']);
+        $this->assertFalse((bool)$volunteerFeed['data']['meta']['permissions']['can_post']);
+        $this->assertTrue((bool)$volunteerFeed['data']['meta']['permissions']['can_interact']);
+
+        $volunteerPost = $volunteer->request('POST', '/api/social', [
+            'entity_id' => $entityA,
+            'content' => 'Volunteer should not post.'
+        ], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(403, $volunteerPost['status']);
+
+        $exec = $this->loginClient('feed-exec@example.com', 'Password123!');
+        $entityPost = $exec->request('POST', '/api/social', [
+            'entity_id' => $entityA,
+            'content' => 'Executive entity update.'
+        ], ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(200, $entityPost['status']);
+        $postId = (int)$entityPost['data']['data']['id'];
+
+        $like = $volunteer->request('POST', "/api/social/{$postId}/like", [], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(200, $like['status']);
+        $comment = $volunteer->request('POST', "/api/social/{$postId}/comments", [
+            'comment' => 'Volunteer comment.'
+        ], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(200, $comment['status']);
+
+        $otherFeed = $volunteer->request('GET', '/api/social?entity_id=' . $entityB);
+        $this->assertSame(403, $otherFeed['status']);
+
+        $otherExec = $this->loginClient('feed-other-exec@example.com', 'Password123!');
+        $otherPost = $otherExec->request('POST', '/api/social', [
+            'entity_id' => $entityB,
+            'content' => 'Other entity update.'
+        ], ["X-CSRF-Token: {$otherExec->csrfToken}"]);
+        $this->assertSame(200, $otherPost['status']);
+        $otherPostId = (int)$otherPost['data']['data']['id'];
+
+        $crossLike = $volunteer->request('POST', "/api/social/{$otherPostId}/like", [], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(403, $crossLike['status']);
+        $crossComment = $volunteer->request('POST', "/api/social/{$otherPostId}/comments", [
+            'comment' => 'Blocked cross-entity comment.'
+        ], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(403, $crossComment['status']);
+
+        $crossPost = $exec->request('POST', '/api/social', [
+            'entity_id' => $entityB,
+            'content' => 'Wrong entity update.'
+        ], ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(403, $crossPost['status']);
+
+        $nonCGlobal = $exec->request('POST', '/api/social', [
+            'feed_scope' => 'global',
+            'content' => 'Non-C-level global update.'
+        ], ["X-CSRF-Token: {$exec->csrfToken}"]);
+        $this->assertSame(403, $nonCGlobal['status']);
+
+        $ceo = $this->loginClient('feed-ceo@example.com', 'Password123!');
+        $globalPost = $ceo->request('POST', '/api/social', [
+            'feed_scope' => 'global',
+            'content' => 'C-level global update.'
+        ], ["X-CSRF-Token: {$ceo->csrfToken}"]);
+        $this->assertSame(200, $globalPost['status']);
+        $globalPostId = (int)$globalPost['data']['data']['id'];
+
+        $globalLike = $volunteer->request('POST', "/api/social/{$globalPostId}/like", [], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(200, $globalLike['status']);
+        $globalComment = $volunteer->request('POST', "/api/social/{$globalPostId}/comments", [
+            'comment' => 'Visible global comment.'
+        ], ["X-CSRF-Token: {$volunteer->csrfToken}"]);
+        $this->assertSame(200, $globalComment['status']);
     }
 
     private function createEntity(string $name): int {

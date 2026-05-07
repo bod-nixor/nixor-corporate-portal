@@ -2,24 +2,40 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
   <script src="/assets/theme-init.js"></script>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>NCP Global Feed</title>
   <link rel="stylesheet" href="/assets/app.css" />
 </head>
 
 <body class="bg-[var(--bg-base)] text-[var(--text-primary)] min-h-screen">
-  <main class="max-w-3xl mx-auto px-6 py-10">
-    <header class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+  <main class="social-public-main">
+    <header class="app-page-header flex flex-col sm:flex-row sm:items-end justify-between gap-5">
       <div>
-        <p class="text-xs uppercase tracking-[0.25em] text-[var(--text-tertiary)] font-bold">Nixor Corporate Portal</p>
+        <p class="text-xs uppercase tracking-[0.22em] text-[var(--text-tertiary)] font-bold">Nixor Corporate Portal</p>
         <h1 class="mt-2 text-3xl font-bold tracking-tight">Global Feed</h1>
+        <p class="mt-2 text-sm font-medium text-[var(--text-secondary)]">Public updates from across the NCP community.
+        </p>
       </div>
-      <a class="btn btn-primary" href="/login.html?next=/social.html">Sign in to post</a>
+      <a class="btn btn-primary" href="/login.html?next=%2Fsocial.html%3Ffeed%3Dglobal">Sign in</a>
     </header>
-    <section id="global-feed" class="mt-8 space-y-5"></section>
-    <p id="global-empty" class="hidden mt-8 text-sm text-[var(--text-secondary)]">No global posts are published yet.</p>
+
+    <section class="mb-5 rounded-xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.018)] p-4">
+      <p class="text-sm font-semibold text-[var(--text-primary)]">Sign in to post, like, or comment.</p>
+      <p id="public-signin-message" class="mt-1 text-xs font-medium text-[var(--text-tertiary)]">Anonymous visitors can
+        read global updates only.</p>
+    </section>
+
+    <section id="global-loading" class="social-loading-state">
+      <div class="mx-auto h-3 w-36 skeleton"></div>
+      <div class="mx-auto mt-4 h-3 w-60 skeleton"></div>
+    </section>
+    <section id="global-feed" class="social-feed-list" aria-label="Public global posts"></section>
+    <div id="global-empty" class="social-empty-state hidden">
+      <p class="text-sm font-semibold text-[var(--text-secondary)]">No global updates yet.</p>
+      <p class="text-xs text-[var(--text-tertiary)] mt-1">Check back soon for public NCP announcements.</p>
+    </div>
   </main>
   <script type="module" src="/assets/social_global.js"></script>
 </body>
