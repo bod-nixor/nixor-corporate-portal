@@ -304,6 +304,7 @@ const renderDeadlines = (listEl, deadlines) => {
 let currentUser = null;
 let currentEntityId = null;
 let announcementsOffset = 0;
+let announcementsMayHaveMore = false;
 let editingAnnouncementId = null;
 let editingAnnouncementCard = null;
 const ANNOUNCEMENTS_LIMIT = 5;
@@ -318,6 +319,15 @@ const showAnnouncementCardStatus = (card, message, ok = false) => {
     }
     status.className = `mt-4 text-xs font-semibold rounded-lg px-3 py-2 border ${ok ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-red-500/10 text-red-300 border-red-500/30'}`;
     status.textContent = message;
+};
+
+const syncAnnouncementsAfterRemoval = () => {
+    announcementsOffset = Math.max(0, announcementsOffset - 1);
+    const hasAnnouncements = Boolean(announcementsList.children.length);
+    announcementsEmpty.classList.toggle('hidden', hasAnnouncements);
+    if (!loadMoreBtn) return;
+    loadMoreBtn.disabled = !hasAnnouncements;
+    loadMoreBtn.classList.toggle('hidden', !hasAnnouncements || !announcementsMayHaveMore);
 };
 
 const renderAnnouncement = (announcement, canManage) => {
@@ -392,9 +402,7 @@ const renderAnnouncement = (announcement, canManage) => {
                 try {
                     await apiFetch(`/announcements/${announcement.id}`, { method: 'DELETE' });
                     acard.remove();
-                    if (!announcementsList.children.length) {
-                        announcementsEmpty.classList.remove('hidden');
-                    }
+                    syncAnnouncementsAfterRemoval();
                 } catch (e) {
                     delBtn.disabled = false;
                     delBtn.dataset.confirming = 'false';
@@ -429,10 +437,12 @@ if (loadMoreBtn) {
                     announcementsList.appendChild(renderAnnouncement(ann, window._canManageAnnouncements));
                 });
                 announcementsOffset += res.data.length;
+                announcementsMayHaveMore = res.data.length >= ANNOUNCEMENTS_LIMIT;
                 if (res.data.length < ANNOUNCEMENTS_LIMIT) {
                     loadMoreBtn.classList.add('hidden');
                 }
             } else {
+                announcementsMayHaveMore = false;
                 loadMoreBtn.classList.add('hidden');
             }
         } catch (e) {
@@ -452,7 +462,11 @@ const loadDashboard = async (entityId) => {
     currentEntityId = entityId;
     announcementsList.innerHTML = '';
     announcementsOffset = 0;
-    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+    announcementsMayHaveMore = false;
+    if (loadMoreBtn) {
+        loadMoreBtn.classList.add('hidden');
+        loadMoreBtn.disabled = false;
+    }
     resetAnnouncementsMessage();
     currentPendingDocs = [];
     renderPendingDocs();
@@ -487,6 +501,7 @@ const loadDashboard = async (entityId) => {
                 announcementsList.appendChild(renderAnnouncement(announcement, canManageAnnouncements));
             });
             announcementsOffset = data.announcements.length;
+            announcementsMayHaveMore = data.announcements.length >= ANNOUNCEMENTS_LIMIT;
             if (data.announcements.length >= ANNOUNCEMENTS_LIMIT && loadMoreBtn) {
                 loadMoreBtn.classList.remove('hidden');
             }

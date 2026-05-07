@@ -1,4 +1,4 @@
-import { apiFetch, clearMobileAuthToken, isNativeRuntime, loginUrlForCurrentPage } from '/assets/app.js';
+import { apiFetch, clearMobileAuthToken, getCsrfToken, isNativeRuntime, loginUrlForCurrentPage } from '/assets/app.js';
 
 const fallbackLinks = [
   { id: 'settings', href: '/settings.html', text: 'Settings', permission: 'nav.settings' }
@@ -43,7 +43,10 @@ function renderAvatar(user) {
 
 function formatNotificationTime(value) {
   if (!value) return '';
-  const date = new Date(value);
+  const normalizedValue = typeof value === 'string'
+    ? value.trim().replace(/^(\d{4}-\d{2}-\d{2})\s+/, '$1T')
+    : value;
+  const date = new Date(normalizedValue);
   if (Number.isNaN(date.getTime())) return '';
   const diffSeconds = Math.round((Date.now() - date.getTime()) / 1000);
   const abs = Math.abs(diffSeconds);
@@ -60,6 +63,23 @@ function notificationMeta(notification) {
     notification.entity_name,
     formatNotificationTime(notification.created_at)
   ].filter(Boolean).join(' / ');
+}
+
+function persistNotificationRead(id) {
+  if (!id) return;
+  const safeId = encodeURIComponent(id);
+  const csrfToken = getCsrfToken();
+  if (csrfToken && navigator.sendBeacon) {
+    const body = new FormData();
+    body.append('csrf_token', csrfToken);
+    navigator.sendBeacon(`/api/notifications/${safeId}/read`, body);
+    return;
+  }
+  apiFetch(`/notifications/${safeId}/read`, {
+    method: 'POST',
+    keepalive: true,
+    skipFallback: true
+  }).catch(console.error);
 }
 
 function renderNotificationItem(notification) {
@@ -293,7 +313,14 @@ if (typeof document !== 'undefined') {
 
     const markBtn = e.target.closest('[data-read-id]');
     if (markBtn) {
+      const link = markBtn.closest('a[href]');
       const id = markBtn.getAttribute('data-read-id');
+      if (link) {
+        e.preventDefault();
+        persistNotificationRead(id);
+        window.location.href = link.href;
+        return;
+      }
       apiFetch(`/notifications/${id}/read`, { method: 'POST', skipFallback: true }).then(() => {
         fetchNotifications();
       }).catch(console.error);

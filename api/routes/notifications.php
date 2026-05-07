@@ -159,15 +159,15 @@ function notifications_target_url(array $payload, array $context): ?string {
         return '/endeavour_view.html?id=' . (int)$context['endeavour_id'];
     }
     if (!empty($context['entity_id'])) {
-        return '/dashboard.html';
+        return '/dashboard.html?entity_id=' . (int)$context['entity_id'];
     }
     return null;
 }
 
 function notifications_truncate(string $value, int $maxLength): string {
     $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
-    if (strlen($value) <= $maxLength) {
+    if (mb_strlen($value, 'UTF-8') <= $maxLength) {
         return $value;
     }
-    return rtrim(substr($value, 0, max(0, $maxLength - 1))) . '...';
+    return rtrim(mb_substr($value, 0, max(0, $maxLength - 1), 'UTF-8')) . '...';
 }
