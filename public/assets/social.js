@@ -794,9 +794,9 @@ function renderPost(post) {
             can_manage: Boolean(currentUser),
           };
           // append to comments list
-          const commentsWrap = commentForm.parentElement;
-          if (commentsWrap) {
-            commentsWrap.insertBefore(renderComment(newComment), commentForm);
+          const commentsContainer = commentForm.parentElement;
+          if (commentsContainer) {
+            commentsContainer.insertBefore(renderComment(newComment), commentForm);
           }
           // clear input and update counts
           commentInput.value = "";
@@ -916,9 +916,6 @@ async function submitPost(event) {
     const content = contentInput.value.trim();
     if (!content) {
       setStatus("Post content is required.", false);
-      isSubmitting = false;
-      submitBtn.disabled = false;
-      closePostModalBtn.disabled = false;
       return;
     }
     formData.append("content", content);
