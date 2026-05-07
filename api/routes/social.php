@@ -69,12 +69,13 @@ function handle_social(string $method, array $segments): void {
                 $pdo->rollBack();
             }
             social_cleanup_storage_paths($imageCleanup['delete_on_rollback'] ?? []);
-            social_upload_log('handle_social.create_failed', [
-                'uploaded_count' => count($uploadedImages),
-                'feed_scope' => $feedScope,
-                'exception' => get_class($e),
-                'message' => $e->getMessage(),
-            ]);
+                social_upload_log('handle_social.create_failed', [
+                    'uploaded_count' => count($uploadedImages),
+                    'feed_scope' => $feedScope,
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             throw $e;
         }
         social_cleanup_storage_paths($imageCleanup['delete_after_commit'] ?? []);
@@ -151,6 +152,7 @@ function handle_social(string $method, array $segments): void {
                 'uploaded_count' => count($uploadedImages),
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -252,11 +254,32 @@ function social_request_array($value): array {
 }
 
 function social_uploaded_image_files(): array {
-    if (empty($_FILES['images'])) {
-        social_upload_log('social_uploaded_image_files.empty');
+    // No files at all: normal text-only posts
+    if (empty($_FILES)) {
         return [];
     }
-    $raw = $_FILES['images'];
+
+    // If client used the expected field name, use it
+    if (isset($_FILES['images'])) {
+        $raw = $_FILES['images'];
+    } else {
+        // Look for predictable alternative field names: image(s), file(s), upload(s)
+        $foundKey = null;
+        $pattern = '/^(?:images?|files?|uploads?)(?:\[\])?$/i';
+        foreach (array_keys($_FILES) as $k) {
+            if (preg_match($pattern, $k)) {
+                $foundKey = $k;
+                break;
+            }
+        }
+        if ($foundKey === null) {
+            // No recognized file fields present
+            social_upload_log('social_uploaded_image_files.unrecognized_keys', ['available_files' => array_keys($_FILES)]);
+            return [];
+        }
+        social_upload_log('social_uploaded_image_files.found_alternative', ['key' => $foundKey]);
+        $raw = $_FILES[$foundKey];
+    }
     $files = [];
     $uploadErrors = [];
     if (is_array($raw['name'] ?? null)) {
