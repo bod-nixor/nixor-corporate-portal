@@ -49,7 +49,11 @@ function handle_public(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'Too many requests'], 429);
         }
         require_once __DIR__ . '/social.php';
-        respond(['ok' => true, 'data' => social_fetch_feed(null, 'global', null)]);
+        respond([
+            'ok' => true,
+            'data' => social_fetch_feed(null, 'global', null),
+            'meta' => ['permissions' => social_feed_permissions('global', null, null)]
+        ]);
     }
 
     if ($action === 'interest' && $method === 'POST') {

@@ -6,29 +6,46 @@ function handle_social(string $method, array $segments): void {
 
     if ($method === 'GET' && (!$id || $id === 'global')) {
         if ($id === 'global') {
-            require_permission('social.global.view', null, $user);
-            respond(['ok' => true, 'data' => social_fetch_feed(null, 'global', $user)]);
+            if (!social_can_view_global_feed($user)) {
+                respond(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+            respond([
+                'ok' => true,
+                'data' => social_fetch_feed(null, 'global', $user),
+                'meta' => ['permissions' => social_feed_permissions('global', null, $user)]
+            ]);
         }
         $entityId = (int)($_GET['entity_id'] ?? 0);
         if ($entityId <= 0) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
-        require_permission('social.view', $entityId, $user);
-        respond(['ok' => true, 'data' => social_fetch_feed($entityId, 'entity', $user)]);
+        if (!social_can_view_entity_feed($user, $entityId)) {
+            respond(['ok' => false, 'error' => 'Forbidden'], 403);
+        }
+        respond([
+            'ok' => true,
+            'data' => social_fetch_feed($entityId, 'entity', $user),
+            'meta' => ['permissions' => social_feed_permissions('entity', $entityId, $user)]
+        ]);
     }
 
     if ($method === 'POST' && !$id) {
-        $data = read_json();
+        $data = social_read_request_data();
+        $uploadedImages = social_uploaded_image_files();
         $feedScope = (($data['feed_scope'] ?? '') === 'global' || !empty($data['global'])) ? 'global' : 'entity';
         $entityId = null;
         if ($feedScope === 'global') {
-            require_permission('social.create', null, $user);
+            if (!social_can_post_global_feed($user)) {
+                respond(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
         } else {
             $entityId = (int)($data['entity_id'] ?? 0);
             if ($entityId <= 0) {
                 respond(['ok' => false, 'error' => 'entity_id required'], 400);
             }
-            require_permission('social.create', $entityId, $user);
+            if (!social_can_post_entity_feed($user, $entityId)) {
+                respond(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
         }
         $content = require_non_empty($data['content'] ?? '', 'content', 4000);
         $endeavourId = social_validate_endeavour_id($data['endeavour_id'] ?? null, $entityId);
@@ -36,7 +53,7 @@ function handle_social(string $method, array $segments): void {
         $stmt = db()->prepare('INSERT INTO social_posts (endeavour_id, entity_id, feed_scope, user_id, content) VALUES (?, ?, ?, ?, ?)');
         $stmt->execute([$endeavourId, $entityId, $feedScope, $user['id'], $content]);
         $postId = (int)db()->lastInsertId();
-        social_sync_post_images($postId, $data, $user, $entityId);
+        social_sync_post_images($postId, $data, $user, $entityId, $uploadedImages);
         social_sync_mentions($postId, null, $data, $feedScope);
         log_activity($user['id'], 'social_post', $postId, 'created', $feedScope === 'global' ? 'Global social post created' : 'Social post created');
         emit_ws_event('social.created', ['id' => $postId, 'feed_scope' => $feedScope]);
@@ -49,7 +66,7 @@ function handle_social(string $method, array $segments): void {
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
-        social_require_post_interaction($post, $user, 'social.create');
+        social_require_post_interaction($post, $user);
         $comment = require_non_empty($data['comment'] ?? '', 'comment', 1500);
         $stmt = db()->prepare('INSERT INTO social_comments (post_id, user_id, comment) VALUES (?, ?, ?)');
         $stmt->execute([(int)$post['id'], $user['id'], $comment]);
@@ -65,9 +82,9 @@ function handle_social(string $method, array $segments): void {
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
-        social_require_post_interaction($post, $user, 'social.like');
+        social_require_post_interaction($post, $user);
         $liked = social_toggle_like('post', (int)$post['id'], (int)$user['id']);
-        respond(['ok' => true, 'data' => ['liked' => $liked]]);
+        respond(['ok' => true, 'data' => ['liked' => $liked, 'likes_count' => social_like_count_target('post', (int)$post['id'])]]);
     }
 
     if ($method === 'POST' && $id === 'comments' && $action && ($segments[3] ?? '') === 'like') {
@@ -75,12 +92,12 @@ function handle_social(string $method, array $segments): void {
         if (!$comment) {
             respond(['ok' => false, 'error' => 'Comment not found'], 404);
         }
-        social_require_post_interaction($comment, $user, 'social.like');
+        social_require_post_interaction($comment, $user);
         $liked = social_toggle_like('comment', (int)$comment['id'], (int)$user['id']);
-        respond(['ok' => true, 'data' => ['liked' => $liked]]);
+        respond(['ok' => true, 'data' => ['liked' => $liked, 'likes_count' => social_like_count_target('comment', (int)$comment['id'])]]);
     }
 
-    if ($method === 'PUT' && $id && $action === '') {
+    if (($method === 'PUT' && $id && $action === '') || ($method === 'POST' && $id && $action === 'update')) {
         $post = social_fetch_post((int)$id);
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
@@ -88,11 +105,12 @@ function handle_social(string $method, array $segments): void {
         if (!social_user_can_manage_record($user, $post, (int)$post['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
-        $data = read_json();
+        $data = social_read_request_data();
+        $uploadedImages = social_uploaded_image_files();
         $content = require_non_empty($data['content'] ?? $post['content'], 'content', 4000);
         $stmt = db()->prepare('UPDATE social_posts SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
         $stmt->execute([$content, (int)$post['id']]);
-        social_sync_post_images((int)$post['id'], $data, $user, $post['entity_id'] ? (int)$post['entity_id'] : null);
+        social_sync_post_images((int)$post['id'], $data, $user, $post['entity_id'] ? (int)$post['entity_id'] : null, $uploadedImages);
         social_sync_mentions((int)$post['id'], null, $data, $post['feed_scope'] ?? 'entity');
         log_activity($user['id'], 'social_post', (int)$post['id'], 'updated', 'Social post updated');
         emit_ws_event('social.updated', ['id' => (int)$post['id']]);
@@ -139,6 +157,7 @@ function handle_social(string $method, array $segments): void {
         if (!social_user_can_manage_record($user, $post, (int)$post['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
+        social_delete_uploaded_images_for_post((int)$post['id']);
         db()->prepare('DELETE FROM social_posts WHERE id = ?')->execute([(int)$post['id']]);
         log_activity($user['id'], 'social_post', (int)$post['id'], 'deleted', 'Social post deleted');
         emit_ws_event('social.deleted', ['id' => (int)$post['id']]);
@@ -148,12 +167,103 @@ function handle_social(string $method, array $segments): void {
     respond(['ok' => false, 'error' => 'Not Found'], 404);
 }
 
+function social_read_request_data(): array {
+    $contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
+    if (!str_contains($contentType, 'multipart/form-data')) {
+        return read_json();
+    }
+
+    $data = $_POST;
+    foreach (['image_urls', 'image_file_ids', 'keep_image_ids', 'mentioned_user_ids', 'mentioned_entity_ids'] as $field) {
+        if (array_key_exists($field, $data)) {
+            $data[$field] = social_request_array($data[$field]);
+        }
+    }
+    return $data;
+}
+
+function social_request_array($value): array {
+    if (is_array($value)) {
+        return array_values($value);
+    }
+    $value = trim((string)$value);
+    if ($value === '') {
+        return [];
+    }
+    return array_values(array_filter(array_map('trim', explode(',', $value)), static fn($item) => $item !== ''));
+}
+
+function social_uploaded_image_files(): array {
+    if (empty($_FILES['images'])) {
+        return [];
+    }
+    $raw = $_FILES['images'];
+    $files = [];
+    if (is_array($raw['name'] ?? null)) {
+        foreach ($raw['name'] as $index => $name) {
+            $file = [
+                'name' => $name,
+                'type' => $raw['type'][$index] ?? '',
+                'tmp_name' => $raw['tmp_name'][$index] ?? '',
+                'error' => $raw['error'][$index] ?? UPLOAD_ERR_NO_FILE,
+                'size' => $raw['size'][$index] ?? 0,
+            ];
+            if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+            $files[] = $file;
+        }
+    } else {
+        if (($raw['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $files[] = $raw;
+        }
+    }
+
+    $limits = social_image_upload_limits();
+    if (count($files) > $limits['max_files']) {
+        respond(['ok' => false, 'error' => 'Posts may include up to 10 images'], 400);
+    }
+    foreach ($files as $file) {
+        validate_social_image_upload($file);
+    }
+    return $files;
+}
+
+function social_feed_permissions(string $scope, ?int $entityId, ?array $user): array {
+    if ($scope === 'global') {
+        $canInteract = social_can_interact_global_feed($user);
+        return [
+            'scope' => 'global',
+            'can_view' => social_can_view_global_feed($user),
+            'can_post' => social_can_post_global_feed($user),
+            'can_interact' => $canInteract,
+            'can_like' => $canInteract,
+            'can_comment' => $canInteract,
+            'authenticated' => (bool)$user,
+        ];
+    }
+
+    $entityId = (int)$entityId;
+    $canInteract = social_can_interact_entity_feed($user, $entityId);
+    return [
+        'scope' => 'entity',
+        'entity_id' => $entityId,
+        'can_view' => social_can_view_entity_feed($user, $entityId),
+        'can_post' => social_can_post_entity_feed($user, $entityId),
+        'can_interact' => $canInteract,
+        'can_like' => $canInteract,
+        'can_comment' => $canInteract,
+        'authenticated' => (bool)$user,
+    ];
+}
+
 function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
     if ($scope === 'global') {
         $stmt = db()->prepare(
-            'SELECT sp.*, u.full_name
+            'SELECT sp.*, u.full_name, e.name AS entity_name
              FROM social_posts sp
              JOIN users u ON u.id = sp.user_id
+             LEFT JOIN entities e ON e.id = sp.entity_id
              WHERE sp.feed_scope = "global"
              ORDER BY sp.created_at DESC
              LIMIT 80'
@@ -161,9 +271,10 @@ function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
         $stmt->execute();
     } else {
         $stmt = db()->prepare(
-            'SELECT sp.*, u.full_name
+            'SELECT sp.*, u.full_name, e.name AS entity_name
              FROM social_posts sp
              JOIN users u ON u.id = sp.user_id
+             JOIN entities e ON e.id = sp.entity_id
              WHERE sp.entity_id = ? AND COALESCE(sp.feed_scope, "entity") = "entity"
              ORDER BY sp.created_at DESC
              LIMIT 80'
@@ -188,7 +299,13 @@ function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
         $post['mentions'] = $mentions[$postId] ?? [];
         $post['likes_count'] = $likeCounts[$postId] ?? 0;
         $post['liked_by_me'] = isset($liked[$postId]);
+        $post['can_interact'] = social_record_allows_interaction($post, $user);
+        $post['can_like'] = $post['can_interact'];
+        $post['can_comment'] = $post['can_interact'];
         $post['can_manage'] = $user ? social_user_can_manage_record($user, $post, (int)$post['user_id']) : false;
+        if (!$user && ($post['feed_scope'] ?? '') === 'global') {
+            unset($post['user_id'], $post['entity_id'], $post['endeavour_id']);
+        }
         return $post;
     }, $posts);
 
@@ -197,7 +314,12 @@ function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
         $comment['safe_html'] = social_render_markdown($comment['comment']);
         $comment['likes_count'] = $commentLikeCounts[$commentId] ?? 0;
         $comment['liked_by_me'] = isset($commentLiked[$commentId]);
+        $comment['can_interact'] = social_record_allows_interaction($comment, $user);
+        $comment['can_like'] = $comment['can_interact'];
         $comment['can_manage'] = $user ? social_user_can_manage_record($user, $comment, (int)$comment['user_id']) : false;
+        if (!$user) {
+            unset($comment['user_id'], $comment['entity_id']);
+        }
         return $comment;
     }, $comments);
 
@@ -205,7 +327,7 @@ function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
 }
 
 function social_fetch_post(int $postId): ?array {
-    $stmt = db()->prepare('SELECT sp.*, u.full_name FROM social_posts sp JOIN users u ON u.id = sp.user_id WHERE sp.id = ?');
+    $stmt = db()->prepare('SELECT sp.*, u.full_name, e.name AS entity_name FROM social_posts sp JOIN users u ON u.id = sp.user_id LEFT JOIN entities e ON e.id = sp.entity_id WHERE sp.id = ?');
     $stmt->execute([$postId]);
     $post = $stmt->fetch();
     return $post ?: null;
@@ -223,29 +345,44 @@ function social_fetch_comment(int $commentId): ?array {
     return $comment ?: null;
 }
 
-function social_require_post_interaction(array $post, array $user, string $permission): void {
-    $scope = $post['feed_scope'] ?? 'entity';
-    if ($scope === 'global') {
-        require_permission($permission, null, $user);
-        return;
-    }
-    $entityId = (int)($post['entity_id'] ?? 0);
-    if ($entityId <= 0) {
-        respond(['ok' => false, 'error' => 'Invalid post scope'], 400);
-    }
-    require_permission($permission, $entityId, $user);
-}
-
-function social_user_can_manage_record(array $user, array $record, int $authorId): bool {
-    if ((int)$user['id'] === $authorId) {
-        return true;
+function social_record_allows_interaction(array $record, ?array $user): bool {
+    if (!$user) {
+        return false;
     }
     $scope = $record['feed_scope'] ?? 'entity';
     if ($scope === 'global') {
+        return social_can_interact_global_feed($user);
+    }
+    $entityId = (int)($record['entity_id'] ?? 0);
+    return $entityId > 0 && social_can_interact_entity_feed($user, $entityId);
+}
+
+function social_require_post_interaction(array $post, array $user): void {
+    $scope = $post['feed_scope'] ?? 'entity';
+    if ($scope !== 'global' && (int)($post['entity_id'] ?? 0) <= 0) {
+        respond(['ok' => false, 'error' => 'Invalid post scope'], 400);
+    }
+    if (!social_record_allows_interaction($post, $user)) {
+        respond(['ok' => false, 'error' => 'Forbidden'], 403);
+    }
+}
+
+function social_user_can_manage_record(array $user, array $record, int $authorId): bool {
+    $scope = $record['feed_scope'] ?? 'entity';
+    if ($scope === 'global') {
+        if ((int)$user['id'] === $authorId) {
+            return true;
+        }
         return can_permission($user, 'social.moderate');
     }
     $entityId = (int)($record['entity_id'] ?? 0);
-    return $entityId > 0 && can_permission($user, 'social.moderate', $entityId);
+    if ($entityId <= 0 || !social_can_view_entity_feed($user, $entityId)) {
+        return false;
+    }
+    if ((int)$user['id'] === $authorId) {
+        return true;
+    }
+    return can_permission($user, 'social.moderate', $entityId);
 }
 
 function social_validate_endeavour_id($raw, ?int $entityId): ?int {
@@ -267,12 +404,38 @@ function social_validate_endeavour_id($raw, ?int $entityId): ?int {
     return (int)$endeavourId;
 }
 
-function social_sync_post_images(int $postId, array $data, array $user, ?int $entityId): void {
-    $hasImages = array_key_exists('image_urls', $data) || array_key_exists('image_file_ids', $data);
+function social_sync_post_images(int $postId, array $data, array $user, ?int $entityId, array $uploadedFiles = []): void {
+    $hasImages = array_key_exists('image_urls', $data)
+        || array_key_exists('image_file_ids', $data)
+        || array_key_exists('keep_image_ids', $data)
+        || count($uploadedFiles) > 0;
     if (!$hasImages) {
         return;
     }
     $images = [];
+    $keptStoragePaths = [];
+
+    $keepIds = social_normalize_id_list($data['keep_image_ids'] ?? []);
+    if ($keepIds) {
+        $keptRows = social_existing_images($postId, $keepIds);
+        if (count($keptRows) !== count($keepIds)) {
+            respond(['ok' => false, 'error' => 'One or more images are no longer available'], 400);
+        }
+        foreach ($keptRows as $row) {
+            $images[] = [
+                'file_id' => $row['file_drive_item_id'] ? (int)$row['file_drive_item_id'] : null,
+                'url' => $row['image_url'],
+                'storage_path' => $row['storage_path'],
+                'original_name' => $row['original_name'],
+                'mime_type' => $row['mime_type'],
+                'size_bytes' => (int)($row['size_bytes'] ?? 0),
+            ];
+            if (!empty($row['storage_path'])) {
+                $keptStoragePaths[] = (string)$row['storage_path'];
+            }
+        }
+    }
+
     $urls = is_array($data['image_urls'] ?? null) ? $data['image_urls'] : [];
     foreach ($urls as $url) {
         $url = trim((string)$url);
@@ -286,7 +449,14 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
         if (!in_array($scheme, ['http', 'https'], true)) {
             respond(['ok' => false, 'error' => 'Images must use http or https URLs'], 400);
         }
-        $images[] = ['file_id' => null, 'url' => $url];
+        $images[] = [
+            'file_id' => null,
+            'url' => $url,
+            'storage_path' => null,
+            'original_name' => null,
+            'mime_type' => null,
+            'size_bytes' => 0,
+        ];
     }
     $fileIds = is_array($data['image_file_ids'] ?? null) ? $data['image_file_ids'] : [];
     foreach ($fileIds as $fileId) {
@@ -302,15 +472,76 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
             respond(['ok' => false, 'error' => 'Image file must belong to the same entity'], 400);
         }
         drive_assert_can_view_item($user, $item);
-        $images[] = ['file_id' => $fileId, 'url' => null];
+        $images[] = [
+            'file_id' => $fileId,
+            'url' => null,
+            'storage_path' => null,
+            'original_name' => null,
+            'mime_type' => null,
+            'size_bytes' => 0,
+        ];
     }
-    if (count($images) > 10) {
+    if (count($images) + count($uploadedFiles) > 10) {
         respond(['ok' => false, 'error' => 'Posts may include up to 10 images'], 400);
     }
+    foreach ($uploadedFiles as $file) {
+        $uploaded = save_social_image_file($file);
+        $images[] = [
+            'file_id' => null,
+            'url' => null,
+            'storage_path' => $uploaded['path'],
+            'original_name' => $uploaded['original'],
+            'mime_type' => $uploaded['mime'],
+            'size_bytes' => (int)$uploaded['size'],
+        ];
+    }
+
+    $oldStoragePaths = social_storage_paths_for_post($postId);
     db()->prepare('DELETE FROM social_post_images WHERE post_id = ?')->execute([$postId]);
-    $stmt = db()->prepare('INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, sort_order) VALUES (?, ?, ?, ?)');
+    $stmt = db()->prepare(
+        'INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    );
     foreach (array_values($images) as $index => $image) {
-        $stmt->execute([$postId, $image['file_id'], $image['url'], $index]);
+        $stmt->execute([
+            $postId,
+            $image['file_id'],
+            $image['url'],
+            $image['storage_path'],
+            $image['original_name'],
+            $image['mime_type'],
+            $image['size_bytes'],
+            $index
+        ]);
+    }
+
+    foreach ($oldStoragePaths as $path) {
+        if (!in_array($path, $keptStoragePaths, true)) {
+            delete_uploaded_relative_path($path);
+        }
+    }
+}
+
+function social_existing_images(int $postId, array $imageIds): array {
+    $imageIds = array_values(array_unique(array_filter(array_map('intval', $imageIds))));
+    if (!$imageIds) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($imageIds), '?'));
+    $stmt = db()->prepare("SELECT * FROM social_post_images WHERE post_id = ? AND id IN ({$in}) ORDER BY sort_order, id");
+    $stmt->execute(array_merge([$postId], $imageIds));
+    return $stmt->fetchAll();
+}
+
+function social_storage_paths_for_post(int $postId): array {
+    $stmt = db()->prepare('SELECT storage_path FROM social_post_images WHERE post_id = ? AND storage_path IS NOT NULL AND storage_path <> ""');
+    $stmt->execute([$postId]);
+    return array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+}
+
+function social_delete_uploaded_images_for_post(int $postId): void {
+    foreach (social_storage_paths_for_post($postId) as $path) {
+        delete_uploaded_relative_path($path);
     }
 }
 
@@ -406,14 +637,18 @@ function social_images_for_posts(array $postIds): array {
     foreach ($stmt->fetchAll() as $row) {
         $postId = (int)$row['post_id'];
         $url = $row['image_url'];
-        if (!$url && $row['file_drive_item_id']) {
+        if (!$url && !empty($row['storage_path'])) {
+            $url = '/api/files/download?type=social_image&id=' . urlencode((string)$row['id']);
+        } elseif (!$url && $row['file_drive_item_id']) {
             $url = '/api/files/download?type=drive&id=' . urlencode((string)$row['file_drive_item_id']);
         }
         $map[$postId][] = [
             'id' => (int)$row['id'],
             'url' => $url,
             'file_drive_item_id' => $row['file_drive_item_id'] ? (int)$row['file_drive_item_id'] : null,
-            'name' => $row['file_name'],
+            'name' => $row['original_name'] ?: $row['file_name'],
+            'mime_type' => $row['mime_type'],
+            'size_bytes' => (int)($row['size_bytes'] ?? 0),
         ];
     }
     return $map;
@@ -464,6 +699,15 @@ function social_like_counts(string $targetType, array $targetIds): array {
         $map[(int)$row['target_id']] = (int)$row['total'];
     }
     return $map;
+}
+
+function social_like_count_target(string $targetType, int $targetId): int {
+    if ($targetId <= 0) {
+        return 0;
+    }
+    $stmt = db()->prepare('SELECT COUNT(*) FROM social_likes WHERE target_type = ? AND target_id = ?');
+    $stmt->execute([$targetType, $targetId]);
+    return (int)$stmt->fetchColumn();
 }
 
 function social_liked_targets(string $targetType, array $targetIds, int $userId): array {

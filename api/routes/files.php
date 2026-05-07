@@ -23,6 +23,29 @@ function handle_files(string $method, array $segments): void {
         }
         drive_assert_can_view_item($user, $item);
         stream_download(resolve_upload_path($item['file_path']), $item['name']);
+    } elseif ($type === 'social_image') {
+        $stmt = db()->prepare(
+            'SELECT spi.*, sp.feed_scope, sp.entity_id
+             FROM social_post_images spi
+             JOIN social_posts sp ON sp.id = spi.post_id
+             WHERE spi.id = ? AND spi.storage_path IS NOT NULL AND spi.storage_path <> ""'
+        );
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            respond(['ok' => false, 'error' => 'Image not found'], 404);
+        }
+        if (($row['feed_scope'] ?? 'entity') !== 'global') {
+            $user = require_auth();
+            $entityId = (int)($row['entity_id'] ?? 0);
+            if ($entityId <= 0) {
+                respond(['ok' => false, 'error' => 'Invalid image scope'], 400);
+            }
+            if (!social_can_view_entity_feed($user, $entityId)) {
+                respond(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+        }
+        stream_inline_upload(resolve_upload_path($row['storage_path']), $row['original_name'] ?: 'social-image', $row['mime_type'] ?: 'application/octet-stream');
     } elseif ($type === 'endeavour_submission') {
         $user = require_auth();
         $stmt = db()->prepare(
@@ -92,6 +115,29 @@ function handle_files(string $method, array $segments): void {
     } else {
         respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
+}
+
+function stream_inline_upload(string $path, string $filename, string $mimeType): void {
+    $resolvedFile = realpath($path);
+    $uploadsBase = realpath(upload_base_path());
+    $normalizedFile = $resolvedFile ? str_replace('\\', '/', $resolvedFile) : '';
+    $normalizedBase = $uploadsBase ? rtrim(str_replace('\\', '/', $uploadsBase), '/') : '';
+    if (!$resolvedFile || !$uploadsBase || !str_starts_with($normalizedFile, $normalizedBase . '/')) {
+        respond(['ok' => false, 'error' => 'File not found'], 404);
+    }
+    if (!is_file($resolvedFile)) {
+        respond(['ok' => false, 'error' => 'File not found'], 404);
+    }
+    $allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    $mimeType = in_array($mimeType, $allowed, true) ? $mimeType : 'application/octet-stream';
+    $safeName = preg_replace('/[^\\w.\\-]/', '_', basename($filename));
+    header_remove('Content-Security-Policy');
+    header('Content-Type: ' . $mimeType);
+    header('Content-Length: ' . filesize($resolvedFile));
+    header('Content-Disposition: inline; filename="' . $safeName . '"');
+    header('Cache-Control: private, max-age=3600');
+    readfile($resolvedFile);
+    exit;
 }
 
 function stream_download(string $path, string $filename): void {

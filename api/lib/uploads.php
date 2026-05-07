@@ -110,6 +110,110 @@ function save_drive_file(string $entityId, array $file): array {
     return ['path' => $relative, 'original' => $basename, 'size' => $file['size'] ?? 0, 'mime' => $mime];
 }
 
+function social_image_upload_limits(): array {
+    return [
+        'max_files' => 10,
+        'max_size' => 10 * 1024 * 1024,
+        'extensions' => ['jpg', 'jpeg', 'png', 'webp'],
+        'mimes' => ['image/jpeg', 'image/png', 'image/webp'],
+    ];
+}
+
+function validate_social_image_upload(array $file): string {
+    validate_upload_tmp_file($file);
+
+    $limits = social_image_upload_limits();
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0) {
+        respond(['ok' => false, 'error' => 'Image file is empty'], 400);
+    }
+    if ($size > $limits['max_size']) {
+        respond(['ok' => false, 'error' => 'Image file too large (10MB limit)'], 400);
+    }
+
+    $basename = basename((string)($file['name'] ?? ''));
+    $ext = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+    if ($ext === '' || !in_array($ext, $limits['extensions'], true)) {
+        respond(['ok' => false, 'error' => 'Image type not allowed'], 400);
+    }
+
+    $finfoMime = null;
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $finfoMime = finfo_file($finfo, $file['tmp_name']) ?: null;
+            finfo_close($finfo);
+        }
+    }
+    $mime = $finfoMime ?: mime_content_type($file['tmp_name']);
+    if (!$mime || !in_array($mime, $limits['mimes'], true)) {
+        respond(['ok' => false, 'error' => 'Image type not allowed'], 400);
+    }
+
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || empty($imageInfo['mime']) || !in_array($imageInfo['mime'], $limits['mimes'], true)) {
+        respond(['ok' => false, 'error' => 'Invalid image file'], 400);
+    }
+
+    return $mime;
+}
+
+function save_social_image_file(array $file): array {
+    $mime = validate_social_image_upload($file);
+    $basename = basename((string)($file['name'] ?? 'image'));
+    $ext = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+    $ext = $ext === 'jpeg' ? 'jpg' : $ext;
+
+    $uploadsBase = upload_base_path();
+    $dir = $uploadsBase . '/social/' . gmdate('Y') . '/' . gmdate('m');
+    if (!is_dir($dir)) {
+        if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+            respond(['ok' => false, 'error' => 'Failed to create upload directory'], 500);
+        }
+    }
+
+    $filename = bin2hex(random_bytes(16)) . '.' . $ext;
+    $path = $dir . '/' . $filename;
+    if (!move_uploaded_file($file['tmp_name'], $path)) {
+        respond(['ok' => false, 'error' => 'Upload failed'], 500);
+    }
+
+    $normalizedPath = realpath($path) ?: $path;
+    $normalizedBase = realpath($uploadsBase) ?: $uploadsBase;
+    $normalizedPathForCheck = str_replace('\\', '/', $normalizedPath);
+    $normalizedBaseForCheck = rtrim(str_replace('\\', '/', $normalizedBase), '/');
+    if (!str_starts_with($normalizedPathForCheck, $normalizedBaseForCheck . '/')) {
+        @unlink($path);
+        error_log("Social upload path mismatch: normalized={$normalizedPath} base={$normalizedBase}");
+        respond(['ok' => false, 'error' => 'Upload failed'], 500);
+    }
+
+    return [
+        'path' => ltrim(substr($normalizedPathForCheck, strlen($normalizedBaseForCheck)), '/'),
+        'original' => preg_replace('/[^\w.\- ]/', '_', $basename),
+        'size' => (int)($file['size'] ?? 0),
+        'mime' => $mime,
+    ];
+}
+
+function delete_uploaded_relative_path(?string $relativePath): void {
+    $relativePath = trim((string)$relativePath);
+    if ($relativePath === '') {
+        return;
+    }
+    $base = realpath(upload_base_path());
+    if (!$base) {
+        return;
+    }
+    $fullPath = $base . DIRECTORY_SEPARATOR . ltrim($relativePath, '/\\');
+    $resolved = realpath($fullPath);
+    $normalizedResolved = $resolved ? str_replace('\\', '/', $resolved) : '';
+    $normalizedBase = rtrim(str_replace('\\', '/', $base), '/');
+    if ($resolved && is_file($resolved) && str_starts_with($normalizedResolved, $normalizedBase . '/')) {
+        @unlink($resolved);
+    }
+}
+
 function resolve_upload_path(string $relativePath): string {
     $relativePath = ltrim($relativePath, '/');
     do {
