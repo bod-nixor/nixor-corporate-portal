@@ -562,11 +562,6 @@ function social_storage_paths_for_post(int $postId): array {
     return array_values(array_filter(array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
 }
 
-function social_delete_uploaded_images_for_post(int $postId): void {
-    foreach (social_storage_paths_for_post($postId) as $path) {
-        delete_uploaded_relative_path($path);
-    }
-}
 
 function social_validate_mentions(array $data, string $scope): void {
     $hasMentions = array_key_exists('mentioned_user_ids', $data) || array_key_exists('mentioned_entity_ids', $data);
@@ -587,6 +582,7 @@ function social_sync_mentions(int $postId, ?int $commentId, array $data, string 
     if (!$hasMentions) {
         return;
     }
+    social_validate_mentions($data, $scope);
     if ($commentId !== null) {
         db()->prepare('DELETE FROM social_mentions WHERE comment_id = ?')->execute([$commentId]);
     } else {
@@ -595,11 +591,6 @@ function social_sync_mentions(int $postId, ?int $commentId, array $data, string 
 
     $userIds = social_normalize_id_list($data['mentioned_user_ids'] ?? []);
     $entityIds = social_normalize_id_list($data['mentioned_entity_ids'] ?? []);
-    if ($entityIds && $scope !== 'global') {
-        respond(['ok' => false, 'error' => 'Entity mentions are only allowed in the global feed'], 400);
-    }
-    social_validate_ids_exist('users', $userIds, 'mentioned_user_ids');
-    social_validate_ids_exist('entities', $entityIds, 'mentioned_entity_ids');
 
     $stmt = db()->prepare('INSERT INTO social_mentions (post_id, comment_id, mentioned_user_id, mentioned_entity_id) VALUES (?, ?, ?, ?)');
     foreach ($userIds as $userId) {
