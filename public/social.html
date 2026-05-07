@@ -20,12 +20,16 @@
           <p class="text-[var(--text-secondary)] mt-1.5 text-sm font-medium">Professional updates across entity spaces
             and the public global feed.</p>
         </div>
-        <button id="open-post-modal" type="button" class="btn btn-primary hidden">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M12 5v14m7-7H5"></path>
-          </svg>
-          <span id="new-post-label">New Entity Post</span>
-        </button>
+        <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <a id="social-signin-button" class="btn btn-secondary hidden"
+            href="/login.html?next=%2Fsocial.html%3Ffeed%3Dglobal">Sign in to post</a>
+          <button id="open-post-modal" type="button" class="btn btn-primary hidden">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M12 5v14m7-7H5"></path>
+            </svg>
+            <span id="new-post-label">New Entity Post</span>
+          </button>
+        </div>
       </header>
 
       <section class="social-feed-shell animate-fade-in" aria-labelledby="social-feed-heading">
@@ -55,6 +59,10 @@
             <select id="social-entity" class="input-field sm:w-48 py-2 text-sm font-medium"></select>
           </div>
         </div>
+
+        <p id="social-feed-notice"
+          class="hidden mb-4 rounded-lg border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.018)] px-4 py-3 text-sm font-semibold text-[var(--text-secondary)]">
+        </p>
 
         <h2 id="social-feed-heading" class="sr-only">Recent Posts</h2>
         <div id="social-loading" class="social-loading-state hidden">
@@ -154,7 +162,7 @@
     <div class="card w-full max-w-sm shadow-2xl border-[var(--color-danger)] border animate-fade-in">
       <div class="flex items-center justify-between">
         <h2 id="delete-title" class="text-lg font-bold">Confirm delete</h2>
-        <button id="delete-close" aria-label="Close"
+        <button id="delete-close" type="button" aria-label="Close"
           class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors p-1 rounded-md hover:bg-[rgba(255,255,255,0.05)]">
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>

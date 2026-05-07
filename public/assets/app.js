@@ -671,6 +671,10 @@ export async function startNativeGoogleLogin() {
 }
 
 function currentPageRequiresAuth() {
+  const path = (window.location.pathname.replace(/\/+$/, '') || '/').toLowerCase();
+  if (path === '/social.html' && new URLSearchParams(window.location.search).get('feed') === 'global') {
+    return false;
+  }
   const authenticatedPaths = [
     '/admin.html',
     '/calendar.html',
@@ -683,7 +687,6 @@ function currentPageRequiresAuth() {
     '/settings.html',
     '/social.html'
   ];
-  const path = (window.location.pathname.replace(/\/+$/, '') || '/').toLowerCase();
   return authenticatedPaths.includes(path);
 }
 

@@ -1,20 +1,20 @@
 <?php
 function handle_social(string $method, array $segments): void {
-    $user = require_auth();
     $id = $segments[1] ?? null;
     $action = $segments[2] ?? '';
 
-    if ($method === 'GET' && (!$id || $id === 'global')) {
-        if ($id === 'global') {
-            if (!social_can_view_global_feed($user)) {
-                respond(['ok' => false, 'error' => 'Forbidden'], 403);
-            }
-            respond([
-                'ok' => true,
-                'data' => social_fetch_feed(null, 'global', $user),
-                'meta' => ['permissions' => social_feed_permissions('global', null, $user)]
-            ]);
-        }
+    if ($method === 'GET' && $id === 'global') {
+        $user = current_user();
+        respond([
+            'ok' => true,
+            'data' => social_fetch_feed(null, 'global', $user),
+            'meta' => ['permissions' => social_feed_permissions('global', null, $user)]
+        ]);
+    }
+
+    $user = require_auth();
+
+    if ($method === 'GET' && !$id) {
         $entityId = (int)($_GET['entity_id'] ?? 0);
         if ($entityId <= 0) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
