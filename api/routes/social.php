@@ -49,6 +49,7 @@ function handle_social(string $method, array $segments): void {
         }
         $content = require_non_empty($data['content'] ?? '', 'content', 4000);
         $endeavourId = social_validate_endeavour_id($data['endeavour_id'] ?? null, $entityId);
+        social_validate_mentions($data, $feedScope);
 
         $stmt = db()->prepare('INSERT INTO social_posts (endeavour_id, entity_id, feed_scope, user_id, content) VALUES (?, ?, ?, ?, ?)');
         $stmt->execute([$endeavourId, $entityId, $feedScope, $user['id'], $content]);
@@ -108,6 +109,7 @@ function handle_social(string $method, array $segments): void {
         $data = social_read_request_data();
         $uploadedImages = social_uploaded_image_files();
         $content = require_non_empty($data['content'] ?? $post['content'], 'content', 4000);
+        social_validate_mentions($data, $post['feed_scope'] ?? 'entity');
         $stmt = db()->prepare('UPDATE social_posts SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
         $stmt->execute([$content, (int)$post['id']]);
         social_sync_post_images((int)$post['id'], $data, $user, $post['entity_id'] ? (int)$post['entity_id'] : null, $uploadedImages);
@@ -490,29 +492,26 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
     if (count($images) + count($uploadedFiles) > 10) {
         respond(['ok' => false, 'error' => 'Posts may include up to 10 images'], 400);
     }
-    foreach ($uploadedFiles as $file) {
-        $uploaded = save_social_image_file($file);
-        $images[] = [
-            'file_id' => null,
-            'url' => null,
-            'storage_path' => $uploaded['path'],
-            'original_name' => $uploaded['original'],
-            'mime_type' => $uploaded['mime'],
-            'size_bytes' => (int)$uploaded['size'],
-        ];
-    }
 
     $oldStoragePaths = social_storage_paths_for_post($postId);
     $newStoragePaths = [];
-    foreach ($images as $image) {
-        if (!empty($image['storage_path']) && !in_array($image['storage_path'], $keptStoragePaths, true)) {
-            $newStoragePaths[] = $image['storage_path'];
-        }
-    }
 
     $pdo = db();
     $pdo->beginTransaction();
     try {
+        foreach ($uploadedFiles as $file) {
+            $uploaded = save_social_image_file($file);
+            $images[] = [
+                'file_id' => null,
+                'url' => null,
+                'storage_path' => $uploaded['path'],
+                'original_name' => $uploaded['original'],
+                'mime_type' => $uploaded['mime'],
+                'size_bytes' => (int)$uploaded['size'],
+            ];
+            $newStoragePaths[] = $uploaded['path'];
+        }
+
         $pdo->prepare('DELETE FROM social_post_images WHERE post_id = ?')->execute([$postId]);
         $stmt = $pdo->prepare(
             'INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
@@ -567,6 +566,20 @@ function social_delete_uploaded_images_for_post(int $postId): void {
     foreach (social_storage_paths_for_post($postId) as $path) {
         delete_uploaded_relative_path($path);
     }
+}
+
+function social_validate_mentions(array $data, string $scope): void {
+    $hasMentions = array_key_exists('mentioned_user_ids', $data) || array_key_exists('mentioned_entity_ids', $data);
+    if (!$hasMentions) {
+        return;
+    }
+    $userIds = social_normalize_id_list($data['mentioned_user_ids'] ?? []);
+    $entityIds = social_normalize_id_list($data['mentioned_entity_ids'] ?? []);
+    if ($entityIds && $scope !== 'global') {
+        respond(['ok' => false, 'error' => 'Entity mentions are only allowed in the global feed'], 400);
+    }
+    social_validate_ids_exist('users', $userIds, 'mentioned_user_ids');
+    social_validate_ids_exist('entities', $entityIds, 'mentioned_entity_ids');
 }
 
 function social_sync_mentions(int $postId, ?int $commentId, array $data, string $scope): void {
