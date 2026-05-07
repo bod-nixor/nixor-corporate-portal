@@ -16,7 +16,9 @@ function handle_announcements(string $method, array $segments): void {
         $stmt->bindValue(2, $limit, PDO::PARAM_INT);
         $stmt->bindValue(3, $offset, PDO::PARAM_INT);
         $stmt->execute();
-        respond(['ok' => true, 'data' => $stmt->fetchAll()]);
+        $canManage = can_permission($user, 'entity.announce', $entityId);
+        $rows = array_map(fn($row) => announcements_decorate_row($row, $canManage), $stmt->fetchAll());
+        respond(['ok' => true, 'data' => $rows]);
     }
 
     if ($method === 'POST' && !$id) {
@@ -44,10 +46,7 @@ function handle_announcements(string $method, array $segments): void {
         if (!$row) {
             respond(['ok' => false, 'error' => 'Announcement not found'], 404);
         }
-        require_permission('entity.view', (int)$row['entity_id'], $user);
-        if (!can_permission($user, 'entity.announce', (int)$row['entity_id']) && (int)$row['created_by'] !== (int)$user['id']) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        require_permission('entity.announce', (int)$row['entity_id'], $user);
         $del = db()->prepare('DELETE FROM dashboard_announcements WHERE id = ?');
         $del->execute([$announcementId]);
         log_activity($user['id'], 'announcement', $announcementId, 'deleted', 'Announcement deleted');
@@ -55,7 +54,7 @@ function handle_announcements(string $method, array $segments): void {
         respond(['ok' => true]);
     }
 
-    if ($method === 'PUT' && $id) {
+    if (($method === 'PUT' || $method === 'PATCH') && $id) {
         $announcementId = (int)$id;
         $data = read_json();
         $check = db()->prepare('SELECT * FROM dashboard_announcements WHERE id = ?');
@@ -64,18 +63,24 @@ function handle_announcements(string $method, array $segments): void {
         if (!$row) {
             respond(['ok' => false, 'error' => 'Announcement not found'], 404);
         }
-        require_permission('entity.view', (int)$row['entity_id'], $user);
-        if (!can_permission($user, 'entity.announce', (int)$row['entity_id']) && (int)$row['created_by'] !== (int)$user['id']) {
-            respond(['ok' => false, 'error' => 'Forbidden'], 403);
-        }
+        require_permission('entity.announce', (int)$row['entity_id'], $user);
         $title = require_non_empty($data['title'] ?? $row['title'], 'title', 190);
         $message = require_non_empty($data['message'] ?? $row['message'], 'message', 2000);
         $stmt = db()->prepare('UPDATE dashboard_announcements SET title = ?, message = ? WHERE id = ?');
         $stmt->execute([$title, $message, $announcementId]);
         log_activity($user['id'], 'announcement', $announcementId, 'updated', 'Announcement updated');
         emit_ws_event('announcement.updated', ['id' => $announcementId]);
-        respond(['ok' => true]);
+        $fresh = db()->prepare('SELECT a.*, u.full_name AS creator_name FROM dashboard_announcements a JOIN users u ON a.created_by = u.id WHERE a.id = ?');
+        $fresh->execute([$announcementId]);
+        $freshRow = $fresh->fetch();
+        respond(['ok' => true, 'data' => $freshRow ? announcements_decorate_row($freshRow, true) : ['id' => $announcementId]]);
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function announcements_decorate_row(array $row, bool $canManage): array {
+    $row['can_edit'] = $canManage;
+    $row['can_delete'] = $canManage;
+    return $row;
 }

@@ -16,6 +16,8 @@ const modalOpen = document.getElementById('announcement-button');
 const modalClose = document.getElementById('announcement-close');
 const form = document.getElementById('announcement-form');
 const statusEl = document.getElementById('announcement-status');
+const modalHeading = document.getElementById('announcement-heading');
+const modalSubmit = document.getElementById('announcement-submit');
 
 const DEFAULT_ANNOUNCEMENTS_TITLE = 'No announcements yet';
 const DEFAULT_ANNOUNCEMENTS_DETAIL = 'This space will show broadcasts sent to this entity.';
@@ -97,6 +99,50 @@ const setDashboardUnavailable = (message) => {
 let currentPendingDocs = [];
 const pendingDocsFilter = document.getElementById('pending-docs-filter');
 
+const formatDateTime = (value, options = {}) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        ...options
+    });
+};
+
+const formatDocLabel = (docType) => {
+    const labels = {
+        operational_plan: 'Operational plan',
+        ops_plan: 'Operational plan',
+        budget_plan: 'Budget plan',
+        pre_financial: 'Pre-financial report',
+        post_financial: 'Post-financial report',
+        epilogue: 'Epilogue',
+        mou: 'MOU'
+    };
+    return labels[docType] || String(docType || 'Document').replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+const formatActionLabel = (item) => {
+    if (item.action_label) return item.action_label;
+    const group = item.approver_group === 'bod' ? 'MoB' : item.approver_group === 'student_affairs' ? 'Student Affairs' : '';
+    if (item.category === 'rejected') return 'Rejected';
+    if (item.category === 'pending_approval') return group ? `To approve - ${group}` : 'To approve';
+    if (item.category === 'pending_approval_waiting') return group ? `Awaiting ${group}` : 'Awaiting approval';
+    if (item.category === 'pending_submission') return 'To submit';
+    if (item.category === 'overdue') return 'Overdue';
+    return 'Pending';
+};
+
+const actionToneClass = (category) => {
+    if (category === 'rejected' || category === 'overdue') return 'badge-danger';
+    if (category === 'pending_approval' || category === 'pending_approval_waiting') return 'badge-warning';
+    if (category === 'pending_submission') return 'badge-info';
+    return 'bg-[rgba(255,255,255,0.05)] text-[var(--text-secondary)] border border-[var(--border-subtle)]';
+};
+
 const renderPendingDocs = () => {
     const listEl = document.getElementById('pending-docs-list');
     listEl.innerHTML = '';
@@ -111,40 +157,36 @@ const renderPendingDocs = () => {
     if (docs?.length) {
         docs.forEach((item) => {
             const li = document.createElement('li');
-            li.className = 'p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors min-w-0';
+            li.className = 'p-3.5 bg-[rgba(255,255,255,0.025)] rounded-xl border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors min-w-0';
 
             const nameSpan = document.createElement('div');
-            nameSpan.className = 'text-[var(--text-primary)] font-medium text-sm mb-1.5 truncate';
-            nameSpan.textContent = item.endeavour_name;
+            nameSpan.className = 'text-[var(--text-primary)] font-semibold text-sm leading-snug break-words';
+            nameSpan.textContent = item.endeavour_name || 'Untitled endeavour';
 
-            const docName = item.doc_type.replace(/_/g, ' ');
+            const detailRow = document.createElement('div');
+            detailRow.className = 'mt-2 flex flex-wrap items-center gap-2 min-w-0';
+
+            const docName = item.doc_label || formatDocLabel(item.doc_type);
+            const docType = document.createElement('span');
+            docType.className = 'text-xs font-medium text-[var(--text-secondary)] leading-snug break-words min-w-0';
+            docType.textContent = docName;
+
             const badge = document.createElement('span');
-            badge.className = 'badge text-[10px] py-0.5 max-w-full truncate';
-            
-            if (item.category === 'rejected') {
-                badge.classList.add('badge-danger');
-                badge.textContent = `${docName} (Needs Changes)`;
-            } else if (item.category === 'pending_approval') {
-                badge.classList.add('badge-warning');
-                const group = item.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
-                badge.textContent = `${docName} (To Approve - ${group})`;
-            } else if (item.category === 'pending_approval_waiting') {
-                badge.classList.add('bg-slate-700', 'text-slate-300');
-                const group = item.approver_group === 'bod' ? 'BoD' : 'Student Affairs';
-                badge.textContent = `${docName} (Awaiting ${group})`;
-            } else if (item.category === 'pending_submission') {
-                badge.classList.add('badge-primary');
-                badge.textContent = `${docName} (To Submit)`;
-            } else if (item.category === 'overdue') {
-                badge.classList.add('badge-danger');
-                badge.textContent = `${docName} (Overdue)`;
+            badge.className = `badge whitespace-normal break-words leading-snug text-[11px] py-1 ${actionToneClass(item.category)}`;
+            badge.textContent = formatActionLabel(item);
+
+            detailRow.append(docType, badge);
+
+            const dueDate = formatDateTime(item.due_at, { year: 'numeric' });
+            if (dueDate) {
+                const due = document.createElement('p');
+                due.className = 'mt-2 text-[11px] font-medium text-[var(--text-tertiary)]';
+                due.textContent = `Due ${dueDate}`;
+                li.append(nameSpan, detailRow, due);
             } else {
-                badge.classList.add('badge-ghost');
-                badge.textContent = docName;
+                li.append(nameSpan, detailRow);
             }
 
-            li.appendChild(nameSpan);
-            li.appendChild(badge);
             listEl.appendChild(li);
         });
     } else {
@@ -170,9 +212,9 @@ const renderMeetings = (listEl, meetings) => {
     if (meetings?.length) {
         meetings.forEach((event) => {
             const item = document.createElement('li');
-            item.className = 'flex flex-col p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors min-w-0';
+            item.className = 'flex flex-col p-3.5 bg-[rgba(255,255,255,0.025)] rounded-xl border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors min-w-0';
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-[var(--text-primary)] truncate';
+            left.className = 'text-sm font-semibold text-[var(--text-primary)] leading-snug break-words';
             left.textContent = event.title;
             const right = document.createElement('span');
             right.className = 'text-[var(--text-tertiary)] text-xs mt-1';
@@ -205,34 +247,50 @@ const renderDeadlines = (listEl, deadlines) => {
         validDeadlines.forEach((deadline) => {
             const daysUntil = Number(deadline.days_until);
             const item = document.createElement('li');
-            item.className = 'flex flex-col xl:flex-row xl:items-start xl:justify-between p-3 bg-[rgba(255,255,255,0.02)] rounded-lg border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors gap-2 min-w-0';
+            item.className = 'flex flex-col p-3.5 bg-[rgba(255,255,255,0.025)] rounded-xl border border-[var(--border-subtle)] hover:border-[var(--border-strong)] transition-colors gap-2 min-w-0';
 
             const left = document.createElement('span');
-            left.className = 'text-sm font-medium text-[var(--text-primary)] min-w-0 max-w-full truncate leading-snug';
-            left.textContent = deadline.name;
+            left.className = 'text-sm font-semibold text-[var(--text-primary)] min-w-0 max-w-full break-words leading-snug';
+            left.textContent = deadline.name || 'Untitled endeavour';
+
+            const meta = document.createElement('div');
+            meta.className = 'flex flex-wrap items-center gap-2 min-w-0';
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'text-xs font-medium text-[var(--text-secondary)] break-words min-w-0';
+            labelEl.textContent = deadline.deadline_label || 'Deadline';
 
             const right = document.createElement('span');
-            const label = deadline.deadline_label ? `${deadline.deadline_label}: ` : '';
 
             let badgeClass = 'badge ';
             if (daysUntil === 0) {
-                right.textContent = `${label}Due today`;
+                right.textContent = 'Due today';
                 badgeClass += 'badge-danger';
             } else if (daysUntil < 0) {
                 const overdueDays = Math.abs(daysUntil);
-                right.textContent = `${label}Overdue (${overdueDays}d)`;
+                right.textContent = `Overdue (${overdueDays}d)`;
                 badgeClass += 'badge-danger';
             } else if (daysUntil <= 3) {
-                right.textContent = `${label}${daysUntil}d left`;
+                right.textContent = `${daysUntil}d left`;
                 badgeClass += 'badge-warning';
             } else {
-                right.textContent = `${label}${daysUntil}d left`;
+                right.textContent = `${daysUntil}d left`;
                 badgeClass += 'bg-[rgba(255,255,255,0.05)] text-[var(--text-secondary)] border border-[var(--border-subtle)]';
             }
 
-            right.className = badgeClass + ' max-w-full truncate text-left xl:text-right leading-snug shrink-0';
+            right.className = badgeClass + ' whitespace-normal break-words leading-snug text-[11px] py-1 shrink-0';
+            meta.append(labelEl, right);
+
+            const dateText = formatDateTime(deadline.deadline_at, { year: 'numeric' });
+            if (dateText) {
+                const dateEl = document.createElement('span');
+                dateEl.className = 'text-[11px] font-medium text-[var(--text-tertiary)]';
+                dateEl.textContent = dateText;
+                meta.appendChild(dateEl);
+            }
+
             item.appendChild(left);
-            item.appendChild(right);
+            item.appendChild(meta);
             listEl.appendChild(item);
         });
     } else {
@@ -246,66 +304,124 @@ const renderDeadlines = (listEl, deadlines) => {
 let currentUser = null;
 let currentEntityId = null;
 let announcementsOffset = 0;
+let announcementsMayHaveMore = false;
+let editingAnnouncementId = null;
+let editingAnnouncementCard = null;
 const ANNOUNCEMENTS_LIMIT = 5;
 const loadMoreBtn = document.getElementById('load-more-announcements');
 
-const renderAnnouncement = (announcement, canPost) => {
-    const acard = document.createElement('div');
-    acard.className = 'card card-hoverable group relative';
-    
+const showAnnouncementCardStatus = (card, message, ok = false) => {
+    let status = card.querySelector('[data-announcement-status]');
+    if (!status) {
+        status = document.createElement('p');
+        status.dataset.announcementStatus = 'true';
+        card.appendChild(status);
+    }
+    status.className = `mt-4 text-xs font-semibold rounded-lg px-3 py-2 border ${ok ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-red-500/10 text-red-300 border-red-500/30'}`;
+    status.textContent = message;
+};
+
+const syncAnnouncementsAfterRemoval = () => {
+    announcementsOffset = Math.max(0, announcementsOffset - 1);
+    const hasAnnouncements = Boolean(announcementsList.children.length);
+    announcementsEmpty.classList.toggle('hidden', hasAnnouncements);
+    if (!loadMoreBtn) return;
+    loadMoreBtn.disabled = !hasAnnouncements;
+    loadMoreBtn.classList.toggle('hidden', !hasAnnouncements || !announcementsMayHaveMore);
+};
+
+const renderAnnouncement = (announcement, canManage) => {
+    const acard = document.createElement('article');
+    acard.className = 'card card-hoverable group relative announcement-card';
+    acard.dataset.announcementId = announcement.id;
+
     const headerRow = document.createElement('div');
-    headerRow.className = 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2 min-w-0';
+    headerRow.className = 'flex flex-col md:flex-row md:items-start md:justify-between gap-4 min-w-0';
+
+    const textWrap = document.createElement('div');
+    textWrap.className = 'min-w-0 flex-1';
 
     const title = document.createElement('h3');
-    title.className = 'text-lg font-semibold tracking-tight min-w-0 break-words text-[var(--text-primary)] pr-12';
-    title.textContent = announcement.title;
+    title.className = 'text-lg font-semibold tracking-tight min-w-0 break-words text-[var(--text-primary)] leading-snug';
+    title.textContent = announcement.title || 'Untitled announcement';
 
     const metaInfo = document.createElement('div');
-    metaInfo.className = 'flex flex-col sm:items-end min-w-0 shrink-0';
+    metaInfo.className = 'mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-[var(--text-tertiary)] min-w-0';
 
-    const author = document.createElement('p');
-    author.className = 'text-xs font-medium text-[var(--text-secondary)] truncate';
+    const author = document.createElement('span');
+    author.className = 'break-words min-w-0';
     author.textContent = `${announcement.creator_name || announcement.full_name || 'System'}`;
-    
-    const time = document.createElement('p');
-    time.className = 'text-[10px] text-[var(--text-tertiary)]';
+
+    const time = document.createElement('span');
     const dateObj = new Date(announcement.created_at);
-    time.textContent = isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleString();
+    time.textContent = Number.isNaN(dateObj.getTime()) ? '' : dateObj.toLocaleString();
 
-    metaInfo.appendChild(author);
-    metaInfo.appendChild(time);
+    metaInfo.append(author, time);
+    textWrap.append(title, metaInfo);
 
-    headerRow.appendChild(title);
-    headerRow.appendChild(metaInfo);
+    headerRow.appendChild(textWrap);
 
-    const message = document.createElement('p');
-    message.className = 'text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words';
-    message.textContent = announcement.message;
-
-    acard.appendChild(headerRow);
-    acard.appendChild(message);
-
-    if (canPost || (currentUser && announcement.created_by == currentUser.id)) {
+    const canEdit = Boolean(announcement.can_edit || canManage);
+    const canDelete = Boolean(announcement.can_delete || canManage);
+    if (canEdit || canDelete) {
         const actions = document.createElement('div');
-        actions.className = 'absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2';
-        
-        const delBtn = document.createElement('button');
-        delBtn.className = 'text-[var(--text-tertiary)] hover:text-red-400 p-1 bg-[var(--bg-base)] rounded shadow-sm border border-[var(--border-subtle)]';
-        delBtn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>';
-        delBtn.onclick = async () => {
-            if (confirm('Delete this announcement?')) {
+        actions.className = 'flex flex-wrap items-center gap-2 shrink-0 md:justify-end';
+
+        if (canEdit) {
+            const editBtn = document.createElement('button');
+            editBtn.type = 'button';
+            editBtn.className = 'btn btn-ghost px-2.5 py-1.5 text-xs';
+            editBtn.setAttribute('aria-label', `Edit announcement ${announcement.title || announcement.id}`);
+            editBtn.textContent = 'Edit';
+            editBtn.addEventListener('click', () => openAnnouncementModal('edit', announcement, acard));
+            actions.appendChild(editBtn);
+        }
+
+        if (canDelete) {
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'btn btn-ghost px-2.5 py-1.5 text-xs text-red-300 hover:text-red-200';
+            delBtn.setAttribute('aria-label', `Delete announcement ${announcement.title || announcement.id}`);
+            delBtn.textContent = 'Delete';
+            let resetTimer = 0;
+            delBtn.addEventListener('click', async () => {
+                if (delBtn.dataset.confirming !== 'true') {
+                    delBtn.dataset.confirming = 'true';
+                    delBtn.textContent = 'Confirm delete';
+                    delBtn.classList.add('btn-danger');
+                    window.clearTimeout(resetTimer);
+                    resetTimer = window.setTimeout(() => {
+                        delBtn.dataset.confirming = 'false';
+                        delBtn.textContent = 'Delete';
+                        delBtn.classList.remove('btn-danger');
+                    }, 4500);
+                    return;
+                }
+                delBtn.disabled = true;
+                delBtn.textContent = 'Deleting...';
                 try {
                     await apiFetch(`/announcements/${announcement.id}`, { method: 'DELETE' });
                     acard.remove();
+                    syncAnnouncementsAfterRemoval();
                 } catch (e) {
-                    alert(normalizeError(e) || 'Error deleting announcement');
+                    delBtn.disabled = false;
+                    delBtn.dataset.confirming = 'false';
+                    delBtn.textContent = 'Delete';
+                    delBtn.classList.remove('btn-danger');
+                    showAnnouncementCardStatus(acard, normalizeError(e) || 'Unable to delete announcement.');
                 }
-            }
-        };
-        actions.appendChild(delBtn);
-        acard.appendChild(actions);
+            });
+            actions.appendChild(delBtn);
+        }
+
+        headerRow.appendChild(actions);
     }
 
+    const message = document.createElement('p');
+    message.className = 'mt-4 text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap break-words';
+    message.textContent = announcement.message || '';
+
+    acard.append(headerRow, message);
     return acard;
 };
 
@@ -318,13 +434,15 @@ if (loadMoreBtn) {
             const res = await dashboardApiFetch(`/announcements?entity_id=${encodeURIComponent(currentEntityId)}&offset=${announcementsOffset}&limit=${ANNOUNCEMENTS_LIMIT}`);
             if (res?.data && res.data.length > 0) {
                 res.data.forEach(ann => {
-                    announcementsList.appendChild(renderAnnouncement(ann, window._canPostAnnouncements));
+                    announcementsList.appendChild(renderAnnouncement(ann, window._canManageAnnouncements));
                 });
                 announcementsOffset += res.data.length;
+                announcementsMayHaveMore = res.data.length >= ANNOUNCEMENTS_LIMIT;
                 if (res.data.length < ANNOUNCEMENTS_LIMIT) {
                     loadMoreBtn.classList.add('hidden');
                 }
             } else {
+                announcementsMayHaveMore = false;
                 loadMoreBtn.classList.add('hidden');
             }
         } catch (e) {
@@ -344,7 +462,11 @@ const loadDashboard = async (entityId) => {
     currentEntityId = entityId;
     announcementsList.innerHTML = '';
     announcementsOffset = 0;
-    if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
+    announcementsMayHaveMore = false;
+    if (loadMoreBtn) {
+        loadMoreBtn.classList.add('hidden');
+        loadMoreBtn.disabled = false;
+    }
     resetAnnouncementsMessage();
     currentPendingDocs = [];
     renderPendingDocs();
@@ -368,14 +490,18 @@ const loadDashboard = async (entityId) => {
             ? `${approvedDocs} of ${totalDocs} docs approved across ${data.total_endeavours || 0} endeavours.`
             : `Tracking ${data.total_endeavours || 0} endeavours. No document approvals are active yet.`;
 
-        window._canPostAnnouncements = data.can_post_announcements;
+        const canPostAnnouncements = Boolean(data.can_post_announcements);
+        const canManageAnnouncements = Boolean(data.can_manage_announcements || data.can_post_announcements);
+        window._canPostAnnouncements = canPostAnnouncements;
+        window._canManageAnnouncements = canManageAnnouncements;
 
         if (data.announcements?.length) {
             announcementsEmpty.classList.add('hidden');
             data.announcements.forEach((announcement) => {
-                announcementsList.appendChild(renderAnnouncement(announcement, data.can_post_announcements));
+                announcementsList.appendChild(renderAnnouncement(announcement, canManageAnnouncements));
             });
             announcementsOffset = data.announcements.length;
+            announcementsMayHaveMore = data.announcements.length >= ANNOUNCEMENTS_LIMIT;
             if (data.announcements.length >= ANNOUNCEMENTS_LIMIT && loadMoreBtn) {
                 loadMoreBtn.classList.remove('hidden');
             }
@@ -383,9 +509,9 @@ const loadDashboard = async (entityId) => {
             announcementsEmpty.classList.remove('hidden');
         }
 
-        modalOpen.disabled = !data.can_post_announcements;
-        modalOpen.classList.toggle('opacity-60', !data.can_post_announcements);
-        modalOpen.classList.toggle('cursor-not-allowed', !data.can_post_announcements);
+        modalOpen.disabled = !canPostAnnouncements;
+        modalOpen.classList.toggle('opacity-60', !canPostAnnouncements);
+        modalOpen.classList.toggle('cursor-not-allowed', !canPostAnnouncements);
 
         currentPendingDocs = data.pending_docs || [];
         renderPendingDocs();
@@ -483,9 +609,22 @@ const handleModalKeydown = (e) => {
     }
 };
 
-modalOpen.addEventListener('click', () => {
-    if (modalOpen.disabled) return;
+const openAnnouncementModal = (mode = 'create', announcement = null, card = null) => {
+    if (mode === 'create' && modalOpen.disabled) return;
     statusEl.classList.add('hidden');
+    form.reset();
+
+    editingAnnouncementId = mode === 'edit' ? announcement?.id : null;
+    editingAnnouncementCard = mode === 'edit' ? card : null;
+    modalHeading.textContent = mode === 'edit' ? 'Edit Announcement' : 'New Announcement';
+    modalSubmit.textContent = mode === 'edit' ? 'Save Changes' : 'Publish Announcement';
+
+    if (mode === 'edit' && announcement) {
+        const titleInput = form.elements.namedItem('title');
+        const messageInput = form.elements.namedItem('message');
+        if (titleInput) titleInput.value = announcement.title || '';
+        if (messageInput) messageInput.value = announcement.message || '';
+    }
 
     previouslyFocusedElement = document.activeElement;
 
@@ -495,12 +634,21 @@ modalOpen.addEventListener('click', () => {
     document.addEventListener('keydown', handleModalKeydown);
 
     setTimeout(() => form.querySelector('input').focus(), 50);
+};
+
+modalOpen.addEventListener('click', () => {
+    openAnnouncementModal('create');
 });
 
 const closeModal = () => {
     modal.classList.add('hidden');
     modal.setAttribute('aria-hidden', 'true');
     document.removeEventListener('keydown', handleModalKeydown);
+    statusEl.classList.add('hidden');
+    editingAnnouncementId = null;
+    editingAnnouncementCard = null;
+    modalHeading.textContent = 'New Announcement';
+    modalSubmit.textContent = 'Publish Announcement';
     if (previouslyFocusedElement) previouslyFocusedElement.focus();
 };
 
@@ -509,19 +657,35 @@ modalClose.addEventListener('click', closeModal);
 
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const titleInput = form.elements.namedItem('title');
+    const messageInput = form.elements.namedItem('message');
+    const title = String(titleInput?.value || '').trim();
+    const message = String(messageInput?.value || '').trim();
+    if (!title || !message) {
+        setStatus('Title and message are required.', false);
+        return;
+    }
+    modalSubmit.disabled = true;
+    const wasEditing = Boolean(editingAnnouncementId);
+    const editId = editingAnnouncementId;
+    const cardToReplace = editingAnnouncementCard;
     try {
-        await apiFetch('/announcements', {
-            method: 'POST',
-            body: JSON.stringify({
-                entity_id: entitySelect.value,
-                title: form.title.value,
-                message: form.message.value
-            })
+        const response = await apiFetch(wasEditing ? `/announcements/${editId}` : '/announcements', {
+            method: wasEditing ? 'PUT' : 'POST',
+            body: JSON.stringify(wasEditing
+                ? { title, message }
+                : { entity_id: entitySelect.value, title, message })
         });
         form.reset();
         closeModal();
-        loadDashboard(entitySelect.value);
+        if (wasEditing && cardToReplace && response?.data) {
+            cardToReplace.replaceWith(renderAnnouncement(response.data, window._canManageAnnouncements));
+        } else {
+            loadDashboard(entitySelect.value);
+        }
     } catch (err) {
         setStatus(normalizeError(err), false);
+    } finally {
+        modalSubmit.disabled = false;
     }
 });

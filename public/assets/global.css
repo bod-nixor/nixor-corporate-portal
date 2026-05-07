@@ -246,6 +246,42 @@ textarea {
   margin-inline: auto;
 }
 
+.dashboard-main {
+  max-width: min(96rem, 100%);
+}
+
+.dashboard-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.dashboard-card {
+  min-height: 11.5rem;
+}
+
+.dashboard-list-card {
+  max-height: 30rem;
+}
+
+.dashboard-scroll-list {
+  min-height: 10rem;
+  scrollbar-gutter: stable;
+}
+
+.dashboard-entity-select {
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 1536px) {
+  .dashboard-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .app-main--narrow {
   max-width: 56rem;
   margin-inline: auto;
@@ -285,6 +321,36 @@ textarea {
   margin-bottom: 2.5rem;
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+#global-notification-dropdown {
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: min(34rem, calc(100vh - 5rem));
+}
+
+#global-notification-list {
+  max-height: min(29.75rem, calc(100vh - 9.25rem));
+}
+
+@media (max-width: 639px) {
+  #global-header {
+    left: calc(4.5rem + var(--safe-area-left));
+    right: calc(1rem + var(--safe-area-right));
+    justify-content: flex-end;
+  }
+
+  #global-notification-dropdown {
+    position: fixed;
+    left: max(0.75rem, var(--safe-area-left));
+    right: max(0.75rem, var(--safe-area-right));
+    top: calc(4rem + var(--safe-area-top));
+    width: auto;
+    max-height: calc(100vh - 5rem);
+  }
+
+  #global-notification-list {
+    max-height: calc(100vh - 9.5rem);
+  }
 }
 
 .app-mobile-menu-button {

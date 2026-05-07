@@ -963,6 +963,68 @@ final class ApiTest extends TestCase {
         $this->assertSame(200, $announcement['status']);
     }
 
+    public function testNotificationsExposeReadableContentFromPayload(): void {
+        $userId = $this->createUser('notify-user@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Notification Entity');
+        $endeavourId = $this->createEndeavour($entityId, $userId, 'Long Community Service Endeavour', 'PRE_EVENT', false, '+2 days');
+        db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)')
+            ->execute([
+                $userId,
+                'submission_pending_mob',
+                json_encode([
+                    'endeavour_id' => $endeavourId,
+                    'doc_type' => 'budget_plan',
+                    'message' => 'Submission awaiting Member of Board approval',
+                ])
+            ]);
+
+        $client = $this->loginClient('notify-user@example.com', 'Password123!');
+        $notifications = $client->request('GET', '/api/notifications?limit=5');
+        $this->assertSame(200, $notifications['status']);
+        $first = $notifications['data']['data'][0] ?? [];
+        $this->assertNotSame('Notification', $first['title'] ?? '');
+        $this->assertStringContainsString('Budget plan', $first['message'] ?? '');
+        $this->assertStringContainsString('Long Community Service Endeavour', $first['message'] ?? '');
+        $this->assertSame('/endeavour_view.html?id=' . $endeavourId, $first['target_url'] ?? null);
+    }
+
+    public function testAnnouncementEditAndDeleteRequireAnnouncementPermission(): void {
+        $managerId = $this->createUser('announce-manager@example.com', 'Password123!', 'staff');
+        $memberId = $this->createUser('announce-member@example.com', 'Password123!', 'staff');
+        $entityId = $this->createEntity('Announcement RBAC Entity');
+        $this->addMembership($entityId, $managerId, 'management', 'manager');
+        $this->addMembership($entityId, $memberId, 'operations', 'member');
+
+        db()->prepare('INSERT INTO dashboard_announcements (entity_id, title, message, created_by) VALUES (?, ?, ?, ?)')
+            ->execute([$entityId, 'Original title', 'Original message', $memberId]);
+        $announcementId = (int)db()->lastInsertId();
+
+        $member = $this->loginClient('announce-member@example.com', 'Password123!');
+        $blockedEdit = $member->request('PUT', '/api/announcements/' . $announcementId, [
+            'title' => 'Blocked edit',
+            'message' => 'Blocked message'
+        ], ["X-CSRF-Token: {$member->csrfToken}"]);
+        $this->assertSame(403, $blockedEdit['status']);
+        $blockedDelete = $member->request('DELETE', '/api/announcements/' . $announcementId, null, ["X-CSRF-Token: {$member->csrfToken}"]);
+        $this->assertSame(403, $blockedDelete['status']);
+
+        $manager = $this->loginClient('announce-manager@example.com', 'Password123!');
+        $edit = $manager->request('PUT', '/api/announcements/' . $announcementId, [
+            'title' => 'Updated title',
+            'message' => 'Updated message'
+        ], ["X-CSRF-Token: {$manager->csrfToken}"]);
+        $this->assertSame(200, $edit['status']);
+        $this->assertSame('Updated title', $edit['data']['data']['title'] ?? null);
+        $this->assertTrue((bool)($edit['data']['data']['can_edit'] ?? false));
+
+        $list = $manager->request('GET', '/api/announcements?entity_id=' . $entityId . '&limit=5');
+        $this->assertSame(200, $list['status']);
+        $this->assertTrue((bool)($list['data']['data'][0]['can_delete'] ?? false));
+
+        $delete = $manager->request('DELETE', '/api/announcements/' . $announcementId, null, ["X-CSRF-Token: {$manager->csrfToken}"]);
+        $this->assertSame(200, $delete['status']);
+    }
+
     public function testDrivePermissionModelAndSharing(): void {
         $this->createUser('admin@example.com', 'Password123!', 'admin');
         $ceoId = $this->createUser('ceo@example.com', 'Password123!', 'ceo');
