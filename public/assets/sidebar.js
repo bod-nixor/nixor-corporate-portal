@@ -65,6 +65,14 @@ function notificationMeta(notification) {
   ].filter(Boolean).join(' / ');
 }
 
+function safeNotificationTargetUrl(value) {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  if (url.startsWith('/') && !url.startsWith('//')) return url;
+  if (/^(https?:|mailto:)/i.test(url)) return url;
+  return '';
+}
+
 function persistNotificationRead(id) {
   if (!id) return;
   const safeId = encodeURIComponent(id);
@@ -88,8 +96,10 @@ function renderNotificationItem(notification) {
   const meta = notificationMeta(notification);
   const unreadClass = notification.is_read ? 'opacity-70' : 'bg-[rgba(255,255,255,0.025)]';
   const indicator = notification.is_read ? '' : '<span class="mt-1.5 h-2 w-2 rounded-full bg-[var(--color-primary)] shrink-0" aria-label="Unread"></span>';
-  const titleMarkup = notification.target_url
-    ? `<a href="${escapeHtml(notification.target_url)}" data-read-id="${escapeHtml(notification.id)}" class="font-semibold text-[var(--text-primary)] hover:underline decoration-[var(--border-strong)] underline-offset-4 break-words">${escapeHtml(title)}</a>`
+  const targetUrl = safeNotificationTargetUrl(notification.target_url);
+  const readAttribute = !notification.is_read ? ` data-read-id="${escapeHtml(notification.id)}"` : '';
+  const titleMarkup = targetUrl
+    ? `<a href="${escapeHtml(targetUrl)}"${readAttribute} class="font-semibold text-[var(--text-primary)] hover:underline decoration-[var(--border-strong)] underline-offset-4 break-words">${escapeHtml(title)}</a>`
     : `<p class="font-semibold text-[var(--text-primary)] break-words">${escapeHtml(title)}</p>`;
 
   return `
