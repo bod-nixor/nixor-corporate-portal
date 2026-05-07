@@ -190,7 +190,7 @@ function save_social_image_file(array $file): array {
 
     return [
         'path' => ltrim(substr($normalizedPathForCheck, strlen($normalizedBaseForCheck)), '/'),
-        'original' => preg_replace('/[^\w.\- ]/', '_', $basename),
+        'original' => mb_substr(preg_replace('/[^\w.\- ]/', '_', $basename), 0, 190, 'UTF-8'),
         'size' => (int)($file['size'] ?? 0),
         'mime' => $mime,
     ];

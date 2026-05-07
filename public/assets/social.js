@@ -751,9 +751,6 @@ async function submitPost(event) {
 
     if (editingPost) {
       await apiFetch(`/social/${editingPost.id}/update`, { method: "POST", body: formData });
-      isSubmitting = false;
-      submitBtn.disabled = false;
-      closePostModalBtn.disabled = false;
       closePostModal();
       await loadPosts();
       return;
@@ -774,9 +771,6 @@ async function submitPost(event) {
       formData.append("entity_id", entityId);
     }
     await apiFetch("/social", { method: "POST", body: formData });
-    isSubmitting = false;
-    submitBtn.disabled = false;
-    closePostModalBtn.disabled = false;
     closePostModal();
     setActiveFeed(feedScope, { skipLoad: true });
     await loadPosts();

@@ -131,7 +131,8 @@ function stream_inline_upload(string $path, string $filename, string $mimeType):
     $allowed = ['image/jpeg', 'image/png', 'image/webp'];
     $mimeType = in_array($mimeType, $allowed, true) ? $mimeType : 'application/octet-stream';
     $safeName = preg_replace('/[^\\w.\\-]/', '_', basename($filename));
-    header_remove('Content-Security-Policy');
+    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'none'; script-src 'none'");
+    header('X-Content-Type-Options: nosniff');
     header('Content-Type: ' . $mimeType);
     header('Content-Length: ' . filesize($resolvedFile));
     header('Content-Disposition: inline; filename="' . $safeName . '"');

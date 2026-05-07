@@ -157,10 +157,16 @@ function handle_social(string $method, array $segments): void {
         if (!social_user_can_manage_record($user, $post, (int)$post['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
-        social_delete_uploaded_images_for_post((int)$post['id']);
-        db()->prepare('DELETE FROM social_posts WHERE id = ?')->execute([(int)$post['id']]);
-        log_activity($user['id'], 'social_post', (int)$post['id'], 'deleted', 'Social post deleted');
-        emit_ws_event('social.deleted', ['id' => (int)$post['id']]);
+        $storagePaths = social_storage_paths_for_post((int)$post['id']);
+        $deleteStmt = db()->prepare('DELETE FROM social_posts WHERE id = ?');
+        $deleteStmt->execute([(int)$post['id']]);
+        if ($deleteStmt->rowCount() > 0) {
+            foreach ($storagePaths as $path) {
+                delete_uploaded_relative_path($path);
+            }
+            log_activity($user['id'], 'social_post', (int)$post['id'], 'deleted', 'Social post deleted');
+            emit_ws_event('social.deleted', ['id' => (int)$post['id']]);
+        }
         respond(['ok' => true]);
     }
 
@@ -497,22 +503,40 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
     }
 
     $oldStoragePaths = social_storage_paths_for_post($postId);
-    db()->prepare('DELETE FROM social_post_images WHERE post_id = ?')->execute([$postId]);
-    $stmt = db()->prepare(
-        'INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    foreach (array_values($images) as $index => $image) {
-        $stmt->execute([
-            $postId,
-            $image['file_id'],
-            $image['url'],
-            $image['storage_path'],
-            $image['original_name'],
-            $image['mime_type'],
-            $image['size_bytes'],
-            $index
-        ]);
+    $newStoragePaths = [];
+    foreach ($images as $image) {
+        if (!empty($image['storage_path']) && !in_array($image['storage_path'], $keptStoragePaths, true)) {
+            $newStoragePaths[] = $image['storage_path'];
+        }
+    }
+
+    $pdo = db();
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM social_post_images WHERE post_id = ?')->execute([$postId]);
+        $stmt = $pdo->prepare(
+            'INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        foreach (array_values($images) as $index => $image) {
+            $stmt->execute([
+                $postId,
+                $image['file_id'],
+                $image['url'],
+                $image['storage_path'],
+                $image['original_name'],
+                $image['mime_type'],
+                $image['size_bytes'],
+                $index
+            ]);
+        }
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        $pdo->rollBack();
+        foreach ($newStoragePaths as $path) {
+            delete_uploaded_relative_path($path);
+        }
+        throw $e;
     }
 
     foreach ($oldStoragePaths as $path) {

@@ -692,7 +692,6 @@ textarea {
 
 body.modal-scroll-lock {
   overflow: hidden;
-  touch-action: none;
 }
 
 /* Social feed */
@@ -1066,6 +1065,7 @@ body.modal-scroll-lock {
   min-height: 0;
   overflow-y: auto;
   padding: 1.25rem;
+  touch-action: auto;
 }
 
 .social-upload-zone {

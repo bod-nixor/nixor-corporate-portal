@@ -137,7 +137,7 @@ function social_entity_rbac_roles_for_user(array $user, int $entityId): array {
 }
 
 function social_role_is_entity_executive(array $role): bool {
-    $code = strtolower(preg_replace('/[^a-z0-9]+/', '_', (string)($role['code'] ?? '')));
+    $code = preg_replace('/[^a-z0-9]+/', '_', strtolower((string)($role['code'] ?? '')));
     if (in_array($code, ['entity_executive', 'ceo', 'cco', 'cm', 'chro', 'hrm'], true)) {
         return true;
     }
@@ -183,7 +183,7 @@ function social_c_level_role_codes(): array {
 }
 
 function social_role_is_c_level(array $role): bool {
-    $code = strtolower(preg_replace('/[^a-z0-9]+/', '_', (string)($role['code'] ?? '')));
+    $code = preg_replace('/[^a-z0-9]+/', '_', strtolower((string)($role['code'] ?? '')));
     if (in_array($code, social_c_level_role_codes(), true)) {
         return true;
     }
@@ -235,7 +235,7 @@ function social_user_has_high_level_social_role(array $user): bool {
 
     if (rbac_user_has_assignments((int)$user['id'])) {
         foreach (rbac_roles_for_user($user) as $role) {
-            $code = strtolower(preg_replace('/[^a-z0-9]+/', '_', (string)($role['code'] ?? '')));
+            $code = preg_replace('/[^a-z0-9]+/', '_', strtolower((string)($role['code'] ?? '')));
             if (($role['entity_id'] ?? null) === null && in_array($code, ['site_admin', 'member_board', 'student_affairs'], true)) {
                 return true;
             }
