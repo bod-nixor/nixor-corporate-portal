@@ -512,12 +512,15 @@ async function toggleLike(button, targetType, id) {
     try {
       button.classList.toggle('is-active', liked);
       if (liked) button.setAttribute('aria-pressed', 'true'); else button.setAttribute('aria-pressed', 'false');
-      // Update label if present
-      if (button.querySelector && button.querySelector('span')) {
-        const label = button.querySelector('span');
-        const base = label.textContent.replace(/\s*\(.*\)$/, '');
-        label.textContent = `${base}${likesCount !== null ? ` (${likesCount})` : ''}`;
-      }
+        // Update label if present. Prefer child <span>, otherwise update button.textContent
+        const baseVerb = liked ? 'Liked' : 'Like';
+        const labelText = `${baseVerb}${likesCount !== null ? ` (${likesCount})` : ''}`;
+        const span = button.querySelector && button.querySelector('span');
+        if (span) {
+          span.textContent = labelText;
+        } else {
+          button.textContent = labelText;
+        }
     } catch (e) {
       // ignore DOM update errors
     }
@@ -767,36 +770,42 @@ function renderPost(post) {
       const value = commentInput.value.trim();
       if (!value) return;
       commentSubmit.disabled = true;
-      try {
-        const resp = await apiFetch(`/social/${post.id}/comments`, {
-          method: "POST",
-          body: JSON.stringify({ comment: value })
-        });
-        // Build a minimal comment object to render in-place
-        const newComment = {
-          id: resp?.data?.id || Date.now(),
-          post_id: post.id,
-          comment: value,
-          safe_html: null,
-          full_name: currentUser?.full_name || 'NCP User',
-          created_at: new Date().toISOString(),
-          likes_count: 0,
-          liked_by_me: false,
-          can_manage: currentUser ? (currentUser.id === (post.user_id ?? null) || true) : false,
-        };
-        // append to comments list
-        const commentsWrap = commentForm.parentElement;
-        if (commentsWrap) {
-          commentsWrap.insertBefore(renderComment(newComment), commentForm);
-        }
-        // clear input and update counts
-        commentInput.value = "";
-        const countEl = document.getElementById(`post-comment-count-${post.id}`);
-        if (countEl) {
-          const prev = parseInt((countEl.textContent || '0').replace(/\D/g, ''), 10) || 0;
-          const next = prev + 1;
-          countEl.textContent = `${next} ${next === 1 ? 'comment' : 'comments'}`;
-        }
+        try {
+          const resp = await apiFetch(`/social/${post.id}/comments`, {
+            method: "POST",
+            body: JSON.stringify({ comment: value })
+          });
+          const commentId = resp?.data?.id;
+          if (!commentId) {
+            // server did not return an id; fall back to reloading this post's data
+            await loadPosts({ preserveScroll: true });
+            return;
+          }
+          // Build a minimal comment object to render in-place
+          const newComment = {
+            id: commentId,
+            post_id: post.id,
+            comment: value,
+            safe_html: null,
+            full_name: currentUser?.full_name || 'NCP User',
+            created_at: new Date().toISOString(),
+            likes_count: 0,
+            liked_by_me: false,
+            can_manage: Boolean(currentUser),
+          };
+          // append to comments list
+          const commentsWrap = commentForm.parentElement;
+          if (commentsWrap) {
+            commentsWrap.insertBefore(renderComment(newComment), commentForm);
+          }
+          // clear input and update counts
+          commentInput.value = "";
+          const countEl = document.getElementById(`post-comment-count-${post.id}`);
+          if (countEl) {
+            const prev = parseInt((countEl.textContent || '0').replace(/\D/g, ''), 10) || 0;
+            const next = prev + 1;
+            countEl.textContent = `${next} ${next === 1 ? 'comment' : 'comments'}`;
+          }
       } catch (err) {
         setStatus(normalizeError(err), false);
       } finally {
@@ -980,21 +989,24 @@ deleteModal?.addEventListener("click", (event) => {
 });
 deleteConfirmBtn?.addEventListener("click", async () => {
   if (!deletingItem) return;
+  // snapshot values before modal close clears them
+  const snapshotItem = { ...deletingItem };
+  const snapshotTrigger = deleteTrigger;
   deleteConfirmBtn.disabled = true;
   try {
-    const url = deletingItem.type === "comment" ? `/social/comments/${deletingItem.id}` : `/social/${deletingItem.id}`;
+    const url = snapshotItem.type === "comment" ? `/social/comments/${snapshotItem.id}` : `/social/${snapshotItem.id}`;
     await apiFetch(url, { method: "DELETE" });
     closeDeleteModal();
-    // remove the deleted item from the DOM in-place
-    if (deletingItem.type === 'post') {
-      const el = document.getElementById(`post-${deletingItem.id}`);
+    // remove the deleted item from the DOM in-place using the snapshot
+    if (snapshotItem.type === 'post') {
+      const el = document.getElementById(`post-${snapshotItem.id}`);
       if (el && el.parentElement) el.parentElement.removeChild(el);
-    } else if (deletingItem.type === 'comment') {
-      const selector = `[data-comment-id='${deletingItem.id}']`;
+    } else if (snapshotItem.type === 'comment') {
+      const selector = `[data-comment-id='${snapshotItem.id}']`;
       const found = document.querySelector(selector);
       if (found && found.parentElement) found.parentElement.removeChild(found);
       // best-effort: decrement the comment count on the parent post
-      const postCard = deleteTrigger?.closest ? deleteTrigger.closest('article') : null;
+      const postCard = snapshotTrigger?.closest ? snapshotTrigger.closest('article') : null;
       if (postCard && postCard.id) {
         const pid = postCard.id.replace('post-', '');
         const countEl = document.getElementById(`post-comment-count-${pid}`);
