@@ -48,9 +48,21 @@ function normalizeApiBase(base) {
 const API_BASE = normalizeApiBase(window.API_BASE || (isNativeRuntime() ? NATIVE_API_BASE : WEBSITE_API_BASE));
 let preferredBase = API_BASE;
 let portalConfig = {
+  public_base_url: 'https://ncp.nixorcorporate.com',
   ws_url: window.WS_URL || '',
   ws_token: window.WS_TOKEN || '',
-  poll_interval: 8
+  poll_interval: 8,
+  open_app_banner: {
+    enabled: true,
+    deep_link_scheme: 'ncp',
+    universal_link_base: 'https://ncp.nixorcorporate.com',
+    ios_store_url: 'https://example.com',
+    android_store_url: 'https://example.com'
+  },
+  push: {
+    registration_enabled: true,
+    provider_configured: false
+  }
 };
 let csrfToken = '';
 let csrfBootstrapPromise = null;
@@ -67,6 +79,11 @@ let mobileTokenLoadGen = 0;
 const mobileAuthCallbackKeysSeen = new Set();
 const mobileAuthCallbackStates = new Map();
 const mobileAuthExchangePromises = new Map();
+const OPEN_APP_DISMISSED_KEY = 'ncp_open_app_banner_dismissed_at';
+const OPEN_APP_DISMISS_MS = 30 * 24 * 60 * 60 * 1000;
+const PUSH_TOKEN_KEY = 'ncp_push_token';
+const PUSH_DEVICE_ID_KEY = 'ncp_push_device_id';
+let pushRegistrationStarted = false;
 
 export function setCsrfToken(token) {
   csrfToken = token || '';
@@ -608,6 +625,38 @@ async function handleMobileAuthUrl(url) {
   return true;
 }
 
+function portalDeepLinkUrlForCurrentPage() {
+  const banner = portalConfig.open_app_banner || {};
+  const scheme = String(banner.deep_link_scheme || 'ncp').replace(/[^a-z0-9+.-]/gi, '') || 'ncp';
+  const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return `${scheme}://open?path=${encodeURIComponent(path)}`;
+}
+
+function handlePortalDeepLink(url) {
+  const raw = String(url || '').trim();
+  if (!raw || isMobileAuthCallback(raw)) {
+    return false;
+  }
+  try {
+    const parsed = new URL(raw);
+    const scheme = String(portalConfig.open_app_banner?.deep_link_scheme || 'ncp').toLowerCase();
+    const configuredBase = new URL(portalConfig.open_app_banner?.universal_link_base || portalConfig.public_base_url || window.location.origin);
+    let destination = '';
+    if (parsed.protocol.toLowerCase() === `${scheme}:` && parsed.hostname === 'open') {
+      destination = parsed.searchParams.get('path') || '';
+    } else if (parsed.protocol === configuredBase.protocol && parsed.hostname === configuredBase.hostname) {
+      destination = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    if (!destination || !destination.startsWith('/') || destination.startsWith('//')) {
+      return false;
+    }
+    window.location.href = destination;
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 export async function initMobileAuthListener() {
   if (!isNativeRuntime()) {
     return false;
@@ -626,7 +675,9 @@ export async function initMobileAuthListener() {
     try {
       const handle = await App.addListener('appUrlOpen', (event) => {
         console.log('[NCP Mobile Auth] appUrlOpen event received');
-        handleMobileAuthUrl(event?.url);
+        if (!handlePortalDeepLink(event?.url)) {
+          handleMobileAuthUrl(event?.url);
+        }
       });
       mobileAuthListenerHandle = handle;
       console.log('[NCP Mobile Auth] Listener registered successfully');
@@ -637,7 +688,9 @@ export async function initMobileAuthListener() {
         try {
           const launch = await App.getLaunchUrl();
           if (launch?.url) {
-            await handleMobileAuthUrl(launch.url);
+            if (!handlePortalDeepLink(launch.url)) {
+              await handleMobileAuthUrl(launch.url);
+            }
           }
         } catch (err) {
           // Launch URL is best-effort; the appUrlOpen listener handles active sessions.
@@ -1058,6 +1111,171 @@ export function getConfig() {
   return portalConfig;
 }
 
+export function getPublicBaseUrl() {
+  const configured = String(portalConfig.public_base_url || window.PUBLIC_BASE_URL || 'https://ncp.nixorcorporate.com').replace(/\/+$/, '');
+  try {
+    const parsed = new URL(configured);
+    if (['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)) {
+      return 'https://ncp.nixorcorporate.com';
+    }
+    return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+  } catch (err) {
+    return 'https://ncp.nixorcorporate.com';
+  }
+}
+
+function isMobileBrowserRuntime() {
+  if (isNativeRuntime()) {
+    return false;
+  }
+  return window.matchMedia?.('(max-width: 767px)').matches
+    && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
+
+function openAppDismissed() {
+  try {
+    const dismissedAt = Number(localStorage.getItem(OPEN_APP_DISMISSED_KEY) || 0);
+    return dismissedAt > 0 && Date.now() - dismissedAt < OPEN_APP_DISMISS_MS;
+  } catch (err) {
+    return false;
+  }
+}
+
+function dismissOpenAppBanner() {
+  try {
+    localStorage.setItem(OPEN_APP_DISMISSED_KEY, String(Date.now()));
+  } catch (err) {
+  }
+  document.getElementById('ncp-open-app-banner')?.remove();
+}
+
+function platformStoreUrl() {
+  const banner = portalConfig.open_app_banner || {};
+  const ua = navigator.userAgent || '';
+  if (/Android/i.test(ua)) {
+    return banner.android_store_url || 'https://example.com';
+  }
+  return banner.ios_store_url || 'https://example.com';
+}
+
+function initOpenAppBanner() {
+  const banner = portalConfig.open_app_banner || {};
+  if (!banner.enabled || !isMobileBrowserRuntime() || openAppDismissed() || document.getElementById('ncp-open-app-banner')) {
+    return;
+  }
+  const wrap = document.createElement('div');
+  wrap.id = 'ncp-open-app-banner';
+  wrap.className = 'open-app-banner';
+  wrap.innerHTML = `
+    <div class="open-app-banner__text">Open Nixor Portal in the app</div>
+    <div class="open-app-banner__actions">
+      <button type="button" class="btn btn-primary btn-sm" data-open-app>Open app</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-dismiss-open-app>Not now</button>
+    </div>
+  `;
+  wrap.querySelector('[data-dismiss-open-app]')?.addEventListener('click', dismissOpenAppBanner);
+  wrap.querySelector('[data-open-app]')?.addEventListener('click', () => {
+    const storeUrl = platformStoreUrl();
+    let didHide = false;
+    const onVisibility = () => {
+      if (document.hidden) {
+        didHide = true;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility, { once: true });
+    window.location.href = portalDeepLinkUrlForCurrentPage();
+    window.setTimeout(() => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (!didHide && storeUrl) {
+        window.location.href = storeUrl;
+      }
+    }, 1200);
+  });
+  document.body.appendChild(wrap);
+}
+
+async function nativeDeviceId() {
+  let id = await readNativePreference(PUSH_DEVICE_ID_KEY);
+  if (!id) {
+    id = `dev_${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+    await writeNativePreference(PUSH_DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+
+async function registerNativePushToken(token) {
+  if (!token || !portalConfig.push?.registration_enabled) {
+    return;
+  }
+  await apiFetch('/notifications/push-token', {
+    method: 'POST',
+    body: JSON.stringify({
+      token,
+      platform: getNativePlatform(),
+      device_id: await nativeDeviceId()
+    })
+  });
+  await writeNativePreference(PUSH_TOKEN_KEY, token);
+}
+
+export async function unregisterNativePushToken() {
+  const token = await readNativePreference(PUSH_TOKEN_KEY);
+  if (!token) {
+    return;
+  }
+  try {
+    await apiFetch('/notifications/push-token', {
+      method: 'DELETE',
+      body: JSON.stringify({
+        token,
+        platform: getNativePlatform(),
+        device_id: await nativeDeviceId()
+      })
+    });
+  } finally {
+    await removeNativePreference(PUSH_TOKEN_KEY);
+  }
+}
+
+export async function initPushNotifications() {
+  if (pushRegistrationStarted || !isNativeRuntime() || !portalConfig.push?.registration_enabled) {
+    return false;
+  }
+  const PushNotifications = getCapacitorPlugin('PushNotifications');
+  if (!PushNotifications?.requestPermissions || !PushNotifications?.register || !PushNotifications?.addListener) {
+    return false;
+  }
+  pushRegistrationStarted = true;
+  try {
+    const permission = await PushNotifications.requestPermissions();
+    if (permission?.receive !== 'granted') {
+      return false;
+    }
+    await PushNotifications.addListener('registration', async (token) => {
+      try {
+        await registerNativePushToken(token?.value || token?.token || '');
+      } catch (err) {
+        console.warn('Push token registration failed', err);
+      }
+    });
+    await PushNotifications.addListener('registrationError', (error) => {
+      console.warn('Push registration failed', error);
+    });
+    await PushNotifications.addListener('pushNotificationActionPerformed', (event) => {
+      const targetUrl = event?.notification?.data?.target_url || '';
+      if (targetUrl && targetUrl.startsWith('/') && !targetUrl.startsWith('//')) {
+        window.location.href = targetUrl;
+      }
+    });
+    await PushNotifications.register();
+    return true;
+  } catch (err) {
+    pushRegistrationStarted = false;
+    console.warn('Push notifications unavailable', err);
+    return false;
+  }
+}
+
 export async function subscribeUpdates(onEvent) {
   await loadConfig();
   const pollInterval = Math.max(4, parseInt(portalConfig.poll_interval, 10) || 8);
@@ -1123,3 +1341,7 @@ export async function subscribeUpdates(onEvent) {
 
 initMobileAuthListener();
 initGlobalAuthGuard();
+loadConfig().then(() => {
+  initOpenAppBanner();
+  initPushNotifications();
+});

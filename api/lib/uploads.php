@@ -303,6 +303,85 @@ function save_social_image_file(array $file): array {
     ];
 }
 
+function validate_entity_avatar_upload(array $file): string {
+    $errorCode = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        respond(['ok' => false, 'error' => social_upload_error_message($errorCode)], 400);
+    }
+    if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        respond(['ok' => false, 'error' => 'Upload failed'], 400);
+    }
+    $size = (int)($file['size'] ?? 0);
+    if ($size <= 0) {
+        respond(['ok' => false, 'error' => 'Image file is empty'], 400);
+    }
+    if ($size > 3 * 1024 * 1024) {
+        respond(['ok' => false, 'error' => 'Entity image must be 3MB or smaller'], 400);
+    }
+    $basename = basename((string)($file['name'] ?? 'avatar'));
+    $ext = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+    if ($ext === 'jpeg') {
+        $ext = 'jpg';
+    }
+    if (!in_array($ext, ['jpg', 'png', 'webp'], true)) {
+        respond(['ok' => false, 'error' => 'Entity image must be JPG, PNG, or WebP.'], 400);
+    }
+    $finfoMime = null;
+    if (function_exists('finfo_open')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        if ($finfo) {
+            $finfoMime = finfo_file($finfo, $file['tmp_name']) ?: null;
+            finfo_close($finfo);
+        }
+    }
+    $mime = $finfoMime ?: (function_exists('mime_content_type') ? mime_content_type($file['tmp_name']) : null);
+    if (!$mime || !in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        respond(['ok' => false, 'error' => 'Entity image must be JPG, PNG, or WebP.'], 400);
+    }
+    $imageInfo = @getimagesize($file['tmp_name']);
+    if (!$imageInfo || empty($imageInfo['mime']) || !in_array($imageInfo['mime'], ['image/jpeg', 'image/png', 'image/webp'], true)) {
+        respond(['ok' => false, 'error' => 'Invalid image file'], 400);
+    }
+    return $mime;
+}
+
+function save_entity_avatar_file(string $entityPublicId, array $file): array {
+    $mime = validate_entity_avatar_upload($file);
+    $basename = basename((string)($file['name'] ?? 'avatar'));
+    $ext = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+    $ext = $ext === 'jpeg' ? 'jpg' : $ext;
+    $safeEntityId = preg_replace('/[^a-zA-Z0-9_-]/', '', $entityPublicId) ?: 'entity';
+
+    $uploadsBase = upload_base_path();
+    $dir = $uploadsBase . '/entities/' . $safeEntityId;
+    if (!is_dir($dir)) {
+        if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+            respond(['ok' => false, 'error' => 'Failed to create upload directory'], 500);
+        }
+    }
+
+    $filename = bin2hex(random_bytes(16)) . '.' . $ext;
+    $path = $dir . '/' . $filename;
+    if (!move_uploaded_file($file['tmp_name'], $path)) {
+        respond(['ok' => false, 'error' => 'Upload failed'], 500);
+    }
+
+    $normalizedPath = realpath($path) ?: $path;
+    $normalizedBase = realpath($uploadsBase) ?: $uploadsBase;
+    $normalizedPathForCheck = str_replace('\\', '/', $normalizedPath);
+    $normalizedBaseForCheck = rtrim(str_replace('\\', '/', $normalizedBase), '/');
+    if (!str_starts_with($normalizedPathForCheck, $normalizedBaseForCheck . '/')) {
+        @unlink($path);
+        respond(['ok' => false, 'error' => 'Upload failed'], 500);
+    }
+
+    return [
+        'path' => ltrim(substr($normalizedPathForCheck, strlen($normalizedBaseForCheck)), '/'),
+        'original' => social_safe_original_name($basename),
+        'mime' => $mime,
+    ];
+}
+
 function delete_uploaded_relative_path(?string $relativePath): void {
     $relativePath = trim((string)$relativePath);
     if ($relativePath === '') {

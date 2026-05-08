@@ -4,10 +4,24 @@ require_once __DIR__ . '/../api/lib/db.php';
 require_once __DIR__ . '/../api/lib/mail.php';
 require_once __DIR__ . '/../api/lib/activity.php';
 require_once __DIR__ . '/../api/lib/http.php';
+require_once __DIR__ . '/../api/lib/public_ids.php';
+require_once __DIR__ . '/../api/lib/notifications_dispatch.php';
 
 $isCli = php_sapi_name() === 'cli';
 if (!$isCli) {
     header('Content-Type: application/json');
+}
+
+$pushNotificationId = $isCli ? cron_cli_int_arg($_SERVER['argv'] ?? [], 'push_notification_id') : 0;
+if ($pushNotificationId > 0) {
+    dispatch_push_for_notification($pushNotificationId);
+    $payload = ['ok' => true, 'data' => ['push_notification_id' => $pushNotificationId]];
+    if ($isCli) {
+        echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
+    } else {
+        echo json_encode($payload);
+    }
+    exit;
 }
 
 $token = env_value('CRON_TOKEN', '');
@@ -140,4 +154,15 @@ function role_emails(array $roles): array {
         }
     }
     return array_values(array_unique($emails));
+}
+
+function cron_cli_int_arg(array $argv, string $name): int {
+    $prefix = $name . '=';
+    foreach ($argv as $arg) {
+        if (str_starts_with((string)$arg, $prefix)) {
+            $value = trim(substr((string)$arg, strlen($prefix)));
+            return ctype_digit($value) ? (int)$value : 0;
+        }
+    }
+    return 0;
 }

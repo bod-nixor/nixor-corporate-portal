@@ -56,6 +56,7 @@ For the Google mobile login callback, add an iOS URL scheme before shipping iOS:
 The shared frontend helper in `public/assets/app.js` selects the API base at runtime:
 - Browser website: `/api`.
 - Capacitor native runtime: `https://ncp.nixorcorporate.com/api`.
+- Copied portal links use `PUBLIC_BASE_URL` from `/api/config`, so mobile/local webviews share production web URLs instead of `localhost`.
 
 For staging or QA native shells, set `window.NATIVE_API_BASE` before loading `public/assets/app.js`, or provide `import.meta.env.VITE_NATIVE_API_BASE` when using a bundler that injects `import.meta.env`. If neither override is present, native builds use the production API above.
 
@@ -80,7 +81,26 @@ Native email/password login posts JSON credentials to `/api/auth/mobile/login`. 
 
 Native logout posts to `/api/auth/mobile/logout` with the bearer token. The backend hashes the presented token, marks the matching row revoked, and the app clears local token storage.
 
+## Open In App And Push Notifications
+Mobile browsers show a closable bottom banner when `SHOW_OPEN_APP_BANNER=true`. `Open app` attempts to open the same path/query with `APP_DEEP_LINK_SCHEME` and falls back to the platform store URL after a short timeout. Dismissal is stored locally for 30 days.
+
+Native push registration is config-driven. The app registers iOS/Android tokens at `/api/notifications/push-token` when notification permission is granted. The backend stores tokens but sends no device push unless `PUSH_PROVIDER` and its credentials/webhook are configured. Platform notifications continue to be created when push is not configured.
+
+For production push, sync the native projects after installing dependencies:
+```bash
+npm install
+npm run cap:sync
+```
+Android already checks for `google-services.json` before applying Google Services. Keep provider secrets out of the repository and configure them through `.env` or native platform secret management.
+
 Production hardening note: custom URL schemes can be claimed by another app on some platforms. Prefer adding an HTTPS callback bridge with Android App Links and iOS Universal Links (`assetlinks.json` and `apple-app-site-association`) that validates the request and 302s to the app callback when the platform setup is ready.
+
+Note: The `FCM_SERVER_KEY` used by the code path that forwards a legacy
+server key (when `FCM_WEBHOOK_URL` is set) is the legacy FCM HTTP key. Google
+has removed legacy HTTP/XMPP APIs; do not point `FCM_WEBHOOK_URL` directly at
+`fcm.googleapis.com` (you will receive 401 responses). Either host a relay
+that accepts the legacy `key=` header or migrate to the FCM HTTP v1 API with
+OAuth2 Bearer tokens for direct Google integration.
 
 Configure Google Cloud with the web OAuth redirect URI used by the backend:
 ```text
@@ -92,6 +112,24 @@ Set the matching environment values:
 GOOGLE_REDIRECT_URI=https://ncp.nixorcorporate.com/api/auth/google/callback
 OAUTH_STATE_SECRET=<long-random-secret>
 MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback
+PUBLIC_BASE_URL=https://ncp.nixorcorporate.com
+APP_DEEP_LINK_SCHEME=ncp
+APP_UNIVERSAL_LINK_BASE=https://ncp.nixorcorporate.com
+IOS_APP_STORE_URL=
+ANDROID_PLAY_STORE_URL=
+SHOW_OPEN_APP_BANNER=false
+PUSH_REGISTRATION_ENABLED=true
+PUSH_PROVIDER=webhook
+PUSH_WEBHOOK_URL=
+PUSH_WEBHOOK_SECRET=
+PUSH_ENABLED=true
+PUSH_VAPID_PUBLIC_KEY=
+PUSH_VAPID_PRIVATE_KEY=
+FCM_SERVER_KEY=
+FCM_WEBHOOK_URL=
+APNS_KEY=
+APNS_KEY_ID=
+APNS_TEAM_ID=
 ```
 
 If mobile Google login should create users on first verified-domain sign-in, set `GOOGLE_ALLOWED_DOMAIN` and explicitly enable `GOOGLE_AUTO_PROVISION=true`. Without that flag, Google login links to existing portal users only.

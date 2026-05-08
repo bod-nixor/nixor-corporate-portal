@@ -4,6 +4,11 @@ function handle_notifications(string $method, array $segments): void {
     $rawSegment1 = $segments[1] ?? null;
     $action = $segments[2] ?? null;
 
+    if (($method === 'POST' || $method === 'DELETE') && $rawSegment1 === 'push-token') {
+        handle_notification_push_token($method, $user);
+        return;
+    }
+
     // Match "read-all" before casting segment 1 to int
     if ($method === 'POST' && $rawSegment1 === 'read-all') {
         $stmt = db()->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0');
@@ -32,6 +37,45 @@ function handle_notifications(string $method, array $segments): void {
         respond(['ok' => true]);
     }
 
+
+    respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function handle_notification_push_token(string $method, array $user): void {
+    $data = read_json();
+    $token = trim((string)($data['token'] ?? ''));
+    $deviceId = trim((string)($data['device_id'] ?? ''));
+    $platform = strtolower(trim((string)($data['platform'] ?? 'web')));
+    if (!in_array($platform, ['ios', 'android', 'web'], true)) {
+        respond(['ok' => false, 'error' => 'Invalid platform'], 400);
+    }
+    if ($token === '' || strlen($token) > 512) {
+        respond(['ok' => false, 'error' => 'Valid token required'], 400);
+    }
+    if (strlen($deviceId) > 190) {
+        respond(['ok' => false, 'error' => 'Invalid device_id'], 400);
+    }
+
+    if ($method === 'POST') {
+        $stmt = db()->prepare(
+            'INSERT INTO push_device_tokens (user_id, platform, token, device_id, enabled, last_seen_at)
+             VALUES (?, ?, ?, ?, 1, NOW())
+             ON DUPLICATE KEY UPDATE
+               user_id = VALUES(user_id),
+               platform = VALUES(platform),
+               device_id = VALUES(device_id),
+               enabled = 1,
+               last_seen_at = NOW()'
+        );
+        $stmt->execute([(int)$user['id'], $platform, $token, $deviceId !== '' ? $deviceId : null]);
+        respond(['ok' => true, 'data' => ['registered' => true, 'push_configured' => push_provider_configured()]]);
+    }
+
+    if ($method === 'DELETE') {
+        $stmt = db()->prepare('UPDATE push_device_tokens SET enabled = 0, last_seen_at = NOW() WHERE user_id = ? AND token = ?');
+        $stmt->execute([(int)$user['id'], $token]);
+        respond(['ok' => true, 'data' => ['registered' => false]]);
+    }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
 }
@@ -155,11 +199,28 @@ function notifications_target_url(array $payload, array $context): ?string {
         }
     }
 
+    if (!empty($payload['post_public_id'])) {
+        return public_relative_url('social.html', [
+            'feed' => ($payload['feed_scope'] ?? '') === 'entity' ? 'entity' : 'global',
+            'e' => $payload['entity_public_id'] ?? null,
+            'p' => $payload['post_public_id'],
+            'c' => $payload['comment_public_id'] ?? null,
+        ]);
+    }
+
+    if (!empty($payload['endeavour_public_id'])) {
+        return '/endeavour_view.html?e=' . rawurlencode((string)$payload['endeavour_public_id']);
+    }
     if (!empty($context['endeavour_id'])) {
-        return '/endeavour_view.html?id=' . (int)$context['endeavour_id'];
+        $publicId = public_id_for_row('endeavours', (int)$context['endeavour_id']);
+        return '/endeavour_view.html?' . ($publicId ? 'e=' . rawurlencode($publicId) : 'id=' . (int)$context['endeavour_id']);
+    }
+    if (!empty($payload['entity_public_id'])) {
+        return '/dashboard.html?e=' . rawurlencode((string)$payload['entity_public_id']);
     }
     if (!empty($context['entity_id'])) {
-        return '/dashboard.html?entity_id=' . (int)$context['entity_id'];
+        $publicId = public_id_for_row('entities', (int)$context['entity_id']);
+        return '/dashboard.html?' . ($publicId ? 'e=' . rawurlencode($publicId) : 'entity_id=' . (int)$context['entity_id']);
     }
     return null;
 }

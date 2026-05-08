@@ -1,7 +1,7 @@
 <?php
 function handle_endeavours(string $method, array $segments): void {
     $rawId = $segments[1] ?? null;
-    $id = is_numeric($rawId) ? (int)$rawId : null;
+    $id = $rawId !== null ? resolve_public_or_internal_id('endeavours', $rawId) : null;
     $action = $segments[2] ?? null;
     if (!$id && $rawId && !$action) {
         $action = $rawId;
@@ -222,8 +222,9 @@ function handle_endeavours(string $method, array $segments): void {
         $endDate = substr($eventEnd, 0, 10);
         $transportEnabled = !empty($data['transport_fee_required']);
         $transportAmount = $transportEnabled ? normalize_money($data['transport_fee_amount'] ?? ($data['transport_payment_required'] ?? null), 'transport_fee_amount') : null;
-        $stmt = db()->prepare('INSERT INTO endeavours (entity_id, created_by, name, type_id, description, long_description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, transport_fee_amount, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt = db()->prepare('INSERT INTO endeavours (public_id, entity_id, created_by, name, type_id, description, long_description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, transport_fee_amount, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
         $stmt->execute([
+            generate_public_id('end'),
             $entityId,
             $user['id'],
             $name,
@@ -249,7 +250,7 @@ function handle_endeavours(string $method, array $segments): void {
         $endeavourId = (int)db()->lastInsertId();
         log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'Executive created endeavour', ['phase' => 'PRE_EVENT']);
         emit_ws_event('endeavour.created', ['id' => $endeavourId]);
-        respond(['ok' => true, 'data' => ['id' => $endeavourId]]);
+        respond(['ok' => true, 'data' => ['id' => $endeavourId, 'public_id' => public_id_for_row('endeavours', $endeavourId)]]);
     }
 
     if ($method === 'GET' && $id && !$action) {
@@ -1563,6 +1564,8 @@ function notify_shortlisted(int $endeavourId, int $entityId): void {
         $payload = [
             'endeavour_id' => $endeavourId,
             'entity_id' => $entityId,
+            'endeavour_public_id' => public_id_for_row('endeavours', $endeavourId),
+            'entity_public_id' => public_id_for_row('entities', $entityId),
             'title' => $title
         ];
         $body = '<p>You have been shortlisted for the Nixor endeavour: ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '.</p>';
@@ -1579,26 +1582,7 @@ function notify_shortlisted(int $endeavourId, int $entityId): void {
 }
 
 function create_notification(int $userId, string $type, array $payload, bool $force = false): void {
-    if (!$force) {
-        try {
-            $pref = db()->prepare('SELECT platform_enabled, approvals_enabled, volunteering_enabled, social_enabled, calendar_enabled FROM user_notification_preferences WHERE user_id = ?');
-            $pref->execute([$userId]);
-            $settings = $pref->fetch();
-            if ($settings) {
-                $column = notification_preference_column_for_type($type);
-                $enabled = $settings[$column] ?? $settings['platform_enabled'] ?? 1;
-                if ($enabled === null) {
-                    $enabled = $settings['platform_enabled'] ?? 1;
-                }
-                if ((int)$enabled === 0) {
-                    return;
-                }
-            }
-        } catch (PDOException $e) {
-        }
-    }
-    $stmt = db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)');
-    $stmt->execute([$userId, $type, json_encode($payload)]);
+    create_platform_notification($userId, $type, $payload, $force);
 }
 
 function notification_preference_column_for_type(string $type): string {

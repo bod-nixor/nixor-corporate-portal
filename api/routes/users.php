@@ -57,10 +57,10 @@ function handle_users(string $method, array $segments): void {
         try {
             $pdo->beginTransaction();
             $stmt = $pdo->prepare(
-                'INSERT INTO users (email, password_hash, full_name, global_role, status, force_password_reset, password_setup_required)
-                 VALUES (?, NULL, ?, ?, ?, 1, 1)'
+                'INSERT INTO users (public_id, email, password_hash, full_name, global_role, status, force_password_reset, password_setup_required)
+                 VALUES (?, ?, NULL, ?, ?, ?, 1, 1)'
             );
-            $stmt->execute([$email, $fullName, $role, $status]);
+            $stmt->execute([generate_public_id('usr'), $email, $fullName, $role, $status]);
             $userId = (int)$pdo->lastInsertId();
             $token = auth_create_password_token($userId, 'password_setup', (int)$user['id']);
             $pdo->commit();

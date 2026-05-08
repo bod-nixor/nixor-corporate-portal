@@ -17,14 +17,44 @@ const entityForm = document.getElementById('entity-form');
 const entityStatus = document.getElementById('entity-status');
 const openEntityForm = document.getElementById('open-entity-form');
 const closeEntityForm = document.getElementById('entity-close');
+const entityModalTitle = document.getElementById('entity-modal-title');
+const entitySubmit = document.getElementById('entity-submit');
 
-
+let editingEntity = null;
 
 const setStatus = (el, message, ok) => {
     el.textContent = message;
     el.className = `text-sm rounded-xl px-4 py-3 ${ok ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/10 text-red-300 border border-red-500/30'}`;
     el.classList.remove('hidden');
 };
+
+const entityInitials = (name) => String(name || 'Entity').trim().split(/\s+/).slice(0, 2).map(part => part[0] || '').join('').toUpperCase() || 'E';
+
+const renderEntityAvatar = (entity) => {
+    if (entity.avatar_url) {
+        return `<img src="${entity.avatar_url}" alt="" class="w-9 h-9 rounded-full object-cover border border-[--border-strong]" />`;
+    }
+    return `<div class="w-9 h-9 rounded-full bg-[--bg-surface-hover] border border-[--border-strong] flex items-center justify-center text-xs font-bold text-[--text-secondary]">${entityInitials(entity.name)}</div>`;
+};
+
+const avatarInput = document.getElementById('modal-entity-avatar');
+if (avatarInput) {
+    const maxAvatarSize = 3 * 1024 * 1024;
+    avatarInput.addEventListener('change', () => {
+        const file = avatarInput.files?.[0] || null;
+        if (!file) {
+            avatarInput.setCustomValidity('');
+            return;
+        }
+        if (file.size > maxAvatarSize) {
+            avatarInput.value = '';
+            avatarInput.setCustomValidity('Profile image must be 3MB or smaller.');
+            avatarInput.reportValidity();
+            return;
+        }
+        avatarInput.setCustomValidity('');
+    });
+}
 
 const loadSummary = async () => {
     try {
@@ -49,14 +79,24 @@ const loadEntities = async () => {
         entities.forEach((entity) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-800/30 transition-colors cursor-default text-slate-300';
+            const avatar = document.createElement('td');
+            avatar.className = 'py-3 pl-6 pr-2';
+            avatar.innerHTML = renderEntityAvatar(entity);
             const name = document.createElement('td');
             name.className = 'py-3 font-medium text-slate-200';
             name.textContent = entity.name;
             const desc = document.createElement('td');
             desc.className = 'py-3 text-slate-400 truncate max-w-[200px]';
             desc.textContent = entity.description || '-';
-            row.appendChild(name);
-            row.appendChild(desc);
+            const actions = document.createElement('td');
+            actions.className = 'py-3 pr-6';
+            const edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'btn btn-secondary text-xs px-3 py-1.5';
+            edit.textContent = 'Edit';
+            edit.addEventListener('click', () => openEntityModal(entity, edit));
+            actions.appendChild(edit);
+            row.append(avatar, name, desc, actions);
             entitiesList.appendChild(row);
 
             const option = document.createElement('option');
@@ -69,7 +109,7 @@ const loadEntities = async () => {
         entitiesList.innerHTML = '';
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 2;
+        td.colSpan = 4;
         td.className = 'py-3 text-red-400 text-center border-t border-slate-800';
         td.textContent = 'Failed to load entities';
         tr.appendChild(td);
@@ -176,6 +216,9 @@ const closeEntityModal = () => {
     entityModal.classList.add('hidden');
     entityModal.setAttribute('aria-hidden', 'true');
     document.removeEventListener('keydown', handleModalKeydown);
+    editingEntity = null;
+    entityForm.reset();
+    entityStatus.classList.add('hidden');
     if (previouslyFocusedElement) previouslyFocusedElement.focus();
 };
 
@@ -200,14 +243,23 @@ const handleModalKeydown = (e) => {
     }
 };
 
-openEntityForm.addEventListener('click', () => {
-    previouslyFocusedElement = document.activeElement;
+const openEntityModal = (entity = null, trigger = document.activeElement) => {
+    previouslyFocusedElement = trigger;
+    editingEntity = entity;
+    entityForm.reset();
+    entityForm.name.value = entity?.name || '';
+    entityForm.description.value = entity?.description || '';
+    entityStatus.classList.add('hidden');
+    if (entityModalTitle) entityModalTitle.textContent = entity ? 'Edit Entity' : 'New Entity';
+    if (entitySubmit) entitySubmit.textContent = entity ? 'Save Entity' : 'Create Entity';
     entityModal.classList.remove('hidden');
     entityModal.setAttribute('aria-hidden', 'false');
     document.addEventListener('keydown', handleModalKeydown);
 
     setTimeout(() => entityForm.querySelector('input').focus(), 50);
-});
+};
+
+openEntityForm.addEventListener('click', () => openEntityModal(null, openEntityForm));
 
 closeEntityForm.addEventListener('click', closeEntityModal);
 const entityCancelForm = document.getElementById('entity-cancel');
@@ -225,7 +277,9 @@ entityForm.addEventListener('submit', async (event) => {
     const submitBtn = entityForm.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.disabled = true;
     try {
-        await apiFetch('/entities', { method: 'POST', body: JSON.stringify({ name: entityForm.name.value, description: entityForm.description.value }) });
+        const formData = new FormData(entityForm);
+        const url = editingEntity ? `/entities/${encodeURIComponent(editingEntity.public_id || editingEntity.id)}/update` : '/entities';
+        await apiFetch(url, { method: 'POST', body: formData });
         entityForm.reset();
         entityStatus.classList.add('hidden');
         closeEntityModal();

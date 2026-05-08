@@ -5,9 +5,14 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'GET' && $action === 'list') {
         $entityId = (int)($_GET['entity_id'] ?? 0);
-        $parentId = isset($_GET['parent_id']) && $_GET['parent_id'] !== '' ? (int)$_GET['parent_id'] : null;
         if ($entityId <= 0) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
+        }
+
+        $parentIdRaw = $_GET['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
         }
 
         drive_assert_entity_context_access($user, $entityId);
@@ -57,8 +62,8 @@ function handle_drive(string $method, array $segments): void {
     }
 
     if ($method === 'GET' && $action === 'item') {
-        $itemId = (int)($_GET['id'] ?? 0);
-        if ($itemId <= 0) {
+        $itemId = drive_resolve_item_id($_GET['id'] ?? '');
+        if (!$itemId) {
             respond(['ok' => false, 'error' => 'id required'], 400);
         }
         $item = drive_get_item_by_id($itemId);
@@ -77,8 +82,8 @@ function handle_drive(string $method, array $segments): void {
     }
 
     if ($method === 'GET' && $action === 'preview') {
-        $itemId = (int)($_GET['id'] ?? 0);
-        if ($itemId <= 0) {
+        $itemId = drive_resolve_item_id($_GET['id'] ?? '');
+        if (!$itemId) {
             respond(['ok' => false, 'error' => 'id required'], 400);
         }
         $item = drive_get_item_by_id($itemId);
@@ -91,8 +96,8 @@ function handle_drive(string $method, array $segments): void {
     }
 
     if ($method === 'GET' && $action === 'content') {
-        $itemId = (int)($_GET['id'] ?? 0);
-        if ($itemId <= 0) {
+        $itemId = drive_resolve_item_id($_GET['id'] ?? '');
+        if (!$itemId) {
             respond(['ok' => false, 'error' => 'id required'], 400);
         }
         $item = drive_get_item_by_id($itemId);
@@ -158,8 +163,8 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'POST' && $action === 'item_labels') {
         $data = read_json();
-        $itemId = (int)($data['id'] ?? 0);
-        if ($itemId <= 0) {
+        $itemId = drive_resolve_item_id($data['id'] ?? '');
+        if (!$itemId) {
             respond(['ok' => false, 'error' => 'id required'], 400);
         }
         $item = drive_get_item_by_id($itemId);
@@ -208,12 +213,17 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
 
         $name = drive_validate_name((string)($data['name'] ?? 'New Folder'));
-        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parentIdRaw = $data['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
+        }
+        $parent = drive_assert_manageable_parent($user, $parentId, $entityId);
         $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
 
-        $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, "folder", ?, ?, ?, ?)');
-        $stmt->execute([$entityId, $parentId, $name, $data['tags'] ?? '', $sharingScope, $user['id']]);
+        $stmt = db()->prepare('INSERT INTO file_drive_items (public_id, entity_id, parent_id, item_type, name, tags, sharing_scope, created_by) VALUES (?, ?, ?, "folder", ?, ?, ?, ?)');
+        $stmt->execute([generate_public_id('drv'), $entityId, $parentId, $name, $data['tags'] ?? '', $sharingScope, $user['id']]);
         $folderId = (int)db()->lastInsertId();
         drive_replace_shares($folderId, $sharingScope, $data['departments'] ?? [], $data['users'] ?? []);
         log_activity($user['id'], 'drive_item', $folderId, 'created', 'Drive folder created');
@@ -234,13 +244,18 @@ function handle_drive(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'File too large'], 400);
         }
 
-        $parent = drive_assert_manageable_parent($user, isset($_POST['parent_id']) ? (int)$_POST['parent_id'] : null, $entityId);
+        $parentIdRaw = $_POST['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
+        }
+        $parent = drive_assert_manageable_parent($user, $parentId, $entityId);
         $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($_POST['sharing_scope'] ?? 'entity'));
 
         $uploaded = save_drive_file((string)$entityId, $_FILES['file']);
-        $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, file_path, mime_type, size_bytes, tags, sharing_scope, created_by) VALUES (?, ?, "file", ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([$entityId, $parentId, $uploaded['original'], $uploaded['path'], $uploaded['mime'] ?? 'application/octet-stream', $uploaded['size'], $_POST['tags'] ?? '', $sharingScope, $user['id']]);
+        $stmt = db()->prepare('INSERT INTO file_drive_items (public_id, entity_id, parent_id, item_type, name, file_path, mime_type, size_bytes, tags, sharing_scope, created_by) VALUES (?, ?, ?, "file", ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([generate_public_id('drv'), $entityId, $parentId, $uploaded['original'], $uploaded['path'], $uploaded['mime'] ?? 'application/octet-stream', $uploaded['size'], $_POST['tags'] ?? '', $sharingScope, $user['id']]);
         $fileId = (int)db()->lastInsertId();
         drive_replace_shares($fileId, $sharingScope, $_POST['departments'] ?? [], $_POST['users'] ?? []);
         log_activity($user['id'], 'drive_item', $fileId, 'uploaded', 'Drive file uploaded');
@@ -256,13 +271,18 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
         $name = drive_validate_name((string)($data['name'] ?? ''));
         $url = drive_validate_url((string)($data['url'] ?? ''));
-        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? (int)$data['parent_id'] : null, $entityId);
+        $parentIdRaw = $data['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
+        }
+        $parent = drive_assert_manageable_parent($user, $parentId, $entityId);
         $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
         $mimeType = drive_detect_link_mime($url);
 
-        $stmt = db()->prepare('INSERT INTO file_drive_items (entity_id, parent_id, item_type, name, url, mime_type, sharing_scope, created_by) VALUES (?, ?, "link", ?, ?, ?, ?, ?)');
-        $stmt->execute([$entityId, $parentId, $name, $url, $mimeType, $sharingScope, $user['id']]);
+        $stmt = db()->prepare('INSERT INTO file_drive_items (public_id, entity_id, parent_id, item_type, name, url, mime_type, sharing_scope, created_by) VALUES (?, ?, ?, "link", ?, ?, ?, ?, ?)');
+        $stmt->execute([generate_public_id('drv'), $entityId, $parentId, $name, $url, $mimeType, $sharingScope, $user['id']]);
         $itemId = (int)db()->lastInsertId();
         drive_replace_shares($itemId, $sharingScope, $data['departments'] ?? [], $data['users'] ?? []);
         log_activity($user['id'], 'drive_item', $itemId, 'created', 'Drive link created');
@@ -271,8 +291,11 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'POST' && $action === 'rename') {
         $data = read_json();
-        $itemId = (int)($data['id'] ?? 0);
+        $itemId = drive_resolve_item_id($data['id'] ?? '');
         $name = drive_validate_name((string)($data['name'] ?? ''));
+        if (!$itemId) {
+            respond(['ok' => false, 'error' => 'Item not found'], 404);
+        }
         $item = drive_get_item_by_id($itemId);
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
@@ -286,7 +309,10 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'POST' && $action === 'delete') {
         $data = read_json();
-        $itemId = (int)($data['id'] ?? 0);
+        $itemId = drive_resolve_item_id($data['id'] ?? '');
+        if (!$itemId) {
+            respond(['ok' => false, 'error' => 'Item not found'], 404);
+        }
         $item = drive_get_item_by_id($itemId);
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
@@ -328,8 +354,11 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'POST' && $action === 'share') {
         $data = read_json();
-        $itemId = (int)($data['id'] ?? 0);
+        $itemId = drive_resolve_item_id($data['id'] ?? '');
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
+        if (!$itemId) {
+            respond(['ok' => false, 'error' => 'Item not found'], 404);
+        }
         $item = drive_get_item_by_id($itemId);
         if (!$item) {
             respond(['ok' => false, 'error' => 'Item not found'], 404);
@@ -403,6 +432,7 @@ function drive_replace_shares(int $itemId, string $scope, $departments, $users):
 
 function drive_build_preview_payload(array $item): array {
     $type = $item['item_type'];
+    $publicId = $item['public_id'] ?: public_id_for_row('file_drive_items', (int)$item['id']);
     if ($type === 'folder') {
         return ['kind' => 'folder', 'label' => 'Folder'];
     }
@@ -413,16 +443,16 @@ function drive_build_preview_payload(array $item): array {
             return [
                 'kind' => 'pdf',
                 'label' => 'PDF preview',
-                'preview_url' => '/api/drive/content?id=' . urlencode((string)$item['id']),
-                'open_url' => '/api/drive/content?id=' . urlencode((string)$item['id']),
-                'download_url' => '/api/files/download?type=drive&id=' . urlencode((string)$item['id'])
+                'preview_url' => '/api/drive/content?id=' . urlencode((string)$publicId),
+                'open_url' => '/api/drive/content?id=' . urlencode((string)$publicId),
+                'download_url' => '/api/files/download?type=drive&id=' . urlencode((string)$publicId)
             ];
         }
         return [
             'kind' => 'file',
             'label' => 'No inline preview',
-            'open_url' => '/api/drive/content?id=' . urlencode((string)$item['id']),
-            'download_url' => '/api/files/download?type=drive&id=' . urlencode((string)$item['id'])
+            'open_url' => '/api/drive/content?id=' . urlencode((string)$publicId),
+            'download_url' => '/api/files/download?type=drive&id=' . urlencode((string)$publicId)
         ];
     }
 
@@ -452,6 +482,10 @@ function drive_build_preview_payload(array $item): array {
         'open_url' => $url,
         'host' => parse_url($url, PHP_URL_HOST)
     ];
+}
+
+function drive_resolve_item_id($identifier): ?int {
+    return resolve_public_or_internal_id('file_drive_items', $identifier);
 }
 
 function drive_youtube_embed_url(string $url): ?string {

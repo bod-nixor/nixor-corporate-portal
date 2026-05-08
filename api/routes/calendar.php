@@ -44,8 +44,9 @@ function handle_calendar(string $method, array $segments): void {
         $pdo = db();
         try {
             $pdo->beginTransaction();
-            $stmt = $pdo->prepare('INSERT INTO calendar_events (entity_id, title, description, event_date, end_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $stmt = $pdo->prepare('INSERT INTO calendar_events (public_id, entity_id, title, description, event_date, end_date, location, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
             $stmt->execute([
+                generate_public_id('cal'),
                 $entityId,
                 $title,
                 $description,

@@ -3,8 +3,8 @@ function handle_dashboard(string $method, array $_segments): void {
     if ($method !== 'GET') {
         respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
-    $entityId = (int)($_GET['entity_id'] ?? 0);
-    if ($entityId <= 0) {
+    $entityId = resolve_public_or_internal_id('entities', $_GET['e'] ?? ($_GET['entity_public_id'] ?? ($_GET['entity_id'] ?? '')));
+    if (!$entityId) {
         respond(['ok' => false, 'error' => 'entity_id required'], 400);
     }
     $user = require_permission('entity.view', $entityId);

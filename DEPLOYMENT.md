@@ -27,6 +27,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
 1. Copy `config/.env.example` to `.env` (repository root) or `config/.env`.
 2. Set required values:
    - `BASE_URL` (production URL)
+   - `PUBLIC_BASE_URL=https://ncp.nixorcorporate.com` (public link generation for copied/shared URLs)
    - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`
    - `SMTP_*` (if SMTP is configured)
    - `UPLOAD_PATH` (absolute path outside web root, e.g. `/home/<cpanel_user>/portal_uploads`)
@@ -37,6 +38,8 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - `OAUTH_STATE_SECRET` (dedicated random HMAC key for Google OAuth state signing; falls back to `APP_KEY` and then `GOOGLE_CLIENT_SECRET` if unset)
    - `MOBILE_AUTH_REDIRECT_URI` (defaults to `ncp://auth/callback`; set explicitly if changing the app scheme or using Universal/App Links)
    - `MOBILE_SESSION_TTL_DAYS` (optional; defaults to 30 days for native bearer sessions)
+   - `APP_DEEP_LINK_SCHEME`, `APP_UNIVERSAL_LINK_BASE`, `IOS_APP_STORE_URL`, `ANDROID_PLAY_STORE_URL`, and `SHOW_OPEN_APP_BANNER` for mobile web handoff
+   - `PUSH_REGISTRATION_ENABLED` plus `PUSH_PROVIDER` and provider webhook/FCM settings if device push delivery is enabled. Leave `PUSH_PROVIDER=none` until credentials are ready.
    - `SETUP_TOKEN` (required in production to call `/api/admin/setup`)
 
 ## 5) Run the setup endpoint

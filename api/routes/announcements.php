@@ -4,8 +4,8 @@ function handle_announcements(string $method, array $segments): void {
     $id = $segments[1] ?? null;
 
     if ($method === 'GET') {
-        $entityId = (int)($_GET['entity_id'] ?? 0);
-        if ($entityId <= 0) {
+        $entityId = resolve_public_or_internal_id('entities', $_GET['e'] ?? ($_GET['entity_public_id'] ?? ($_GET['entity_id'] ?? '')));
+        if (!$entityId) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         require_permission('entity.view', $entityId, $user);
@@ -23,15 +23,15 @@ function handle_announcements(string $method, array $segments): void {
 
     if ($method === 'POST' && !$id) {
         $data = read_json();
-        $entityId = (int)($data['entity_id'] ?? 0);
-        if ($entityId <= 0) {
+        $entityId = resolve_public_or_internal_id('entities', $data['entity_public_id'] ?? ($data['entity_id'] ?? ''));
+        if (!$entityId) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         require_permission('entity.announce', $entityId, $user);
         $title = require_non_empty($data['title'] ?? '', 'title', 190);
         $message = require_non_empty($data['message'] ?? '', 'message', 2000);
-        $stmt = db()->prepare('INSERT INTO dashboard_announcements (entity_id, title, message, created_by) VALUES (?, ?, ?, ?)');
-        $stmt->execute([$entityId, $title, $message, $user['id']]);
+        $stmt = db()->prepare('INSERT INTO dashboard_announcements (public_id, entity_id, title, message, created_by) VALUES (?, ?, ?, ?, ?)');
+        $stmt->execute([generate_public_id('ann'), $entityId, $title, $message, $user['id']]);
         $announcementId = (int)db()->lastInsertId();
         log_activity($user['id'], 'announcement', $announcementId, 'created', 'Announcement created');
         emit_ws_event('announcement.created', ['id' => $announcementId]);
@@ -80,6 +80,7 @@ function handle_announcements(string $method, array $segments): void {
 }
 
 function announcements_decorate_row(array $row, bool $canManage): array {
+    $row['public_id'] = $row['public_id'] ?: public_id_for_row('dashboard_announcements', (int)$row['id']);
     $row['can_edit'] = $canManage;
     $row['can_delete'] = $canManage;
     return $row;

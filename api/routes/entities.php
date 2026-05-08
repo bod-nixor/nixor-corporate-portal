@@ -5,26 +5,31 @@ function handle_entities(string $method, array $segments): void {
 
     if ($method === 'GET' && !$id) {
         $rows = db()->query('SELECT * FROM entities ORDER BY name')->fetchAll();
-        respond(['ok' => true, 'data' => $rows]);
+        respond(['ok' => true, 'data' => array_map('decorate_entity_row', $rows)]);
     }
 
     if ($method === 'GET' && $id) {
+        $entityId = resolve_public_or_internal_id('entities', $id);
+        if (!$entityId) {
+            respond(['ok' => false, 'error' => 'Entity not found'], 404);
+        }
         $stmt = db()->prepare('SELECT * FROM entities WHERE id = ?');
-        $stmt->execute([$id]);
+        $stmt->execute([$entityId]);
         $entity = $stmt->fetch();
         if (!$entity) {
             respond(['ok' => false, 'error' => 'Entity not found'], 404);
         }
-        respond(['ok' => true, 'data' => $entity]);
+        respond(['ok' => true, 'data' => decorate_entity_row($entity)]);
     }
 
     if ($method === 'POST' && !$id) {
-        $data = read_json();
+        $data = entity_request_data();
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $description = sanitize_text($data['description'] ?? '', 2000);
-        $stmt = db()->prepare('INSERT INTO entities (name, description) VALUES (?, ?)');
+        $publicId = generate_public_id('ent');
+        $stmt = db()->prepare('INSERT INTO entities (public_id, name, description) VALUES (?, ?, ?)');
         try {
-            $stmt->execute([$name, $description]);
+            $stmt->execute([$publicId, $name, $description]);
         } catch (PDOException $e) {
             if (is_duplicate_entity_name_error($e)) {
                 respond(['ok' => false, 'error' => 'Entity already exists'], 409);
@@ -32,35 +37,101 @@ function handle_entities(string $method, array $segments): void {
             throw $e;
         }
         $entityId = (int)db()->lastInsertId();
+        entity_save_avatar_if_present($entityId, $publicId);
         log_activity($user['id'], 'entity', $entityId, 'created', 'Entity created');
-        respond(['ok' => true, 'data' => ['id' => $entityId]]);
+        respond(['ok' => true, 'data' => ['id' => $entityId, 'public_id' => $publicId]]);
     }
 
-    if ($method === 'PUT' && $id) {
-        $data = read_json();
+    if (($method === 'PUT' && $id) || ($method === 'POST' && $id && ($segments[2] ?? '') === 'update')) {
+        $entityId = resolve_public_or_internal_id('entities', $id);
+        if (!$entityId) {
+            respond(['ok' => false, 'error' => 'Entity not found'], 404);
+        }
+        $data = entity_request_data();
         $name = require_non_empty($data['name'] ?? '', 'name', 190);
         $description = sanitize_text($data['description'] ?? '', 2000);
         $stmt = db()->prepare('UPDATE entities SET name = ?, description = ? WHERE id = ?');
         try {
-            $stmt->execute([$name, $description, $id]);
+            $stmt->execute([$name, $description, $entityId]);
         } catch (PDOException $e) {
             if (is_duplicate_entity_name_error($e)) {
                 respond(['ok' => false, 'error' => 'Entity already exists'], 409);
             }
             throw $e;
         }
-        log_activity($user['id'], 'entity', (int)$id, 'updated', 'Entity updated');
-        respond(['ok' => true, 'data' => ['id' => (int)$id]]);
+        // Ensure a persisted public_id exists before saving any avatar to avoid
+        // transient mismatches between avatar filename and persisted public_id.
+        $publicId = public_id_for_row('entities', $entityId);
+        if (!$publicId) {
+            $publicId = generate_public_id('ent');
+            db()->prepare('UPDATE entities SET public_id = ? WHERE id = ?')->execute([$publicId, $entityId]);
+        }
+        entity_save_avatar_if_present($entityId, $publicId);
+        log_activity($user['id'], 'entity', $entityId, 'updated', 'Entity updated');
+        respond(['ok' => true, 'data' => ['id' => $entityId, 'public_id' => public_id_for_row('entities', $entityId)]]);
     }
 
     if ($method === 'DELETE' && $id) {
-        $stmt = db()->prepare('DELETE FROM entities WHERE id = ?');
-        $stmt->execute([$id]);
-        log_activity($user['id'], 'entity', (int)$id, 'deleted', 'Entity deleted');
+        $entityId = resolve_public_or_internal_id('entities', $id);
+        if (!$entityId) {
+            respond(['ok' => false, 'error' => 'Entity not found'], 404);
+        }
+        // Read avatar path, then delete the DB row and only unlink if the
+        // row deletion actually removed a record. This avoids orphaning the
+        // delete in the DB while failing to remove the file, and prevents
+        // race conditions where the file is removed before confirming delete.
+        $stmt = db()->prepare('SELECT avatar_path FROM entities WHERE id = ?');
+        $stmt->execute([$entityId]);
+        $avatarPath = trim((string)$stmt->fetchColumn());
+        $del = db()->prepare('DELETE FROM entities WHERE id = ?');
+        $del->execute([$entityId]);
+        if ($del->rowCount() > 0) {
+            if ($avatarPath !== '') {
+                $absoluteAvatarPath = resolve_upload_path($avatarPath);
+                if (is_file($absoluteAvatarPath)) {
+                    @unlink($absoluteAvatarPath);
+                }
+            }
+            log_activity($user['id'], 'entity', $entityId, 'deleted', 'Entity deleted');
+            respond(['ok' => true]);
+        }
+        log_activity($user['id'], 'entity', $entityId, 'deleted', 'Entity deleted');
         respond(['ok' => true]);
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
+}
+
+function entity_request_data(): array {
+    $contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
+    if (!str_contains($contentType, 'multipart/form-data')) {
+        return read_json();
+    }
+    return $_POST;
+}
+
+function decorate_entity_row(array $row): array {
+    $publicId = $row['public_id'] ?: public_id_for_row('entities', (int)$row['id']);
+    $row['public_id'] = $publicId;
+    $row['avatar_url'] = (!empty($row['avatar_path']) && $publicId)
+        ? '/api/files/download?type=entity_avatar&id=' . rawurlencode($publicId)
+        : null;
+    return $row;
+}
+
+function entity_save_avatar_if_present(int $entityId, string $entityPublicId): void {
+    if (empty($_FILES['avatar']) || ($_FILES['avatar']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+        return;
+    }
+    $current = db()->prepare('SELECT avatar_path FROM entities WHERE id = ?');
+    $current->execute([$entityId]);
+    $oldPath = $current->fetchColumn() ?: null;
+    $uploaded = save_entity_avatar_file($entityPublicId, $_FILES['avatar']);
+    db()->prepare('UPDATE entities SET avatar_path = ?, avatar_mime_type = ?, avatar_original_name = ? WHERE id = ?')
+        ->execute([$uploaded['path'], $uploaded['mime'], $uploaded['original'], $entityId]);
+    if ($oldPath) {
+        delete_uploaded_relative_path((string)$oldPath);
+    }
 }
 
 function is_duplicate_entity_name_error(PDOException $e): bool {

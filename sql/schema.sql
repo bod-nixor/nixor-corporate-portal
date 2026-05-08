@@ -3,6 +3,7 @@ USE nixor_portal;
 
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   email VARCHAR(190) NOT NULL UNIQUE,
   password_hash VARCHAR(255),
   full_name VARCHAR(190) NOT NULL,
@@ -56,8 +57,12 @@ CREATE TABLE students (
 
 CREATE TABLE entities (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   name VARCHAR(190) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   description TEXT,
+  avatar_path VARCHAR(255) NULL,
+  avatar_mime_type VARCHAR(120) NULL,
+  avatar_original_name VARCHAR(190) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY idx_entities_name_unique (name)
@@ -87,6 +92,7 @@ CREATE TABLE endeavour_types (
 
 CREATE TABLE file_drive_items (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   entity_id INT NOT NULL,
   parent_id INT NULL,
   item_type ENUM('folder','file','link') NOT NULL,
@@ -152,6 +158,7 @@ CREATE TABLE drive_versions (
 
 CREATE TABLE endeavours (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   entity_id INT NOT NULL,
   created_by INT NOT NULL,
   name VARCHAR(190) NOT NULL,
@@ -429,6 +436,7 @@ CREATE TABLE mobile_sessions (
 
 CREATE TABLE calendar_events (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   entity_id INT NOT NULL,
   title VARCHAR(190) NOT NULL,
   description TEXT,
@@ -443,8 +451,10 @@ CREATE TABLE calendar_events (
 
 CREATE TABLE social_posts (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   endeavour_id INT,
   entity_id INT NOT NULL,
+  feed_scope ENUM('entity','global') DEFAULT 'entity',
   user_id INT NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -457,17 +467,23 @@ CREATE TABLE social_posts (
 
 CREATE TABLE social_comments (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   post_id INT NOT NULL,
+  parent_comment_id INT NULL,
   user_id INT NOT NULL,
   comment TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
   KEY idx_post_created (post_id, created_at),
+  KEY idx_social_comments_parent (parent_comment_id),
   FOREIGN KEY (post_id) REFERENCES social_posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_comment_id) REFERENCES social_comments(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE dashboard_announcements (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  public_id VARCHAR(64) NULL UNIQUE,
   entity_id INT NOT NULL,
   title VARCHAR(190) NOT NULL,
   message TEXT NOT NULL,
@@ -508,4 +524,34 @@ CREATE TABLE notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   KEY idx_user_read (user_id, is_read, created_at),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE push_device_tokens (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  platform ENUM('ios','android','web') NOT NULL,
+  token VARCHAR(512) NOT NULL,
+  device_id VARCHAR(190) NULL,
+  enabled TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  last_seen_at TIMESTAMP NULL,
+  UNIQUE KEY uniq_push_token (token),
+  KEY idx_push_user_enabled (user_id, enabled),
+  KEY idx_push_device (user_id, device_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE push_notification_deliveries (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  notification_id INT NOT NULL,
+  device_token_id INT NOT NULL,
+  status ENUM('queued','sent','failed','skipped') NOT NULL DEFAULT 'queued',
+  error_message VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_push_delivery (notification_id, device_token_id),
+  KEY idx_push_delivery_notification (notification_id),
+  FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE,
+  FOREIGN KEY (device_token_id) REFERENCES push_device_tokens(id) ON DELETE CASCADE
 );

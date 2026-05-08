@@ -77,6 +77,7 @@
         <p id="social-feed-notice" role="status" aria-live="polite" aria-atomic="true"
           class="hidden mb-4 rounded-lg border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.018)] px-4 py-3 text-sm font-semibold text-[var(--text-secondary)]">
         </p>
+        <p id="social-copy-live" class="sr-only" aria-live="polite" aria-atomic="true"></p>
 
         <h2 id="social-feed-heading" class="sr-only">Recent Posts</h2>
         <div id="social-loading" class="social-loading-state hidden">
@@ -125,6 +126,11 @@
                   <option value="entity">Selected entity feed</option>
                   <option value="global">Global public feed</option>
                 </select>
+              </div>
+              <div id="social-post-as-wrap" class="space-y-1.5 hidden">
+                <label for="social-post-as"
+                  class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Post as</label>
+                <select id="social-post-as" name="entity_public_id" class="input-field"></select>
               </div>
 
               <div class="space-y-1.5">

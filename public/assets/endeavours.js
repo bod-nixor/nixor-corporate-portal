@@ -147,7 +147,8 @@ const renderEndeavours = (rows) => {
         }
 
         const viewLink = document.createElement('a');
-        viewLink.href = `/endeavour_view.html?id=${row.id}`;
+        const endeavourKey = row.public_id || row.id;
+        viewLink.href = `/endeavour_view.html?e=${encodeURIComponent(endeavourKey)}`;
         viewLink.className = 'btn btn-secondary px-5 shadow-sm w-full sm:w-auto';
         viewLink.textContent = 'Details';
 
@@ -161,7 +162,7 @@ const renderEndeavours = (rows) => {
             const originalText = registerButton.textContent;
             registerButton.textContent = 'Registering...';
             try {
-                await apiFetch(`/endeavours/${row.id}/register`, { method: 'POST', body: JSON.stringify({}) });
+                await apiFetch(`/endeavours/${encodeURIComponent(endeavourKey)}/register`, { method: 'POST', body: JSON.stringify({}) });
                 registerError.classList.add('hidden');
                 registerButton.textContent = 'Registered \u2713';
                 setTimeout(() => {
@@ -194,7 +195,7 @@ const renderEndeavours = (rows) => {
         // Make the entire card clickable except for the buttons
         card.addEventListener('click', (e) => {
             if (e.target.closest('button') || e.target.closest('a')) return;
-            window.location.href = `/endeavour_view.html?id=${row.id}`;
+            window.location.href = `/endeavour_view.html?e=${encodeURIComponent(endeavourKey)}`;
         });
         card.classList.add('cursor-pointer');
 

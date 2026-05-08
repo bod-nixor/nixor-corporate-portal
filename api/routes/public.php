@@ -3,7 +3,30 @@ function handle_public(string $method, array $segments): void {
     $action = $segments[1] ?? '';
 
     if ($action === 'volunteer_posts' && $method === 'GET') {
-        $stmt = db()->query('SELECT vp.*, e.name AS endeavour_name, en.name AS entity_name FROM volunteer_posts vp JOIN endeavours e ON vp.endeavour_id = e.id JOIN entities en ON e.entity_id = en.id WHERE vp.published = 1 ORDER BY vp.published_at DESC LIMIT 20');
+        // Explicitly select public-facing columns to avoid leaking internal IDs
+        // or other sensitive fields. volunteer_posts does not expose a
+        // public_id column, so we only return safe/read-only fields.
+        $sql = 'SELECT
+                    vp.description AS summary,
+                    vp.eligibility_notes AS eligibility_notes,
+                    vp.venue AS location,
+                    vp.schedule AS schedule,
+                    vp.transport_payment AS transport_payment,
+                    vp.questionnaire_mode AS questionnaire_mode,
+                    vp.published AS published,
+                    vp.published_at AS published_at,
+                    vp.created_at AS created_at,
+                    e.public_id AS endeavour_public_id,
+                    e.name AS endeavour_name,
+                    en.public_id AS entity_public_id,
+                    en.name AS entity_name
+                FROM volunteer_posts vp
+                JOIN endeavours e ON vp.endeavour_id = e.id
+                JOIN entities en ON e.entity_id = en.id
+                WHERE vp.published = 1
+                ORDER BY vp.published_at DESC
+                LIMIT 20';
+        $stmt = db()->query($sql);
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
@@ -11,15 +34,16 @@ function handle_public(string $method, array $segments): void {
         if (!rate_limit('volunteer_detail', 60, 600)) {
             respond(['ok' => false, 'error' => 'Too many requests'], 429);
         }
-        $endeavourId = (int)($_GET['endeavour_id'] ?? ($_GET['id'] ?? 0));
-        if ($endeavourId <= 0) {
+        $rawEndeavourId = $_GET['e'] ?? ($_GET['endeavour_public_id'] ?? ($_GET['endeavour_id'] ?? ($_GET['id'] ?? '')));
+        $endeavourId = resolve_public_or_internal_id('endeavours', $rawEndeavourId);
+        if (!$endeavourId) {
             respond(['ok' => false, 'error' => 'endeavour_id required'], 400);
         }
         $stmt = db()->prepare(
-            'SELECT e.id, e.name, e.title, e.description, e.long_description, e.start_at, e.end_at,
+            'SELECT e.id, e.public_id, e.name, e.title, e.description, e.long_description, e.start_at, e.end_at,
                     e.event_start_at, e.event_end_at, e.venue, e.volunteering_enabled,
-                    e.volunteer_signup_deadline, e.transport_fee_enabled, e.transport_fee_amount,
-                    en.name AS entity_name
+                    e.volunteer_registration_deadline, e.transport_fee_required, e.transport_fee_amount,
+                    en.public_id AS entity_public_id, en.name AS entity_name
              FROM endeavours e
              JOIN entities en ON en.id = e.entity_id
              WHERE e.id = ? AND e.volunteering_enabled = 1'
@@ -31,6 +55,10 @@ function handle_public(string $method, array $segments): void {
         }
         respond(['ok' => true, 'data' => [
             'id' => (int)$row['id'],
+            // Do not call the backfill helper during read; return existing value
+            // so reads do not mutate DB state.
+            'public_id' => $row['public_id'] ?: null,
+            'entity_public_id' => $row['entity_public_id'] ?: null,
             'title' => $row['title'] ?: $row['name'],
             'description' => $row['description'],
             'long_description' => $row['long_description'],
@@ -38,8 +66,8 @@ function handle_public(string $method, array $segments): void {
             'venue' => $row['venue'],
             'start_at' => $row['event_start_at'] ?: $row['start_at'],
             'end_at' => $row['event_end_at'] ?: $row['end_at'],
-            'volunteer_signup_deadline' => $row['volunteer_signup_deadline'],
-            'transport_fee_enabled' => (bool)$row['transport_fee_enabled'],
+            'volunteer_registration_deadline' => $row['volunteer_registration_deadline'],
+            'transport_fee_required' => (bool)$row['transport_fee_required'],
             'transport_fee_amount' => $row['transport_fee_amount'],
         ]]);
     }
