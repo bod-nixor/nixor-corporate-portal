@@ -95,6 +95,13 @@ Android already checks for `google-services.json` before applying Google Service
 
 Production hardening note: custom URL schemes can be claimed by another app on some platforms. Prefer adding an HTTPS callback bridge with Android App Links and iOS Universal Links (`assetlinks.json` and `apple-app-site-association`) that validates the request and 302s to the app callback when the platform setup is ready.
 
+Note: The `FCM_SERVER_KEY` used by the code path that forwards a legacy
+server key (when `FCM_WEBHOOK_URL` is set) is the legacy FCM HTTP key. Google
+has removed legacy HTTP/XMPP APIs; do not point `FCM_WEBHOOK_URL` directly at
+`fcm.googleapis.com` (you will receive 401 responses). Either host a relay
+that accepts the legacy `key=` header or migrate to the FCM HTTP v1 API with
+OAuth2 Bearer tokens for direct Google integration.
+
 Configure Google Cloud with the web OAuth redirect URI used by the backend:
 ```text
 https://ncp.nixorcorporate.com/api/auth/google/callback

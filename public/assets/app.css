@@ -3569,6 +3569,11 @@ body.modal-scroll-lock {
     transform: scale(1);
   }
 }
+@media (prefers-reduced-motion: reduce) {
+  .social-post-menu-item.is-copied {
+    animation: none !important;
+  }
+}
 .social-comments {
   display: flex;
   flex-direction: column;

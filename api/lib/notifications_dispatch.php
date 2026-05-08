@@ -1,16 +1,22 @@
 <?php
 
 function portal_notification_preference_column_for_type(string $type): string {
-    if (str_starts_with($type, 'volunteer')) {
-        return 'volunteering_enabled';
+    // Map notification type names or well-defined prefixes to the
+    // corresponding user preference column. This avoids brittle,
+    // order-dependent substring checks; prefixes are matched first,
+    // then approval-related keywords, then the default.
+    $t = strtolower($type);
+    $prefixMap = [
+        'volunteer' => 'volunteering_enabled',
+        'social' => 'social_enabled',
+        'calendar' => 'calendar_enabled',
+    ];
+    foreach ($prefixMap as $prefix => $col) {
+        if (str_starts_with($t, $prefix)) {
+            return $col;
+        }
     }
-    if (str_starts_with($type, 'social')) {
-        return 'social_enabled';
-    }
-    if (str_starts_with($type, 'calendar')) {
-        return 'calendar_enabled';
-    }
-    if (str_contains($type, 'submission') || str_contains($type, 'approval') || str_contains($type, 'rejected')) {
+    if (str_contains($t, 'submission') || str_contains($t, 'approval') || str_contains($t, 'rejected')) {
         return 'approvals_enabled';
     }
     return 'platform_enabled';
@@ -67,8 +73,13 @@ function create_platform_notification(int $userId, string $type, array $payload,
         return null;
     }
 
+    $payloadJson = json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($payloadJson === false) {
+        error_log('Failed to json_encode payload for user_id=' . $userId . ' type=' . $type);
+        return null;
+    }
     $stmt = db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)');
-    $stmt->execute([$userId, $type, json_encode($payload)]);
+    $stmt->execute([$userId, $type, $payloadJson]);
     $notificationId = (int)db()->lastInsertId();
     // Only spawn the async delivery worker when push is configured and
     // the target user actually has enabled device tokens for platform push.
@@ -113,6 +124,9 @@ function queue_push_dispatch(int $notificationId): void {
 
     error_log('Failed to queue push dispatch for notification_id=' . $notificationId);
     register_shutdown_function(static function () use ($notificationId): void {
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
         dispatch_push_for_notification($notificationId);
     });
 }
@@ -248,7 +262,10 @@ function portal_send_push_webhook(array $token, array $payload, string $urlKey =
         'platform' => $token['platform'],
         'token' => $token['token'],
         'payload' => $payload,
-    ]);
+    ], JSON_INVALID_UTF8_SUBSTITUTE);
+    if ($body === false) {
+        throw new RuntimeException('Failed to json_encode push webhook body.');
+    }
     $headers = "Content-Type: application/json\r\n";
     $secret = trim((string)env_value('PUSH_WEBHOOK_SECRET', ''));
     if ($secret !== '') {
@@ -274,8 +291,10 @@ function portal_send_push_webhook(array $token, array $payload, string $urlKey =
         ],
     ]);
     $result = @file_get_contents($url, false, $context);
-    $statusLine = $http_response_header[0] ?? '';
+    $statusLine = isset($http_response_header) && is_array($http_response_header) && isset($http_response_header[0]) ? $http_response_header[0] : '';
     if (!preg_match('/\s2\d\d\s/', $statusLine)) {
-        throw new RuntimeException('Push webhook request failed.');
+        $snippet = is_string($result) ? trim(substr($result, 0, 256)) : '';
+        $status = trim($statusLine);
+        throw new RuntimeException('Push webhook request failed: ' . $status . ' ' . $snippet);
     }
 }
