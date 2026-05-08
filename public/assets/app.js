@@ -1360,5 +1360,4 @@ export {
   loginUrlForCurrentPage,
   getConfig,
   setCsrfToken,
-  getApiBase,
 };

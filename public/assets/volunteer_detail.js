@@ -1,4 +1,4 @@
-import { apiFetch, getPublicBaseUrl, loadConfig } from '/assets/app.js';
+import { apiFetch, loadConfig } from '/assets/app.js';
 
 const params = new URLSearchParams(window.location.search);
 const id = params.get('e') || params.get('endeavour_public_id') || params.get('endeavour_id') || params.get('id') || '';
@@ -10,6 +10,19 @@ const copyStatus = document.getElementById('copy-status');
 const loginRegister = document.getElementById('login-register');
 
 const fmt = (value) => value ? new Date(String(value).replace(' ', 'T')).toLocaleString() : 'TBD';
+
+function getPublicBaseUrl() {
+  const configured = String(window.PUBLIC_BASE_URL || 'https://ncp.nixorcorporate.com').replace(/\/+$/, '');
+  try {
+    const parsed = new URL(configured);
+    if (['localhost', '127.0.0.1', '::1'].includes(parsed.hostname)) {
+      return 'https://ncp.nixorcorporate.com';
+    }
+    return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+  } catch (err) {
+    return 'https://ncp.nixorcorporate.com';
+  }
+}
 
 function setText(id, value) {
   const el = document.getElementById(id);
