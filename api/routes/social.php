@@ -728,14 +728,37 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
             'uploaded_count' => count($uploadedFiles),
         ]);
         foreach (array_values($images) as $index => $image) {
+            $fileDriveItemId = isset($image['file_id']) && (int)$image['file_id'] > 0
+                ? (int)$image['file_id']
+                : null;
+        
+            $parentCheck = $pdo->prepare('SELECT COUNT(*) FROM social_posts WHERE id = ?');
+            $parentCheck->execute([$postId]);
+            $parentExists = (int)$parentCheck->fetchColumn();
+        
+            social_upload_log('social_sync_post_images.parent_check', [
+                'post_id' => $postId,
+                'parent_exists_in_transaction' => $parentExists,
+                'in_transaction' => $pdo->inTransaction(),
+            ]);
+        
+            social_upload_log('social_sync_post_images.insert_row', [
+                'post_id' => $postId,
+                'file_id_raw' => $image['file_id'] ?? null,
+                'file_id_normalized' => $fileDriveItemId,
+                'has_url' => !empty($image['url']),
+                'has_storage_path' => !empty($image['storage_path']),
+                'storage_path' => $image['storage_path'] ?? null,
+            ]);
+        
             $stmt->execute([
                 $postId,
-                $image['file_id'],
-                $image['url'],
-                $image['storage_path'],
-                $image['original_name'],
-                $image['mime_type'],
-                $image['size_bytes'],
+                $fileDriveItemId,
+                !empty($image['url']) ? $image['url'] : null,
+                !empty($image['storage_path']) ? $image['storage_path'] : null,
+                !empty($image['original_name']) ? $image['original_name'] : null,
+                !empty($image['mime_type']) ? $image['mime_type'] : null,
+                (int)($image['size_bytes'] ?? 0),
                 $index
             ]);
         }

@@ -119,8 +119,17 @@ function social_upload_log(string $event, array $context = []): void {
             $safe[$key] = array_slice($value, 0, 20);
         }
     }
+
     $encoded = json_encode($safe, JSON_UNESCAPED_SLASHES);
-    error_log('social_image_upload event=' . $event . ($encoded ? ' context=' . $encoded : ''));
+    $line = '[' . date('c') . '] social_image_upload event=' . $event . ($encoded ? ' context=' . $encoded : '') . "\n";
+
+    error_log(trim($line));
+
+    $logDir = env_value('LOG_PATH', dirname(__DIR__, 2) . '/logs');
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0775, true);
+    }
+    @file_put_contents(rtrim($logDir, '/\\') . '/social-upload.log', $line, FILE_APPEND);
 }
 
 function social_upload_error_message(int $errorCode): string {
