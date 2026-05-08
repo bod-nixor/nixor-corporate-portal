@@ -81,7 +81,12 @@ function handle_social(string $method, array $segments): void {
         social_cleanup_storage_paths($imageCleanup['delete_after_commit'] ?? []);
         log_activity($user['id'], 'social_post', $postId, 'created', $feedScope === 'global' ? 'Global social post created' : 'Social post created');
         emit_ws_event('social.created', ['id' => $postId, 'feed_scope' => $feedScope]);
-        respond(['ok' => true, 'data' => ['id' => $postId]]);
+        $detail = social_fetch_post_detail($postId, $user);
+        respond(['ok' => true, 'data' => [
+            'id' => $postId,
+            'post' => $detail['post'] ?? null,
+            'comments' => $detail['comments'] ?? [],
+        ]]);
     }
 
     if ($method === 'POST' && $id && $action === 'comments') {
@@ -98,7 +103,10 @@ function handle_social(string $method, array $segments): void {
         social_sync_mentions((int)$post['id'], $commentId, $data, $post['feed_scope'] ?? 'entity');
         log_activity($user['id'], 'social_post', (int)$post['id'], 'commented', 'Social comment added');
         emit_ws_event('social.commented', ['id' => (int)$post['id']]);
-        respond(['ok' => true, 'data' => ['id' => $commentId]]);
+        respond(['ok' => true, 'data' => [
+            'id' => $commentId,
+            'comment' => social_fetch_comment_detail($commentId, $user),
+        ]]);
     }
 
     if ($method === 'POST' && $id && $action === 'like') {
@@ -159,7 +167,11 @@ function handle_social(string $method, array $segments): void {
         social_cleanup_storage_paths($imageCleanup['delete_after_commit'] ?? []);
         log_activity($user['id'], 'social_post', (int)$post['id'], 'updated', 'Social post updated');
         emit_ws_event('social.updated', ['id' => (int)$post['id']]);
-        respond(['ok' => true]);
+        $detail = social_fetch_post_detail((int)$post['id'], $user);
+        respond(['ok' => true, 'data' => [
+            'post' => $detail['post'] ?? null,
+            'comments' => $detail['comments'] ?? [],
+        ]]);
     }
 
     if ($method === 'PUT' && $id === 'comments' && $action) {
@@ -177,7 +189,9 @@ function handle_social(string $method, array $segments): void {
         social_sync_mentions((int)$comment['post_id'], (int)$comment['id'], $data, $comment['feed_scope'] ?? 'entity');
         log_activity($user['id'], 'social_post', (int)$comment['post_id'], 'comment_updated', 'Social comment updated');
         emit_ws_event('social.comment_updated', ['post_id' => (int)$comment['post_id']]);
-        respond(['ok' => true]);
+        respond(['ok' => true, 'data' => [
+            'comment' => social_fetch_comment_detail((int)$comment['id'], $user),
+        ]]);
     }
 
     if ($method === 'DELETE' && $id === 'comments' && $action) {
@@ -188,10 +202,15 @@ function handle_social(string $method, array $segments): void {
         if (!social_user_can_manage_record($user, $comment, (int)$comment['user_id'])) {
             respond(['ok' => false, 'error' => 'Forbidden'], 403);
         }
+        $postId = (int)$comment['post_id'];
         db()->prepare('DELETE FROM social_comments WHERE id = ?')->execute([(int)$comment['id']]);
-        log_activity($user['id'], 'social_post', (int)$comment['post_id'], 'comment_deleted', 'Social comment deleted');
-        emit_ws_event('social.comment_deleted', ['post_id' => (int)$comment['post_id']]);
-        respond(['ok' => true]);
+        log_activity($user['id'], 'social_post', $postId, 'comment_deleted', 'Social comment deleted');
+        emit_ws_event('social.comment_deleted', ['post_id' => $postId]);
+        respond(['ok' => true, 'data' => [
+            'id' => (int)$comment['id'],
+            'post_id' => $postId,
+            'comments_count' => social_comment_count_for_post($postId),
+        ]]);
     }
 
     if ($method === 'DELETE' && $id && $action === '') {
@@ -212,7 +231,7 @@ function handle_social(string $method, array $segments): void {
             log_activity($user['id'], 'social_post', (int)$post['id'], 'deleted', 'Social post deleted');
             emit_ws_event('social.deleted', ['id' => (int)$post['id']]);
         }
-        respond(['ok' => true]);
+        respond(['ok' => true, 'data' => ['id' => (int)$post['id']]]);
     }
 
     respond(['ok' => false, 'error' => 'Not Found'], 404);
@@ -371,7 +390,25 @@ function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
         );
         $stmt->execute([$entityId]);
     }
-    $posts = $stmt->fetchAll();
+    return social_hydrate_posts($stmt->fetchAll(), $user);
+}
+
+function social_fetch_post_detail(int $postId, ?array $user): ?array {
+    $post = social_fetch_post($postId);
+    if (!$post) {
+        return null;
+    }
+    $payload = social_hydrate_posts([$post], $user);
+    if (empty($payload['posts'])) {
+        return null;
+    }
+    return [
+        'post' => $payload['posts'][0],
+        'comments' => $payload['comments'],
+    ];
+}
+
+function social_hydrate_posts(array $posts, ?array $user): array {
     $postIds = array_map(fn($row) => (int)$row['id'], $posts);
     $comments = social_comments_for_posts($postIds, $user);
     $images = social_images_for_posts($postIds);
@@ -435,6 +472,32 @@ function social_fetch_comment(int $commentId): ?array {
     return $comment ?: null;
 }
 
+function social_fetch_comment_detail(int $commentId, ?array $user): ?array {
+    $stmt = db()->prepare(
+        'SELECT sc.*, u.full_name, sp.entity_id, sp.feed_scope
+         FROM social_comments sc
+         JOIN users u ON u.id = sc.user_id
+         JOIN social_posts sp ON sp.id = sc.post_id
+         WHERE sc.id = ?'
+    );
+    $stmt->execute([$commentId]);
+    $comment = $stmt->fetch();
+    if (!$comment) {
+        return null;
+    }
+    $commentId = (int)$comment['id'];
+    $comment['safe_html'] = social_render_markdown($comment['comment']);
+    $comment['likes_count'] = social_like_count_target('comment', $commentId);
+    $comment['liked_by_me'] = $user ? isset(social_liked_targets('comment', [$commentId], (int)$user['id'])[$commentId]) : false;
+    $comment['can_interact'] = social_record_allows_interaction($comment, $user);
+    $comment['can_like'] = $comment['can_interact'];
+    $comment['can_manage'] = $user ? social_user_can_manage_record($user, $comment, (int)$comment['user_id']) : false;
+    if (!$user) {
+        unset($comment['user_id'], $comment['entity_id']);
+    }
+    return $comment;
+}
+
 function social_record_allows_interaction(array $record, ?array $user): bool {
     if (!$user) {
         return false;
@@ -494,6 +557,42 @@ function social_validate_endeavour_id($raw, ?int $entityId): ?int {
     return (int)$endeavourId;
 }
 
+function social_assert_post_images_schema_ready(): void {
+    static $ready = null;
+    if ($ready === true) {
+        return;
+    }
+
+    $requiredColumns = [
+        'id',
+        'post_id',
+        'file_drive_item_id',
+        'image_url',
+        'storage_path',
+        'original_name',
+        'mime_type',
+        'size_bytes',
+        'sort_order',
+        'created_at',
+    ];
+    $placeholders = implode(',', array_fill(0, count($requiredColumns), '?'));
+    $stmt = db()->prepare(
+        "SELECT COLUMN_NAME
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+           AND TABLE_NAME = 'social_post_images'
+           AND COLUMN_NAME IN ({$placeholders})"
+    );
+    $stmt->execute($requiredColumns);
+    $found = array_fill_keys($stmt->fetchAll(PDO::FETCH_COLUMN), true);
+    $missing = array_values(array_filter($requiredColumns, static fn($column) => !isset($found[$column])));
+    if ($missing) {
+        social_upload_log('social_post_images.schema_missing_columns', ['missing_columns' => $missing]);
+        throw new RuntimeException('social_post_images schema is missing required columns: ' . implode(', ', $missing));
+    }
+    $ready = true;
+}
+
 function social_sync_post_images(int $postId, array $data, array $user, ?int $entityId, array $uploadedFiles = []): array {
     $cleanup = ['delete_after_commit' => [], 'delete_on_rollback' => []];
     $hasImages = array_key_exists('image_urls', $data)
@@ -508,6 +607,7 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
     if (!$hasImages) {
         return $cleanup;
     }
+    social_assert_post_images_schema_ready();
     $images = [];
     $keptStoragePaths = [];
 
@@ -860,6 +960,15 @@ function social_like_count_target(string $targetType, int $targetId): int {
     }
     $stmt = db()->prepare('SELECT COUNT(*) FROM social_likes WHERE target_type = ? AND target_id = ?');
     $stmt->execute([$targetType, $targetId]);
+    return (int)$stmt->fetchColumn();
+}
+
+function social_comment_count_for_post(int $postId): int {
+    if ($postId <= 0) {
+        return 0;
+    }
+    $stmt = db()->prepare('SELECT COUNT(*) FROM social_comments WHERE post_id = ?');
+    $stmt->execute([$postId]);
     return (int)$stmt->fetchColumn();
 }
 

@@ -499,6 +499,112 @@ function buildImageGrid(images) {
   return grid;
 }
 
+function setCommentsForPost(postId, comments = []) {
+  const id = Number(postId);
+  if (!id) return;
+  commentsByPost.set(id, Array.isArray(comments) ? comments : []);
+}
+
+function updateCommentCount(postId, explicitCount = null) {
+  const id = Number(postId);
+  if (!id) return;
+  const countEl = document.getElementById(`post-comment-count-${id}`);
+  if (!countEl) return;
+  const count = explicitCount === null
+    ? (commentsByPost.get(id) || []).length
+    : Math.max(0, Number(explicitCount) || 0);
+  countEl.textContent = `${count} ${count === 1 ? "comment" : "comments"}`;
+}
+
+function upsertCommentInCache(comment) {
+  const postId = Number(comment?.post_id);
+  if (!postId || !comment?.id) return;
+  const comments = [...(commentsByPost.get(postId) || [])];
+  const index = comments.findIndex((item) => Number(item.id) === Number(comment.id));
+  if (index >= 0) {
+    comments[index] = comment;
+  } else {
+    comments.push(comment);
+  }
+  commentsByPost.set(postId, comments);
+}
+
+function removeCommentFromCache(postId, commentId) {
+  const id = Number(postId);
+  if (!id) return;
+  const comments = (commentsByPost.get(id) || []).filter((comment) => Number(comment.id) !== Number(commentId));
+  commentsByPost.set(id, comments);
+}
+
+function appendCommentToPost(postId, comment, beforeNode) {
+  if (!comment?.id) return false;
+  upsertCommentInCache(comment);
+  beforeNode?.parentElement?.insertBefore(renderComment(comment), beforeNode);
+  updateCommentCount(postId);
+  return true;
+}
+
+function replaceComment(comment, row) {
+  if (!comment?.id || !row) return false;
+  upsertCommentInCache(comment);
+  row.replaceWith(renderComment(comment));
+  updateCommentCount(comment.post_id);
+  return true;
+}
+
+function updateFeedEmptyState() {
+  const hasPosts = Boolean(postsEl?.querySelector(".social-post-card"));
+  if (hasPosts) {
+    emptyEl.classList.add("hidden");
+    return;
+  }
+  setEmptyState(activeFeed);
+  emptyEl.classList.remove("hidden");
+}
+
+function upsertPostCard(post, comments = null, options = {}) {
+  if (!post?.id) return false;
+  if (Array.isArray(comments)) {
+    setCommentsForPost(post.id, comments);
+  } else if (!commentsByPost.has(Number(post.id))) {
+    setCommentsForPost(post.id, []);
+  }
+  const nextCard = renderPost(post);
+  const currentCard = document.getElementById(`post-${post.id}`);
+  if (currentCard) {
+    currentCard.replaceWith(nextCard);
+  } else if (options.prepend) {
+    postsEl.prepend(nextCard);
+  } else {
+    postsEl.appendChild(nextCard);
+  }
+  loadingEl.classList.add("hidden");
+  emptyEl.classList.add("hidden");
+  return true;
+}
+
+function removePostCard(postId) {
+  const el = document.getElementById(`post-${postId}`);
+  el?.remove();
+  commentsByPost.delete(Number(postId));
+  updateFeedEmptyState();
+}
+
+function updateLikeButton(button, targetType, liked, likesCount) {
+  button.classList.toggle("is-active", liked);
+  button.setAttribute("aria-pressed", liked ? "true" : "false");
+  const baseVerb = liked ? "Liked" : "Like";
+  const labelText = targetType === "comment" && likesCount > 0
+    ? `${baseVerb} (${likesCount})`
+    : baseVerb;
+  const span = button.querySelector?.("span");
+  if (span) {
+    span.textContent = labelText;
+  } else {
+    button.textContent = labelText;
+  }
+}
+
 async function toggleLike(button, targetType, id) {
   if (button.disabled) return;
   button.disabled = true;
@@ -506,36 +612,14 @@ async function toggleLike(button, targetType, id) {
     const url = targetType === "comment" ? `/social/comments/${id}/like` : `/social/${id}/like`;
     const resp = await apiFetch(url, { method: "POST", body: JSON.stringify({}) });
     const liked = Boolean(resp?.data?.liked);
-    const likesCount = typeof resp?.data?.likes_count === 'number' ? resp.data.likes_count : null;
+    const likesCount = typeof resp?.data?.likes_count === "number" ? resp.data.likes_count : 0;
+    updateLikeButton(button, targetType, liked, likesCount);
 
-    // Update button state
-    try {
-      button.classList.toggle('is-active', liked);
-      if (liked) button.setAttribute('aria-pressed', 'true'); else button.setAttribute('aria-pressed', 'false');
-        // Update label if present. Prefer child <span>, otherwise update button.textContent
-        const baseVerb = liked ? 'Liked' : 'Like';
-        const labelText = `${baseVerb}${likesCount !== null ? ` (${likesCount})` : ''}`;
-        const span = button.querySelector && button.querySelector('span');
-        if (span) {
-          span.textContent = labelText;
-        } else {
-          button.textContent = labelText;
-        }
-    } catch (e) {
-      // ignore DOM update errors
-    }
-
-    // If toggling a post like, update the like-count display
-    if (targetType === 'post') {
+    if (targetType === "post") {
       const countEl = document.getElementById(`post-like-count-${id}`);
-      if (countEl && likesCount !== null) {
-        countEl.textContent = `${likesCount} ${likesCount === 1 ? 'like' : 'likes'}`;
+      if (countEl) {
+        countEl.textContent = `${likesCount} ${likesCount === 1 ? "like" : "likes"}`;
       }
-    }
-
-    // If toggling a comment like, update the comment's like button text (handled above) and the comment list counts where applicable
-    if (targetType === 'comment') {
-      // update comment likes count display if present (button text already updated)
     }
   } catch (err) {
     setStatus(normalizeError(err), false);
@@ -624,7 +708,9 @@ function renderComment(comment) {
       cancel.type = "button";
       cancel.className = "btn btn-ghost px-3 py-2 text-xs";
       cancel.textContent = "Cancel";
-      cancel.addEventListener("click", () => loadPosts({ preserveScroll: true }));
+      cancel.addEventListener("click", () => {
+        row.replaceWith(renderComment(comment));
+      });
       editForm.append(input, save, cancel);
       editForm.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -632,11 +718,16 @@ function renderComment(comment) {
         if (!nextValue) return;
         save.disabled = true;
         try {
-          await apiFetch(`/social/comments/${comment.id}`, {
+          const resp = await apiFetch(`/social/comments/${comment.id}`, {
             method: "PUT",
             body: JSON.stringify({ comment: nextValue })
           });
-          await loadPosts({ preserveScroll: true });
+          const updatedComment = resp?.data?.comment || {
+            ...comment,
+            comment: nextValue,
+            safe_html: null
+          };
+          replaceComment(updatedComment, row);
         } catch (err) {
           setStatus(normalizeError(err), false);
         } finally {
@@ -775,37 +866,27 @@ function renderPost(post) {
             method: "POST",
             body: JSON.stringify({ comment: value })
           });
-          const commentId = resp?.data?.id;
+          const serverComment = resp?.data?.comment;
+          const commentId = serverComment?.id || resp?.data?.id;
           if (!commentId) {
-            // server did not return an id; fall back to reloading this post's data
-            await loadPosts({ preserveScroll: true });
+            setStatus("Comment saved, but the response was incomplete. Refresh to see the latest feed.", false);
             return;
           }
-          // Build a minimal comment object to render in-place
-          const newComment = {
+          const newComment = serverComment || {
             id: commentId,
             post_id: post.id,
             comment: value,
             safe_html: null,
-            full_name: currentUser?.full_name || 'NCP User',
+            full_name: currentUser?.full_name || "NCP User",
             created_at: new Date().toISOString(),
             likes_count: 0,
             liked_by_me: false,
+            can_interact: true,
+            can_like: true,
             can_manage: Boolean(currentUser),
           };
-          // append to comments list
-          const commentsContainer = commentForm.parentElement;
-          if (commentsContainer) {
-            commentsContainer.insertBefore(renderComment(newComment), commentForm);
-          }
-          // clear input and update counts
+          appendCommentToPost(post.id, newComment, commentForm);
           commentInput.value = "";
-          const countEl = document.getElementById(`post-comment-count-${post.id}`);
-          if (countEl) {
-            const prev = parseInt((countEl.textContent || '0').replace(/\D/g, ''), 10) || 0;
-            const next = prev + 1;
-            countEl.textContent = `${next} ${next === 1 ? 'comment' : 'comments'}`;
-          }
       } catch (err) {
         setStatus(normalizeError(err), false);
       } finally {
@@ -925,9 +1006,11 @@ async function submitPost(event) {
     selectedImages.forEach((image) => formData.append("images[]", image.file, image.file.name));
 
     if (editingPost) {
-      await apiFetch(`/social/${editingPost.id}/update`, { method: "POST", body: formData });
+      const resp = await apiFetch(`/social/${editingPost.id}/update`, { method: "POST", body: formData });
       closePostModal(true);
-      await loadPosts({ preserveScroll: true });
+      if (!upsertPostCard(resp?.data?.post, resp?.data?.comments)) {
+        setStatus("Post saved, but the response was incomplete. Refresh to see the latest feed.", false);
+      }
       return;
     }
 
@@ -945,10 +1028,11 @@ async function submitPost(event) {
       }
       formData.append("entity_id", entityId);
     }
-    await apiFetch("/social", { method: "POST", body: formData });
+    const resp = await apiFetch("/social", { method: "POST", body: formData });
     closePostModal(true);
-    setActiveFeed(feedScope, { skipLoad: true });
-    await loadPosts();
+    if (!upsertPostCard(resp?.data?.post, resp?.data?.comments, { prepend: true })) {
+      setStatus("Post published, but the response was incomplete. Refresh to see the latest feed.", false);
+    }
   } catch (err) {
     setStatus(normalizeError(err), false);
   } finally {
@@ -992,26 +1076,20 @@ deleteConfirmBtn?.addEventListener("click", async () => {
   deleteConfirmBtn.disabled = true;
   try {
     const url = snapshotItem.type === "comment" ? `/social/comments/${snapshotItem.id}` : `/social/${snapshotItem.id}`;
-    await apiFetch(url, { method: "DELETE" });
+    const resp = await apiFetch(url, { method: "DELETE" });
     closeDeleteModal();
-    // remove the deleted item from the DOM in-place using the snapshot
-    if (snapshotItem.type === 'post') {
-      const el = document.getElementById(`post-${snapshotItem.id}`);
-      if (el && el.parentElement) el.parentElement.removeChild(el);
-    } else if (snapshotItem.type === 'comment') {
+    if (snapshotItem.type === "post") {
+      removePostCard(snapshotItem.id);
+    } else if (snapshotItem.type === "comment") {
+      const responsePostId = resp?.data?.post_id;
       const selector = `[data-comment-id='${snapshotItem.id}']`;
       const found = document.querySelector(selector);
-      if (found && found.parentElement) found.parentElement.removeChild(found);
-      // best-effort: decrement the comment count on the parent post
+      found?.remove();
       const postCard = snapshotTrigger?.closest ? snapshotTrigger.closest('article') : null;
-      if (postCard && postCard.id) {
-        const pid = postCard.id.replace('post-', '');
-        const countEl = document.getElementById(`post-comment-count-${pid}`);
-        if (countEl) {
-          const prev = parseInt((countEl.textContent || '0').replace(/\D/g, ''), 10) || 0;
-          const next = Math.max(0, prev - 1);
-          countEl.textContent = `${next} ${next === 1 ? 'comment' : 'comments'}`;
-        }
+      const postId = responsePostId || (postCard?.id ? postCard.id.replace("post-", "") : "");
+      if (postId) {
+        removeCommentFromCache(postId, snapshotItem.id);
+        updateCommentCount(postId, resp?.data?.comments_count ?? null);
       }
     }
   } catch (err) {
