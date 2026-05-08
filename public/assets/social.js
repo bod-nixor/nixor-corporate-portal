@@ -455,7 +455,10 @@ function openPostModal(post = null, trigger = document.activeElement) {
   existingImages = Array.isArray(post?.images) ? post.images.map((image) => ({ ...image })) : [];
   form?.reset();
   if (contentInput) contentInput.value = post?.content || "";
-  if (contentInput) syncMentionPublicIdsFromText(contentInput);
+  if (contentInput) {
+    seedMentionPublicIdsFromMeta(post, contentInput);
+    syncMentionPublicIdsFromText(contentInput);
+  }
   if (scopeSelect) {
     scopeSelect.value = modalFeed;
     scopeSelect.disabled = true;
@@ -484,6 +487,23 @@ function openPostModal(post = null, trigger = document.activeElement) {
   requestAnimationFrame(() => {
     modalCard?.focus();
     contentInput?.focus();
+  });
+}
+
+function seedMentionPublicIdsFromMeta(item, input) {
+  if (!input) return;
+  input._mentionPublicIdsByText ||= new Map();
+  input._mentionPublicIds ||= new Set();
+  const mentioned = Array.isArray(item?.mentioned_users) ? item.mentioned_users : Array.isArray(item?.mentioned) ? item.mentioned : [];
+  mentioned.forEach((u) => {
+    if (!u) return;
+    const name = u.full_name || u.name;
+    const pid = u.public_id || u.id;
+    if (name && pid) {
+      const mentionText = `@${name} `;
+      input._mentionPublicIdsByText.set(mentionText, pid);
+      input._mentionPublicIds.add(pid);
+    }
   });
 }
 
@@ -1081,6 +1101,7 @@ function startCommentEdit(comment, post, trigger) {
   input.className = "input-field py-2 text-sm flex-1";
   input.value = comment.comment || "";
   input.autocomplete = "off";
+  seedMentionPublicIdsFromMeta(comment, input);
   attachMentionAutocomplete(input);
   const save = document.createElement("button");
   save.type = "submit";

@@ -3,7 +3,30 @@ function handle_public(string $method, array $segments): void {
     $action = $segments[1] ?? '';
 
     if ($action === 'volunteer_posts' && $method === 'GET') {
-        $stmt = db()->query('SELECT vp.*, e.public_id AS endeavour_public_id, e.name AS endeavour_name, en.public_id AS entity_public_id, en.name AS entity_name FROM volunteer_posts vp JOIN endeavours e ON vp.endeavour_id = e.id JOIN entities en ON e.entity_id = en.id WHERE vp.published = 1 ORDER BY vp.published_at DESC LIMIT 20');
+        // Explicitly select public-facing columns to avoid leaking internal IDs
+        // or other sensitive fields. volunteer_posts does not expose a
+        // public_id column, so we only return safe/read-only fields.
+        $sql = 'SELECT
+                    vp.description AS summary,
+                    vp.eligibility_notes AS eligibility_notes,
+                    vp.venue AS location,
+                    vp.schedule AS schedule,
+                    vp.transport_payment AS transport_payment,
+                    vp.questionnaire_mode AS questionnaire_mode,
+                    vp.published AS published,
+                    vp.published_at AS published_at,
+                    vp.created_at AS created_at,
+                    e.public_id AS endeavour_public_id,
+                    e.name AS endeavour_name,
+                    en.public_id AS entity_public_id,
+                    en.name AS entity_name
+                FROM volunteer_posts vp
+                JOIN endeavours e ON vp.endeavour_id = e.id
+                JOIN entities en ON e.entity_id = en.id
+                WHERE vp.published = 1
+                ORDER BY vp.published_at DESC
+                LIMIT 20';
+        $stmt = db()->query($sql);
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
@@ -32,7 +55,9 @@ function handle_public(string $method, array $segments): void {
         }
         respond(['ok' => true, 'data' => [
             'id' => (int)$row['id'],
-            'public_id' => $row['public_id'] ?: public_id_for_row('endeavours', (int)$row['id']),
+            // Do not call the backfill helper during read; return existing value
+            // so reads do not mutate DB state.
+            'public_id' => $row['public_id'] ?: null,
             'entity_public_id' => $row['entity_public_id'] ?: null,
             'title' => $row['title'] ?: $row['name'],
             'description' => $row['description'],

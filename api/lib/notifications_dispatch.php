@@ -70,7 +70,20 @@ function create_platform_notification(int $userId, string $type, array $payload,
     $stmt = db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)');
     $stmt->execute([$userId, $type, json_encode($payload)]);
     $notificationId = (int)db()->lastInsertId();
-    queue_push_dispatch($notificationId);
+    // Only spawn the async delivery worker when push is configured and
+    // the target user actually has enabled device tokens for platform push.
+    try {
+        if (portal_notification_push_enabled($userId, $type) && push_provider_configured()) {
+            $countStmt = db()->prepare('SELECT COUNT(*) FROM push_device_tokens WHERE user_id = ? AND enabled = 1');
+            $countStmt->execute([$userId]);
+            $tokensCount = (int)$countStmt->fetchColumn();
+            if ($tokensCount > 0) {
+                queue_push_dispatch($notificationId);
+            }
+        }
+    } catch (Throwable $e) {
+        // Silently continue — notification record exists and delivery can be retried later
+    }
     return $notificationId;
 }
 
@@ -240,6 +253,16 @@ function portal_send_push_webhook(array $token, array $payload, string $urlKey =
     $secret = trim((string)env_value('PUSH_WEBHOOK_SECRET', ''));
     if ($secret !== '') {
         $headers .= 'X-NCP-Push-Signature: sha256=' . hash_hmac('sha256', (string)$body, $secret) . "\r\n";
+    }
+    // Support forwarding FCM server key when calling the FCM webhook relay so
+    // the relay can authenticate with FCM on our behalf. If the project
+    // prefers not to forward server key, remove FCM_SERVER_KEY from env.
+    if ($urlKey === 'FCM_WEBHOOK_URL') {
+        $fcmKey = trim((string)env_value('FCM_SERVER_KEY', ''));
+        if ($fcmKey !== '') {
+            // Include in Authorization header using the common FCM key format.
+            $headers .= 'Authorization: key=' . $fcmKey . "\r\n";
+        }
     }
     $context = stream_context_create([
         'http' => [

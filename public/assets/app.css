@@ -1628,7 +1628,6 @@
     line-height: calc(var(--spacing) * 7);
   }
   .leading-\[1\.05rem\] {
-
     --tw-leading: 1.05rem;
     line-height: 1.05rem;
   }
@@ -2907,7 +2906,6 @@ button, input, select, textarea {
   padding: 0.85rem;
 }
 .open-app-banner__text {
-
   min-width: 0;
   color: var(--text-primary);
   font-size: 0.9rem;

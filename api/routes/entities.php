@@ -59,7 +59,13 @@ function handle_entities(string $method, array $segments): void {
             }
             throw $e;
         }
-        $publicId = public_id_for_row('entities', $entityId) ?: generate_public_id('ent');
+        // Ensure a persisted public_id exists before saving any avatar to avoid
+        // transient mismatches between avatar filename and persisted public_id.
+        $publicId = public_id_for_row('entities', $entityId);
+        if (!$publicId) {
+            $publicId = generate_public_id('ent');
+            db()->prepare('UPDATE entities SET public_id = ? WHERE id = ?')->execute([$publicId, $entityId]);
+        }
         entity_save_avatar_if_present($entityId, $publicId);
         log_activity($user['id'], 'entity', $entityId, 'updated', 'Entity updated');
         respond(['ok' => true, 'data' => ['id' => $entityId, 'public_id' => public_id_for_row('entities', $entityId)]]);
@@ -70,17 +76,25 @@ function handle_entities(string $method, array $segments): void {
         if (!$entityId) {
             respond(['ok' => false, 'error' => 'Entity not found'], 404);
         }
+        // Read avatar path, then delete the DB row and only unlink if the
+        // row deletion actually removed a record. This avoids orphaning the
+        // delete in the DB while failing to remove the file, and prevents
+        // race conditions where the file is removed before confirming delete.
         $stmt = db()->prepare('SELECT avatar_path FROM entities WHERE id = ?');
         $stmt->execute([$entityId]);
         $avatarPath = trim((string)$stmt->fetchColumn());
-        if ($avatarPath !== '') {
-            $absoluteAvatarPath = resolve_upload_path($avatarPath);
-            if (is_file($absoluteAvatarPath)) {
-                @unlink($absoluteAvatarPath);
+        $del = db()->prepare('DELETE FROM entities WHERE id = ?');
+        $del->execute([$entityId]);
+        if ($del->rowCount() > 0) {
+            if ($avatarPath !== '') {
+                $absoluteAvatarPath = resolve_upload_path($avatarPath);
+                if (is_file($absoluteAvatarPath)) {
+                    @unlink($absoluteAvatarPath);
+                }
             }
+            log_activity($user['id'], 'entity', $entityId, 'deleted', 'Entity deleted');
+            respond(['ok' => true]);
         }
-        $stmt = db()->prepare('DELETE FROM entities WHERE id = ?');
-        $stmt->execute([$entityId]);
         log_activity($user['id'], 'entity', $entityId, 'deleted', 'Entity deleted');
         respond(['ok' => true]);
     }
