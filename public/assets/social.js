@@ -1,4 +1,4 @@
-import { apiFetch, getPublicBaseUrl, loadConfig, normalizeError } from "/assets/app.js";
+import { apiFetch, loadConfig, normalizeError } from "/assets/app.js";
 import { renderSidebar } from "/assets/sidebar.js";
 
 const MAX_IMAGES = 10;
@@ -92,6 +92,19 @@ const icons = {
   more: '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" d="M12 6.75h.01M12 12h.01M12 17.25h.01"></path></svg>',
   close: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M6 18L18 6M6 6l12 12"></path></svg>'
 };
+
+function getPublicBaseUrl() {
+  const configured = String(window.PUBLIC_BASE_URL || "https://ncp.nixorcorporate.com").replace(/\/+$/, "");
+  try {
+    const parsed = new URL(configured);
+    if (["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)) {
+      return "https://ncp.nixorcorporate.com";
+    }
+    return parsed.origin + parsed.pathname.replace(/\/+$/, "");
+  } catch (err) {
+    return "https://ncp.nixorcorporate.com";
+  }
+}
 
 function setStatus(message, ok = false) {
   if (!statusEl) return;
