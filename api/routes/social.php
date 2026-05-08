@@ -15,6 +15,37 @@ function handle_social(string $method, array $segments): void {
         ]);
     }
 
+    if ($method === 'GET' && $id === 'post' && $action) {
+        $postId = (int)$action;
+        if ($postId <= 0 || count($segments) !== 3) {
+            respond(['ok' => false, 'error' => 'Post not found'], 404);
+        }
+        $user = current_user();
+        $post = social_fetch_post($postId);
+        if (!$post) {
+            respond(['ok' => false, 'error' => 'Post not found'], 404);
+        }
+        $scope = $post['feed_scope'] ?? 'entity';
+        $entityId = (int)($post['entity_id'] ?? 0);
+        if ($scope !== 'global' && !$user) {
+            respond(['ok' => false, 'error' => 'Post not found'], 404);
+        }
+        if ($scope !== 'global') {
+            if ($entityId <= 0 || !social_can_view_entity_feed($user, $entityId)) {
+                respond(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
+        }
+        $detail = social_fetch_post_detail($postId, $user);
+        if (!$detail) {
+            respond(['ok' => false, 'error' => 'Post not found'], 404);
+        }
+        respond([
+            'ok' => true,
+            'data' => $detail,
+            'meta' => ['permissions' => social_feed_permissions($scope === 'global' ? 'global' : 'entity', $entityId ?: null, $user)]
+        ]);
+    }
+
     $user = require_auth();
 
     if ($method === 'GET' && !$id) {
@@ -430,6 +461,8 @@ function social_hydrate_posts(array $posts, ?array $user): array {
         $post['can_like'] = $post['can_interact'];
         $post['can_comment'] = $post['can_interact'];
         $post['can_manage'] = $user ? social_user_can_manage_record($user, $post, (int)$post['user_id']) : false;
+        $post['can_edit'] = $post['can_manage'];
+        $post['can_delete'] = $post['can_manage'];
         if (!$user && ($post['feed_scope'] ?? '') === 'global') {
             unset($post['user_id'], $post['entity_id'], $post['endeavour_id']);
         }

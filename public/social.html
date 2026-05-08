@@ -32,6 +32,20 @@
         </div>
       </header>
 
+      <section id="social-detail-view" class="social-detail-view hidden" aria-labelledby="social-detail-heading">
+        <div class="social-detail-topbar">
+          <button id="social-detail-back" type="button" class="btn btn-secondary">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back
+          </button>
+          <h2 id="social-detail-heading" class="text-sm font-bold uppercase text-[var(--text-tertiary)]">Post</h2>
+        </div>
+        <div id="social-detail-status" class="social-detail-status hidden" role="status" aria-live="polite"></div>
+        <div id="social-detail-content" class="social-detail-content"></div>
+      </section>
+
       <section class="social-feed-shell animate-fade-in" aria-labelledby="social-feed-heading">
         <div class="social-toolbar">
           <div class="social-feed-tabs" role="tablist" aria-label="Social feed scope">
