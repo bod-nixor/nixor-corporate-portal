@@ -257,7 +257,11 @@ if (typeof document !== 'undefined') {
       (async () => {
         try {
           if (isNativeRuntime()) {
-            await unregisterNativePushToken();
+            try {
+              await unregisterNativePushToken();
+            } catch (err) {
+              console.error('Failed to unregister native push token:', err);
+            }
             await apiFetch('/auth/mobile/logout', { method: 'POST', skipCsrf: true });
           } else {
             await apiFetch('/auth/logout', { method: 'POST' });

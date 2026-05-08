@@ -108,9 +108,21 @@ MOBILE_AUTH_REDIRECT_URI=ncp://auth/callback
 PUBLIC_BASE_URL=https://ncp.nixorcorporate.com
 APP_DEEP_LINK_SCHEME=ncp
 APP_UNIVERSAL_LINK_BASE=https://ncp.nixorcorporate.com
-IOS_APP_STORE_URL=https://example.com
-ANDROID_PLAY_STORE_URL=https://example.com
-SHOW_OPEN_APP_BANNER=true
+IOS_APP_STORE_URL=
+ANDROID_PLAY_STORE_URL=
+SHOW_OPEN_APP_BANNER=false
+PUSH_REGISTRATION_ENABLED=true
+PUSH_PROVIDER=webhook
+PUSH_WEBHOOK_URL=
+PUSH_WEBHOOK_SECRET=
+PUSH_ENABLED=true
+PUSH_VAPID_PUBLIC_KEY=
+PUSH_VAPID_PRIVATE_KEY=
+FCM_SERVER_KEY=
+FCM_WEBHOOK_URL=
+APNS_KEY=
+APNS_KEY_ID=
+APNS_TEAM_ID=
 ```
 
 If mobile Google login should create users on first verified-domain sign-in, set `GOOGLE_ALLOWED_DOMAIN` and explicitly enable `GOOGLE_AUTO_PROVISION=true`. Without that flag, Google login links to existing portal users only.

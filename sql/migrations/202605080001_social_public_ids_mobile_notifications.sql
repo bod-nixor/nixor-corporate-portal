@@ -1,3 +1,5 @@
+-- NOTE: This migration uses MariaDB-compatible IF NOT EXISTS clauses for column and index adds.
+-- It is intended for MariaDB deployments.
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS public_id VARCHAR(64) NULL AFTER id,
   ADD UNIQUE INDEX IF NOT EXISTS uniq_users_public_id (public_id);

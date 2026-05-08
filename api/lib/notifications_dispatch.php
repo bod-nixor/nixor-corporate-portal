@@ -70,8 +70,38 @@ function create_platform_notification(int $userId, string $type, array $payload,
     $stmt = db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)');
     $stmt->execute([$userId, $type, json_encode($payload)]);
     $notificationId = (int)db()->lastInsertId();
-    dispatch_push_for_notification($notificationId);
+    queue_push_dispatch($notificationId);
     return $notificationId;
+}
+
+function queue_push_dispatch(int $notificationId): void {
+    if ($notificationId <= 0) {
+        return;
+    }
+
+    $cronScript = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'cron' . DIRECTORY_SEPARATOR . 'run.php';
+    $phpBinary = PHP_BINARY ?: 'php';
+    $command = PHP_OS_FAMILY === 'Windows'
+        ? 'cmd /c start "" /B ' . escapeshellarg($phpBinary) . ' ' . escapeshellarg($cronScript) . ' push_notification_id=' . (int)$notificationId
+        : 'nohup ' . escapeshellarg($phpBinary) . ' ' . escapeshellarg($cronScript) . ' push_notification_id=' . (int)$notificationId . ' >/dev/null 2>&1 < /dev/null &';
+
+    $process = @proc_open($command, [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ], $pipes, dirname($cronScript));
+
+    if (is_resource($process)) {
+        foreach ($pipes as $pipe) {
+            fclose($pipe);
+        }
+        return;
+    }
+
+    error_log('Failed to queue push dispatch for notification_id=' . $notificationId);
+    register_shutdown_function(static function () use ($notificationId): void {
+        dispatch_push_for_notification($notificationId);
+    });
 }
 
 function push_provider_configured(): bool {
@@ -83,8 +113,7 @@ function push_provider_configured(): bool {
         return trim((string)env_value('PUSH_WEBHOOK_URL', '')) !== '';
     }
     if ($provider === 'fcm') {
-        return trim((string)env_value('FCM_SERVER_KEY', '')) !== ''
-            || trim((string)env_value('FCM_WEBHOOK_URL', '')) !== '';
+        return trim((string)env_value('FCM_WEBHOOK_URL', '')) !== '';
     }
     return false;
 }

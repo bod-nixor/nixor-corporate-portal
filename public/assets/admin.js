@@ -32,10 +32,29 @@ const entityInitials = (name) => String(name || 'Entity').trim().split(/\s+/).sl
 
 const renderEntityAvatar = (entity) => {
     if (entity.avatar_url) {
-        return `<img src="${entity.avatar_url}" alt="" class="w-9 h-9 rounded-full object-cover border border-[var(--border-strong)]" />`;
+        return `<img src="${entity.avatar_url}" alt="" class="w-9 h-9 rounded-full object-cover border border-[--border-strong]" />`;
     }
-    return `<div class="w-9 h-9 rounded-full bg-[var(--bg-surface-hover)] border border-[var(--border-strong)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)]">${entityInitials(entity.name)}</div>`;
+    return `<div class="w-9 h-9 rounded-full bg-[--bg-surface-hover] border border-[--border-strong] flex items-center justify-center text-xs font-bold text-[--text-secondary]">${entityInitials(entity.name)}</div>`;
 };
+
+const avatarInput = document.getElementById('modal-entity-avatar');
+if (avatarInput) {
+    const maxAvatarSize = 3 * 1024 * 1024;
+    avatarInput.addEventListener('change', () => {
+        const file = avatarInput.files?.[0] || null;
+        if (!file) {
+            avatarInput.setCustomValidity('');
+            return;
+        }
+        if (file.size > maxAvatarSize) {
+            avatarInput.value = '';
+            avatarInput.setCustomValidity('Profile image must be 3MB or smaller.');
+            avatarInput.reportValidity();
+            return;
+        }
+        avatarInput.setCustomValidity('');
+    });
+}
 
 const loadSummary = async () => {
     try {

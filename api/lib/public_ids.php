@@ -1,7 +1,9 @@
 <?php
 
-function public_id_prefix_for_table(string $table): string {
-    $map = [
+const DEFAULT_PUBLIC_HOST = 'ncp.nixorcorporate.com';
+
+function public_id_prefix_map(): array {
+    return [
         'users' => 'usr',
         'entities' => 'ent',
         'endeavours' => 'end',
@@ -12,21 +14,16 @@ function public_id_prefix_for_table(string $table): string {
         'social_comments' => 'cmt',
         'social_post_images' => 'img',
     ];
+}
+
+function public_id_prefix_for_table(string $table): string {
+    $map = public_id_prefix_map();
     return $map[$table] ?? 'pub';
 }
 
 function public_id_table_allowed(string $table): bool {
-    return in_array($table, [
-        'users',
-        'entities',
-        'endeavours',
-        'file_drive_items',
-        'calendar_events',
-        'dashboard_announcements',
-        'social_posts',
-        'social_comments',
-        'social_post_images',
-    ], true);
+    $map = public_id_prefix_map();
+    return array_key_exists($table, $map);
 }
 
 function generate_public_id(string $prefix): string {
@@ -122,20 +119,28 @@ function resolve_public_or_internal_id(string $table, $identifier): ?int {
 
 function public_url_base(): string {
     $configured = trim((string)env_value('PUBLIC_BASE_URL', ''));
+    $candidate = $configured !== '' ? $configured : trim((string)base_url());
+    $parts = $candidate !== '' ? parse_url($candidate) : false;
+
     if ($configured === '') {
-        $configured = trim((string)base_url());
+        $host = strtolower((string)($parts['host'] ?? ''));
+        if ($candidate === '' || $host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+            $candidate = 'https://' . DEFAULT_PUBLIC_HOST;
+            $parts = parse_url($candidate);
+        }
     }
-    if ($configured === '') {
-        $configured = 'https://ncp.nixorcorporate.com';
+
+    if (!is_array($parts)) {
+        return $candidate;
     }
-    $parts = parse_url($configured);
-    $host = strtolower((string)($parts['host'] ?? ''));
-    if ($host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
-        return 'https://ncp.nixorcorporate.com';
-    }
+
     $scheme = strtolower((string)($parts['scheme'] ?? 'https'));
     if (!in_array($scheme, ['http', 'https'], true)) {
         $scheme = 'https';
+    }
+    $host = (string)($parts['host'] ?? '');
+    if ($host === '') {
+        $host = DEFAULT_PUBLIC_HOST;
     }
     $path = isset($parts['path']) ? rtrim((string)$parts['path'], '/') : '';
     $port = isset($parts['port']) ? ':' . (int)$parts['port'] : '';

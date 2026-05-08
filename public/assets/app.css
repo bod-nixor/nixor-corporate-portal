@@ -1628,6 +1628,7 @@
     line-height: calc(var(--spacing) * 7);
   }
   .leading-\[1\.05rem\] {
+
     --tw-leading: 1.05rem;
     line-height: 1.05rem;
   }
@@ -2868,7 +2869,7 @@ button, input, select, textarea {
     left: auto;
     right: calc(1rem + var(--safe-area-right));
     justify-content: flex-end;
-    z-index: 62;
+    z-index: 50;
   }
   #global-notification-dropdown {
     position: fixed;
@@ -2891,7 +2892,7 @@ button, input, select, textarea {
   left: max(1rem, var(--safe-area-left));
   right: max(1rem, var(--safe-area-right));
   bottom: calc(1rem + var(--safe-area-bottom));
-  z-index: 80;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2906,6 +2907,7 @@ button, input, select, textarea {
   padding: 0.85rem;
 }
 .open-app-banner__text {
+
   min-width: 0;
   color: var(--text-primary);
   font-size: 0.9rem;

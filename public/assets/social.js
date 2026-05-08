@@ -155,7 +155,9 @@ function feedUrlForState(feed = activeFeed, entityId = entitySelect?.value || ""
 
 function postUrl(postOrId, commentOrId = null) {
   const post = typeof postOrId === "object" && postOrId ? postOrId : { id: postOrId, feed_scope: activeFeed, entity_id: entitySelect?.value };
-  const url = new URL("/social.html", getPublicBaseUrl());
+  const publicBaseUrl = getPublicBaseUrl();
+  const normalizedPublicBaseUrl = publicBaseUrl.endsWith("/") ? publicBaseUrl : `${publicBaseUrl}/`;
+  const url = new URL("social.html", normalizedPublicBaseUrl);
   url.searchParams.set("feed", post.feed_scope === "global" ? "global" : "entity");
   const entityPublicId = post.entity_public_id || (post.feed_scope !== "global" ? entitySelect?.value : "");
   if (post.feed_scope !== "global" && entityPublicId) {
@@ -453,7 +455,7 @@ function openPostModal(post = null, trigger = document.activeElement) {
   existingImages = Array.isArray(post?.images) ? post.images.map((image) => ({ ...image })) : [];
   form?.reset();
   if (contentInput) contentInput.value = post?.content || "";
-  if (contentInput) resetMentionPublicIds(contentInput);
+  if (contentInput) syncMentionPublicIdsFromText(contentInput);
   if (scopeSelect) {
     scopeSelect.value = modalFeed;
     scopeSelect.disabled = true;
@@ -884,8 +886,21 @@ function selectedMentionPublicIds(input) {
   return [...(input?._mentionPublicIds || new Set())];
 }
 
-function resetMentionPublicIds(input) {
-  if (input) input._mentionPublicIds = new Set();
+function syncMentionPublicIdsFromText(input) {
+  if (!input) return;
+  const mentionMap = input._mentionPublicIdsByText instanceof Map ? input._mentionPublicIdsByText : null;
+  if (!mentionMap) {
+    if (!input._mentionPublicIds) input._mentionPublicIds = new Set();
+    return;
+  }
+  const text = String(input.value || "");
+  const nextIds = new Set();
+  mentionMap.forEach((publicId, mentionText) => {
+    if (publicId && mentionText && text.includes(mentionText)) {
+      nextIds.add(publicId);
+    }
+  });
+  input._mentionPublicIds = nextIds;
 }
 
 function mentionSearchTerm(input) {
@@ -907,9 +922,10 @@ function closeMentionDropdown(input) {
 function attachMentionAutocomplete(input) {
   if (!input || input._mentionsReady) return;
   input._mentionsReady = true;
-  resetMentionPublicIds(input);
+  syncMentionPublicIdsFromText(input);
   let timer = 0;
   input.addEventListener("input", () => {
+    syncMentionPublicIdsFromText(input);
     clearTimeout(timer);
     const match = mentionSearchTerm(input);
     if (!match || match.term.length < 1) {
@@ -959,7 +975,9 @@ function renderMentionDropdown(input, suggestions, match) {
       const mentionText = `@${suggestion.full_name} `;
       input.value = `${current.before.slice(0, current.at)}${mentionText}${current.after}`;
       input._mentionPublicIds ||= new Set();
+      input._mentionPublicIdsByText ||= new Map();
       if (suggestion.public_id) input._mentionPublicIds.add(suggestion.public_id);
+      if (suggestion.public_id) input._mentionPublicIdsByText.set(mentionText, suggestion.public_id);
       closeMentionDropdown(input);
       input.focus();
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1433,7 +1451,7 @@ function renderPost(post, options = {}) {
           upsertCommentInCache(newComment);
           rerenderPostComments(post, detail);
           commentInput.value = "";
-          resetMentionPublicIds(commentInput);
+          syncMentionPublicIdsFromText(commentInput);
       } catch (err) {
         setStatus(normalizeError(err), false);
       } finally {

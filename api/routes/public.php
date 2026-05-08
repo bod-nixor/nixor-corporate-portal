@@ -19,7 +19,7 @@ function handle_public(string $method, array $segments): void {
         $stmt = db()->prepare(
             'SELECT e.id, e.public_id, e.name, e.title, e.description, e.long_description, e.start_at, e.end_at,
                     e.event_start_at, e.event_end_at, e.venue, e.volunteering_enabled,
-                    e.volunteer_signup_deadline, e.transport_fee_enabled, e.transport_fee_amount,
+                    e.volunteer_registration_deadline, e.transport_fee_required, e.transport_fee_amount,
                     en.public_id AS entity_public_id, en.name AS entity_name
              FROM endeavours e
              JOIN entities en ON en.id = e.entity_id
@@ -41,8 +41,8 @@ function handle_public(string $method, array $segments): void {
             'venue' => $row['venue'],
             'start_at' => $row['event_start_at'] ?: $row['start_at'],
             'end_at' => $row['event_end_at'] ?: $row['end_at'],
-            'volunteer_signup_deadline' => $row['volunteer_signup_deadline'],
-            'transport_fee_enabled' => (bool)$row['transport_fee_enabled'],
+            'volunteer_registration_deadline' => $row['volunteer_registration_deadline'],
+            'transport_fee_required' => (bool)$row['transport_fee_required'],
             'transport_fee_amount' => $row['transport_fee_amount'],
         ]]);
     }

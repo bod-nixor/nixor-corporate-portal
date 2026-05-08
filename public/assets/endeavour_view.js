@@ -6,6 +6,7 @@ document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_e
 const params = new URLSearchParams(window.location.search);
 const nameEl = document.getElementById('endeavour-name');
 const id = params.get('e') || params.get('endeavour_public_id') || params.get('id');
+const encodedId = encodeURIComponent(id || '');
 
 const initEndeavourView = () => {
   if (!nameEl) return;
@@ -49,7 +50,7 @@ const initEndeavourView = () => {
       return;
     }
     try {
-      const { data } = await apiFetch(`/endeavours/${id}`);
+      const { data } = await apiFetch(`/endeavours/${encodedId}`);
       const endeavour = data?.endeavour;
       if (!endeavour) {
         console.error('Endeavour data not found for id:', id);
@@ -163,7 +164,7 @@ const initEndeavourView = () => {
             const originalText = publishBtn.textContent;
             publishBtn.textContent = 'Publishing...';
             try {
-              await apiFetch(`/endeavours/${id}/publish_post`, { method: 'POST', body: JSON.stringify({ post_id: post.id }) });
+              await apiFetch(`/endeavours/${encodedId}/publish_post`, { method: 'POST', body: JSON.stringify({ post_id: post.id }) });
               loadEndeavour();
             } catch (err) {
               setStatus(actionStatus, normalizeError(err) || 'Publish failed', false);
@@ -213,7 +214,7 @@ const initEndeavourView = () => {
             const originalText = shortlistBtn.textContent;
             shortlistBtn.textContent = '...';
             try {
-              await apiFetch(`/endeavours/${id}/shortlist`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
+              await apiFetch(`/endeavours/${encodedId}/shortlist`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
               loadEndeavour();
             } catch (err) {
               setStatus(actionStatus, normalizeError(err) || 'Shortlist failed', false);
@@ -230,7 +231,7 @@ const initEndeavourView = () => {
             const originalText = consentBtn.textContent;
             consentBtn.textContent = '...';
             try {
-              await apiFetch(`/endeavours/${id}/consent/request`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
+              await apiFetch(`/endeavours/${encodedId}/consent/request`, { method: 'POST', body: JSON.stringify({ application_id: app.id }) });
               loadEndeavour();
             } catch (err) {
               setStatus(actionStatus, normalizeError(err) || 'Consent request failed', false);
@@ -279,7 +280,7 @@ const initEndeavourView = () => {
             savePaymentBtn.disabled = true;
             savePaymentBtn.textContent = '...';
             try {
-              await apiFetch(`/endeavours/${id}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef }) });
+              await apiFetch(`/endeavours/${encodedId}/payment/mark_paid`, { method: 'POST', body: JSON.stringify({ application_id: app.id, receipt_ref: receiptRef }) });
               await loadEndeavour();
               receiptInput.value = '';
               paymentForm.classList.add('hidden');
@@ -298,7 +299,7 @@ const initEndeavourView = () => {
             const originalText = attendanceBtn.textContent;
             attendanceBtn.textContent = '...';
             try {
-              await apiFetch(`/endeavours/${id}/attendance/mark`, { method: 'POST', body: JSON.stringify({ application_id: app.id, status: 'present' }) });
+              await apiFetch(`/endeavours/${encodedId}/attendance/mark`, { method: 'POST', body: JSON.stringify({ application_id: app.id, status: 'present' }) });
               loadEndeavour();
             } catch (err) {
               setStatus(actionStatus, normalizeError(err) || 'Attendance update failed', false);
@@ -363,7 +364,7 @@ const initEndeavourView = () => {
     approvalForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
-        await apiFetch(`/endeavours/${id}/approve`, {
+        await apiFetch(`/endeavours/${encodedId}/approve`, {
           method: 'POST',
           body: JSON.stringify({
             decision: approvalForm.decision.value,
@@ -402,7 +403,7 @@ const initEndeavourView = () => {
         return;
       }
       try {
-        await apiFetch(`/endeavours/${id}/${endpoint}`, {
+        await apiFetch(`/endeavours/${encodedId}/${endpoint}`, {
           method: 'POST',
           body: formData
         });
@@ -420,7 +421,7 @@ const initEndeavourView = () => {
       event.preventDefault();
       const payload = Object.fromEntries(new FormData(postForm).entries());
       try {
-        await apiFetch(`/endeavours/${id}/request_post_to_feed`, { method: 'POST', body: JSON.stringify(payload) });
+        await apiFetch(`/endeavours/${encodedId}/request_post_to_feed`, { method: 'POST', body: JSON.stringify(payload) });
         setStatus(postStatus, 'Volunteer post requested.', true);
         postForm.reset();
         loadEndeavour();

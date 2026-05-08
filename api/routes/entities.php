@@ -70,6 +70,15 @@ function handle_entities(string $method, array $segments): void {
         if (!$entityId) {
             respond(['ok' => false, 'error' => 'Entity not found'], 404);
         }
+        $stmt = db()->prepare('SELECT avatar_path FROM entities WHERE id = ?');
+        $stmt->execute([$entityId]);
+        $avatarPath = trim((string)$stmt->fetchColumn());
+        if ($avatarPath !== '') {
+            $absoluteAvatarPath = resolve_upload_path($avatarPath);
+            if (is_file($absoluteAvatarPath)) {
+                @unlink($absoluteAvatarPath);
+            }
+        }
         $stmt = db()->prepare('DELETE FROM entities WHERE id = ?');
         $stmt->execute([$entityId]);
         log_activity($user['id'], 'entity', $entityId, 'deleted', 'Entity deleted');

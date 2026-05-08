@@ -5,9 +5,14 @@ function handle_drive(string $method, array $segments): void {
 
     if ($method === 'GET' && $action === 'list') {
         $entityId = (int)($_GET['entity_id'] ?? 0);
-        $parentId = isset($_GET['parent_id']) && $_GET['parent_id'] !== '' ? drive_resolve_item_id($_GET['parent_id']) : null;
         if ($entityId <= 0) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
+        }
+
+        $parentIdRaw = $_GET['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
         }
 
         drive_assert_entity_context_access($user, $entityId);
@@ -208,7 +213,12 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
 
         $name = drive_validate_name((string)($data['name'] ?? 'New Folder'));
-        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? drive_resolve_item_id($data['parent_id']) : null, $entityId);
+        $parentIdRaw = $data['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
+        }
+        $parent = drive_assert_manageable_parent($user, $parentId, $entityId);
         $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
 
@@ -234,7 +244,12 @@ function handle_drive(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'File too large'], 400);
         }
 
-        $parent = drive_assert_manageable_parent($user, isset($_POST['parent_id']) ? drive_resolve_item_id($_POST['parent_id']) : null, $entityId);
+        $parentIdRaw = $_POST['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
+        }
+        $parent = drive_assert_manageable_parent($user, $parentId, $entityId);
         $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($_POST['sharing_scope'] ?? 'entity'));
 
@@ -256,7 +271,12 @@ function handle_drive(string $method, array $segments): void {
         drive_assert_entity_context_access($user, $entityId);
         $name = drive_validate_name((string)($data['name'] ?? ''));
         $url = drive_validate_url((string)($data['url'] ?? ''));
-        $parent = drive_assert_manageable_parent($user, isset($data['parent_id']) ? drive_resolve_item_id($data['parent_id']) : null, $entityId);
+        $parentIdRaw = $data['parent_id'] ?? null;
+        $parentId = $parentIdRaw !== null && trim((string)$parentIdRaw) !== '' ? drive_resolve_item_id($parentIdRaw) : null;
+        if ($parentIdRaw !== null && trim((string)$parentIdRaw) !== '' && !$parentId) {
+            respond(['ok' => false, 'error' => 'Parent folder not found'], 404);
+        }
+        $parent = drive_assert_manageable_parent($user, $parentId, $entityId);
         $parentId = $parent ? (int)$parent['id'] : null;
         $sharingScope = drive_validate_sharing_scope((string)($data['sharing_scope'] ?? 'entity'));
         $mimeType = drive_detect_link_mime($url);
