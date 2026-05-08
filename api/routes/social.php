@@ -27,10 +27,10 @@ function handle_social(string $method, array $segments): void {
         }
         $scope = $post['feed_scope'] ?? 'entity';
         $entityId = (int)($post['entity_id'] ?? 0);
+        if ($scope !== 'global' && !$user) {
+            respond(['ok' => false, 'error' => 'Post not found'], 404);
+        }
         if ($scope !== 'global') {
-            if (!$user) {
-                respond(['ok' => false, 'error' => 'Authentication required'], 401);
-            }
             if ($entityId <= 0 || !social_can_view_entity_feed($user, $entityId)) {
                 respond(['ok' => false, 'error' => 'Forbidden'], 403);
             }

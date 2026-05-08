@@ -152,6 +152,10 @@ function loginUrlForFeed(feed = activeFeed) {
   return `/login.html?next=${encodeURIComponent(next)}`;
 }
 
+function loginUrlForPost(postOrId) {
+  return `/login.html?next=${encodeURIComponent(postUrl(postOrId))}`;
+}
+
 function publicGlobalMode() {
   return activeFeed === "global" && !isAuthenticated;
 }
@@ -172,13 +176,13 @@ function renderPublicShell() {
   sidebarMount?.remove();
 }
 
-function promptSignIn(action = "continue") {
+function promptSignIn(action = "continue", nextUrl = loginUrlForFeed("global")) {
   if (feedNotice) {
     feedNotice.textContent = `Sign in to ${action}.`;
     feedNotice.classList.remove("hidden");
   }
   if (signInButton) {
-    signInButton.href = loginUrlForFeed("global");
+    signInButton.href = nextUrl;
     signInButton.classList.remove("hidden");
   }
 }
@@ -512,7 +516,8 @@ function buildMenuItem(label, icon, handler, options = {}) {
     event.preventDefault();
     event.stopPropagation();
     closePostActionMenus();
-    handler(item);
+    const overflowButtonElement = item.closest(".social-post-menu-wrap")?.querySelector(".social-post-menu-button");
+    handler(overflowButtonElement || item);
   });
   return item;
 }
@@ -1096,7 +1101,10 @@ async function openPostDetail(postId, options = {}) {
     let message = "Post not found.";
     if (status === 401) {
       message = "Sign in to view this post.";
-      promptSignIn("view this post");
+      const nextUrl = loginUrlForPost(id);
+      promptSignIn("view this post", nextUrl);
+      window.location.replace(nextUrl);
+      return;
     } else if (status === 403) {
       message = "You do not have access to this post.";
     }
