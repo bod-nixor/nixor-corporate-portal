@@ -123,6 +123,12 @@ function queue_push_dispatch(int $notificationId): void {
     }
 
     error_log('Failed to queue push dispatch for notification_id=' . $notificationId);
+    // If proc_open fails we fall back to a synchronous dispatch at shutdown.
+    // Note: on CLI or non-FPM SAPIs `fastcgi_finish_request()` will not exist
+    // and the worker will block until `dispatch_push_for_notification()`
+    // completes. This is intentional: the fallback ensures delivery when the
+    // async queue cannot be invoked. See: queue_push_dispatch, proc_open,
+    // register_shutdown_function, fastcgi_finish_request, dispatch_push_for_notification.
     register_shutdown_function(static function () use ($notificationId): void {
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
@@ -281,18 +287,40 @@ function portal_send_push_webhook(array $token, array $payload, string $urlKey =
             $headers .= 'Authorization: key=' . $fcmKey . "\r\n";
         }
     }
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'POST',
-            'header' => $headers,
-            'content' => $body,
-            'timeout' => 5,
-            'ignore_errors' => true,
-        ],
-    ]);
-    $result = @file_get_contents($url, false, $context);
-    $statusLine = isset($http_response_header) && is_array($http_response_header) && isset($http_response_header[0]) ? $http_response_header[0] : '';
-    if (!preg_match('/\s2\d\d\s/', $statusLine)) {
+    // Prefer cURL when available (gives explicit connect timeout control).
+    if (!ini_get('allow_url_fopen') && !function_exists('curl_version')) {
+        throw new RuntimeException('Cannot send push webhook: allow_url_fopen is disabled and cURL is not available.');
+    }
+
+    if (function_exists('curl_version')) {
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array_filter(array_map('trim', explode("\r\n", $headers))));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_FAILONERROR, false);
+        $result = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $statusLine = $httpCode ? 'HTTP/1.1 ' . (int)$httpCode : '';
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => $headers,
+                'content' => $body,
+                'timeout' => 5,
+                'ignore_errors' => true,
+            ],
+        ]);
+        $result = @file_get_contents($url, false, $context);
+        $statusLine = isset($http_response_header) && is_array($http_response_header) && isset($http_response_header[0]) ? $http_response_header[0] : '';
+    }
+
+    // Accept 2xx codes; allow end-of-string after the numeric code.
+    if (!preg_match('/\s(\d{3})(?:\s|$)/', $statusLine, $m) || (int)$m[1] < 200 || (int)$m[1] > 299) {
         $snippet = is_string($result) ? trim(substr($result, 0, 256)) : '';
         $status = trim($statusLine);
         throw new RuntimeException('Push webhook request failed: ' . $status . ' ' . $snippet);

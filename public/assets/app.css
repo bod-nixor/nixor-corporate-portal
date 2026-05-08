@@ -1643,7 +1643,7 @@
     --tw-leading: var(--leading-tight);
     line-height: var(--leading-tight);
   }
-  .font-bold {
+  
     --tw-font-weight: var(--font-weight-bold);
     font-weight: var(--font-weight-bold);
   }
