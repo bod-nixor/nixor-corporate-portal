@@ -109,8 +109,8 @@
         card.appendChild(desc);
         card.appendChild(meta);
         const loginLink = document.createElement('a');
-        const endeavourId = post.endeavour_id || post.id || '';
-        loginLink.href = `/volunteer_detail.html?endeavour_id=${encodeURIComponent(endeavourId)}`;
+        const endeavourId = post.endeavour_public_id || post.endeavour_id || post.id || '';
+        loginLink.href = `/volunteer_detail.html?e=${encodeURIComponent(endeavourId)}`;
         loginLink.className = 'mt-6 bg-[var(--color-primary)] text-[var(--bg-base)] hover:bg-[var(--color-primary-hover)] transition-colors text-sm px-4 py-2 rounded-xl text-center';
         loginLink.textContent = 'View Volunteer Details';
         card.appendChild(loginLink);

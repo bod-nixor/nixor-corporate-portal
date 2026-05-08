@@ -8,13 +8,17 @@ function handle_files(string $method, array $segments): void {
         respond(['ok' => false, 'error' => 'Not Found'], 404);
     }
     $type = $_GET['type'] ?? '';
-    $id = (int)($_GET['id'] ?? 0);
-    if (!$type || $id <= 0) {
+    $rawId = $_GET['id'] ?? '';
+    if (!$type || trim((string)$rawId) === '') {
         respond(['ok' => false, 'error' => 'type and id required'], 400);
     }
 
     if ($type === 'drive') {
         $user = require_auth();
+        $id = resolve_public_or_internal_id('file_drive_items', $rawId);
+        if (!$id) {
+            respond(['ok' => false, 'error' => 'File not found'], 404);
+        }
         $stmt = db()->prepare('SELECT * FROM file_drive_items WHERE id = ? AND item_type = "file"');
         $stmt->execute([$id]);
         $item = $stmt->fetch();
@@ -24,6 +28,10 @@ function handle_files(string $method, array $segments): void {
         drive_assert_can_view_item($user, $item);
         stream_download(resolve_upload_path($item['file_path']), $item['name']);
     } elseif ($type === 'social_image') {
+        $id = resolve_public_or_internal_id('social_post_images', $rawId);
+        if (!$id) {
+            respond(['ok' => false, 'error' => 'Image not found'], 404);
+        }
         $stmt = db()->prepare(
             'SELECT spi.*, sp.feed_scope, sp.entity_id
              FROM social_post_images spi
@@ -46,8 +54,24 @@ function handle_files(string $method, array $segments): void {
             }
         }
         stream_inline_upload(resolve_upload_path($row['storage_path']), $row['original_name'] ?: 'social-image', $row['mime_type'] ?: 'application/octet-stream');
+    } elseif ($type === 'entity_avatar') {
+        $id = resolve_public_or_internal_id('entities', $rawId);
+        if (!$id) {
+            respond(['ok' => false, 'error' => 'Entity image not found'], 404);
+        }
+        $stmt = db()->prepare('SELECT name, avatar_path, avatar_mime_type, avatar_original_name FROM entities WHERE id = ?');
+        $stmt->execute([$id]);
+        $row = $stmt->fetch();
+        if (!$row || empty($row['avatar_path'])) {
+            respond(['ok' => false, 'error' => 'Entity image not found'], 404);
+        }
+        stream_inline_upload(resolve_upload_path($row['avatar_path']), $row['avatar_original_name'] ?: (($row['name'] ?? 'entity') . '-avatar'), $row['avatar_mime_type'] ?: 'application/octet-stream');
     } elseif ($type === 'endeavour_submission') {
         $user = require_auth();
+        $id = (int)$rawId;
+        if ($id <= 0) {
+            respond(['ok' => false, 'error' => 'Submission not found'], 404);
+        }
         $stmt = db()->prepare(
             'SELECT es.*, e.entity_id, f.name, f.file_path, f.item_type, f.sharing_scope, f.created_by, f.entity_id AS file_entity_id
              FROM endeavour_submissions es
@@ -71,6 +95,10 @@ function handle_files(string $method, array $segments): void {
         stream_download(resolve_upload_path($row['file_path']), $row['name'] ?: 'submission');
     } elseif ($type === 'calendar_minutes') {
         $user = require_auth();
+        $id = (int)$rawId;
+        if ($id <= 0) {
+            respond(['ok' => false, 'error' => 'Meeting minutes not found'], 404);
+        }
         $stmt = db()->prepare(
             'SELECT cmm.*, c.entity_id AS event_entity_id, f.name, f.file_path
              FROM calendar_meeting_minutes cmm
@@ -102,6 +130,10 @@ function handle_files(string $method, array $segments): void {
         stream_download(resolve_upload_path($row['file_path']), $row['name'] ?: 'meeting-minutes');
     } elseif ($type === 'endeavour_document') {
         $user = require_auth();
+        $id = (int)$rawId;
+        if ($id <= 0) {
+            respond(['ok' => false, 'error' => 'Document not found'], 404);
+        }
         $stmt = db()->prepare('SELECT ed.*, e.entity_id FROM endeavour_documents ed JOIN endeavours e ON ed.endeavour_id = e.id WHERE ed.id = ?');
         $stmt->execute([$id]);
         $doc = $stmt->fetch();

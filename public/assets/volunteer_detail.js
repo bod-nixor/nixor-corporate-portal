@@ -1,7 +1,7 @@
-import { apiFetch } from '/assets/app.js';
+import { apiFetch, getPublicBaseUrl, loadConfig } from '/assets/app.js';
 
 const params = new URLSearchParams(window.location.search);
-const id = params.get('endeavour_id') || params.get('id') || '';
+const id = params.get('e') || params.get('endeavour_public_id') || params.get('endeavour_id') || params.get('id') || '';
 const loading = document.getElementById('detail-loading');
 const content = document.getElementById('detail-content');
 const errorEl = document.getElementById('detail-error');
@@ -20,7 +20,7 @@ async function loadDetail() {
   if (!id) {
     throw new Error('Volunteer opportunity not found.');
   }
-  const response = await apiFetch(`/public/volunteer_detail?endeavour_id=${encodeURIComponent(id)}`, { skipCsrf: true });
+  const response = await apiFetch(`/public/volunteer_detail?e=${encodeURIComponent(id)}`, { skipCsrf: true });
   const row = response?.data || {};
   setText('detail-entity', row.entity_name);
   setText('detail-title', row.title);
@@ -30,14 +30,16 @@ async function loadDetail() {
   setText('detail-deadline', fmt(row.volunteer_signup_deadline));
   setText('detail-transport', row.transport_fee_enabled ? `Transport fee: ${row.transport_fee_amount || 'configured'}` : 'No transport fee listed');
   if (loginRegister) {
-    loginRegister.href = `/login.html?next=${encodeURIComponent(`/endeavours.html?endeavour_id=${id}`)}`;
+    loginRegister.href = `/login.html?next=${encodeURIComponent(`/endeavours.html?e=${row.public_id || id}`)}`;
   }
   loading.classList.add('hidden');
   content.classList.remove('hidden');
+  return row;
 }
 
 copyBtn?.addEventListener('click', async () => {
-  const url = window.location.href;
+  const publicId = copyBtn.dataset.publicId || id;
+  const url = `${getPublicBaseUrl()}/volunteer_detail.html?e=${encodeURIComponent(publicId)}`;
   try {
     await navigator.clipboard.writeText(url);
     copyStatus.textContent = 'Link copied.';
@@ -48,7 +50,9 @@ copyBtn?.addEventListener('click', async () => {
   }
 });
 
-loadDetail().catch((err) => {
+loadConfig().then(loadDetail).then((row) => {
+  copyBtn && (copyBtn.dataset.publicId = row?.public_id || params.get('e') || params.get('endeavour_public_id') || id);
+}).catch((err) => {
   loading.classList.add('hidden');
   errorEl.textContent = err?.message || 'Unable to load volunteer opportunity.';
   errorEl.classList.remove('hidden');

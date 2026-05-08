@@ -5,14 +5,10 @@ document.getElementById('sidebar-container').outerHTML = renderSidebar('entity_e
 
 const params = new URLSearchParams(window.location.search);
 const nameEl = document.getElementById('endeavour-name');
-const id = params.get('id');
+const id = params.get('e') || params.get('endeavour_public_id') || params.get('id');
 
 const initEndeavourView = () => {
   if (!nameEl) return;
-  if (id && !/^\d+$/.test(id)) {
-    nameEl.textContent = 'Invalid endeavour ID';
-    return;
-  }
   const statusEl = document.getElementById('endeavour-status');
   const metaEl = document.getElementById('endeavour-meta');
   const timelineList = document.getElementById('timeline-list');

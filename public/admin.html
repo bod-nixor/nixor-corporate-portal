@@ -91,8 +91,10 @@
               <thead
                 class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
                 <tr>
+                  <th class="px-6 py-3">Profile</th>
                   <th class="px-6 py-3">Name</th>
                   <th class="px-6 py-3 w-1/2">Description</th>
+                  <th class="px-6 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody id="entities-list"
@@ -255,11 +257,16 @@
           <textarea id="modal-entity-description" name="description" rows="3"
             placeholder="Description of the entity goals and function" class="input-field resize-y"></textarea>
         </div>
+        <div class="space-y-1.5">
+          <label for="modal-entity-avatar" class="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Profile image</label>
+          <input id="modal-entity-avatar" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" class="input-field font-medium" />
+          <p class="text-xs text-[var(--text-tertiary)] font-medium">JPG, PNG, or WebP. 3MB max.</p>
+        </div>
         <div id="entity-status"
           class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
         <div class="flex justify-end pt-4 border-t border-[var(--border-subtle)] gap-3 mt-6">
           <button id="entity-cancel" type="button" class="btn btn-ghost px-5">Cancel</button>
-          <button type="submit" class="btn btn-primary px-8">Create Entity</button>
+          <button id="entity-submit" type="submit" class="btn btn-primary px-8">Create Entity</button>
         </div>
       </form>
     </div>

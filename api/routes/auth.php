@@ -975,15 +975,15 @@ function find_or_create_google_user(array $tokenInfo): array {
         $pictureUrl = google_profile_picture_url($tokenInfo);
         $insert = $pdo->prepare(
             auth_users_has_google_picture_column()
-                ? 'INSERT INTO users (email, password_hash, full_name, google_id, google_picture_url, global_role, status, email_verified_at)
-                   VALUES (?, NULL, ?, ?, ?, ?, ?, UTC_TIMESTAMP())'
-                : 'INSERT INTO users (email, password_hash, full_name, google_id, global_role, status, email_verified_at)
-                   VALUES (?, NULL, ?, ?, ?, ?, UTC_TIMESTAMP())'
+                ? 'INSERT INTO users (public_id, email, password_hash, full_name, google_id, google_picture_url, global_role, status, email_verified_at)
+                   VALUES (?, ?, NULL, ?, ?, ?, ?, ?, UTC_TIMESTAMP())'
+                : 'INSERT INTO users (public_id, email, password_hash, full_name, google_id, global_role, status, email_verified_at)
+                   VALUES (?, ?, NULL, ?, ?, ?, ?, UTC_TIMESTAMP())'
         );
         try {
             $insert->execute(auth_users_has_google_picture_column()
-                ? [$email, $fullName, $googleId, $pictureUrl, 'volunteer', 'active']
-                : [$email, $fullName, $googleId, 'volunteer', 'active']);
+                ? [generate_public_id('usr'), $email, $fullName, $googleId, $pictureUrl, 'volunteer', 'active']
+                : [generate_public_id('usr'), $email, $fullName, $googleId, 'volunteer', 'active']);
         } catch (PDOException $e) {
             if ($e->getCode() !== '23000') {
                 throw $e;

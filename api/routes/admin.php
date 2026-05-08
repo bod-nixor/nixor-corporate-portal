@@ -237,8 +237,8 @@ function handle_setup(): void {
     try {
         if (!$existingAdmin) {
             $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, 'admin')");
-            $stmt->execute([$email, $hash, $fullName]);
+            $stmt = $pdo->prepare("INSERT INTO users (public_id, email, password_hash, full_name, global_role) VALUES (?, ?, ?, ?, 'admin')");
+            $stmt->execute([generate_public_id('usr'), $email, $hash, $fullName]);
             $adminId = (int)$pdo->lastInsertId();
             log_activity($adminId, 'user', $adminId, 'created', 'Initial admin created');
         }

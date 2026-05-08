@@ -3,7 +3,7 @@ function handle_public(string $method, array $segments): void {
     $action = $segments[1] ?? '';
 
     if ($action === 'volunteer_posts' && $method === 'GET') {
-        $stmt = db()->query('SELECT vp.*, e.name AS endeavour_name, en.name AS entity_name FROM volunteer_posts vp JOIN endeavours e ON vp.endeavour_id = e.id JOIN entities en ON e.entity_id = en.id WHERE vp.published = 1 ORDER BY vp.published_at DESC LIMIT 20');
+        $stmt = db()->query('SELECT vp.*, e.public_id AS endeavour_public_id, e.name AS endeavour_name, en.public_id AS entity_public_id, en.name AS entity_name FROM volunteer_posts vp JOIN endeavours e ON vp.endeavour_id = e.id JOIN entities en ON e.entity_id = en.id WHERE vp.published = 1 ORDER BY vp.published_at DESC LIMIT 20');
         respond(['ok' => true, 'data' => $stmt->fetchAll()]);
     }
 
@@ -11,15 +11,16 @@ function handle_public(string $method, array $segments): void {
         if (!rate_limit('volunteer_detail', 60, 600)) {
             respond(['ok' => false, 'error' => 'Too many requests'], 429);
         }
-        $endeavourId = (int)($_GET['endeavour_id'] ?? ($_GET['id'] ?? 0));
-        if ($endeavourId <= 0) {
+        $rawEndeavourId = $_GET['e'] ?? ($_GET['endeavour_public_id'] ?? ($_GET['endeavour_id'] ?? ($_GET['id'] ?? '')));
+        $endeavourId = resolve_public_or_internal_id('endeavours', $rawEndeavourId);
+        if (!$endeavourId) {
             respond(['ok' => false, 'error' => 'endeavour_id required'], 400);
         }
         $stmt = db()->prepare(
-            'SELECT e.id, e.name, e.title, e.description, e.long_description, e.start_at, e.end_at,
+            'SELECT e.id, e.public_id, e.name, e.title, e.description, e.long_description, e.start_at, e.end_at,
                     e.event_start_at, e.event_end_at, e.venue, e.volunteering_enabled,
                     e.volunteer_signup_deadline, e.transport_fee_enabled, e.transport_fee_amount,
-                    en.name AS entity_name
+                    en.public_id AS entity_public_id, en.name AS entity_name
              FROM endeavours e
              JOIN entities en ON en.id = e.entity_id
              WHERE e.id = ? AND e.volunteering_enabled = 1'
@@ -31,6 +32,8 @@ function handle_public(string $method, array $segments): void {
         }
         respond(['ok' => true, 'data' => [
             'id' => (int)$row['id'],
+            'public_id' => $row['public_id'] ?: public_id_for_row('endeavours', (int)$row['id']),
+            'entity_public_id' => $row['entity_public_id'] ?: null,
             'title' => $row['title'] ?: $row['name'],
             'description' => $row['description'],
             'long_description' => $row['long_description'],

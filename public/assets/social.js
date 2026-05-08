@@ -1,4 +1,4 @@
-import { apiFetch, normalizeError } from "/assets/app.js";
+import { apiFetch, getPublicBaseUrl, loadConfig, normalizeError } from "/assets/app.js";
 import { renderSidebar } from "/assets/sidebar.js";
 
 const MAX_IMAGES = 10;
@@ -23,6 +23,7 @@ const detailContent = document.getElementById("social-detail-content");
 const openPostModalBtn = document.getElementById("open-post-modal");
 const signInButton = document.getElementById("social-signin-button");
 const feedNotice = document.getElementById("social-feed-notice");
+const copyLive = document.getElementById("social-copy-live");
 const newPostLabel = document.getElementById("new-post-label");
 const postModal = document.getElementById("post-modal");
 const modalCard = postModal?.querySelector(".social-modal-card");
@@ -31,6 +32,8 @@ const postModalTitle = document.getElementById("post-modal-title");
 const postModalDesc = document.getElementById("post-modal-desc");
 const form = document.getElementById("social-form");
 const scopeSelect = document.getElementById("social-scope");
+const postAsWrap = document.getElementById("social-post-as-wrap");
+const postAsSelect = document.getElementById("social-post-as");
 const contentInput = document.getElementById("social-content");
 const imageInput = document.getElementById("social-images");
 const imagePreview = document.getElementById("social-image-preview");
@@ -50,6 +53,7 @@ if (postModal && postModal.parentElement !== document.body) {
 
 let activeFeed = initialParams.get("feed") === "global" ? "global" : "entity";
 let commentsByPost = new Map();
+let postsById = new Map();
 let selectedImages = [];
 let existingImages = [];
 let editingPost = null;
@@ -61,8 +65,12 @@ let lockedScrollY = 0;
 let currentUser = null;
 let isAuthenticated = false;
 let currentDetailPostId = 0;
+let currentDetailPostKey = "";
 let isShowingPostDetail = false;
 let lastFeedUrl = "";
+let pendingCommentKey = new URLSearchParams(window.location.search).get("c") || new URLSearchParams(window.location.search).get("comment") || "";
+const expandedReplyThreads = new Set();
+let mentionAbort = null;
 let currentFeedPermissions = {
   scope: activeFeed,
   can_view: false,
@@ -77,6 +85,8 @@ const icons = {
   like: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 9V5a3 3 0 00-6 0v4M5 21h11.2a2 2 0 001.94-1.52l1.5-6A2 2 0 0017.7 11H13l.55-2.2A2.25 2.25 0 0011.36 6H10M5 21V9H3v12h2z"></path></svg>',
   comment: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h8M8 14h5m8-2a8 8 0 11-4.68-7.28L21 4l-1.28 4.68A7.96 7.96 0 0121 12z"></path></svg>',
   copy: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 8h9a2 2 0 012 2v9a2 2 0 01-2 2H8a2 2 0 01-2-2v-9a2 2 0 012-2zm-3 8H4a2 2 0 01-2-2V5a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>',
+  check: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M5 13l4 4L19 7"></path></svg>',
+  reply: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l-4-4m0 0l4-4m-4 4h10a5 5 0 015 5v1"></path></svg>',
   edit: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>',
   trash: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>',
   more: '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" d="M12 6.75h.01M12 12h.01M12 17.25h.01"></path></svg>',
@@ -103,8 +113,33 @@ function parsePositiveId(value) {
   return Number.isFinite(id) && id > 0 ? id : 0;
 }
 
-function routePostId() {
-  return parsePositiveId(new URLSearchParams(window.location.search).get("post"));
+function routePostKey() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("p") || params.get("post") || "";
+}
+
+function routeCommentKey() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("c") || params.get("comment") || "";
+}
+
+function routeEntityKey() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("e") || params.get("entity_public_id") || params.get("entity_id") || "";
+}
+
+function postKey(postOrId) {
+  if (typeof postOrId === "object" && postOrId) {
+    return String(postOrId.public_id || postOrId.id || "");
+  }
+  return String(postOrId || "");
+}
+
+function commentKey(commentOrId) {
+  if (typeof commentOrId === "object" && commentOrId) {
+    return String(commentOrId.public_id || commentOrId.id || "");
+  }
+  return String(commentOrId || "");
 }
 
 function feedUrlForState(feed = activeFeed, entityId = entitySelect?.value || "") {
@@ -113,19 +148,22 @@ function feedUrlForState(feed = activeFeed, entityId = entitySelect?.value || ""
     url.searchParams.set("feed", "global");
   } else if (entityId) {
     url.searchParams.set("feed", "entity");
-    url.searchParams.set("entity_id", String(entityId));
+    url.searchParams.set("e", String(entityId));
   }
   return `${url.pathname}${url.search}`;
 }
 
-function postUrl(postOrId) {
+function postUrl(postOrId, commentOrId = null) {
   const post = typeof postOrId === "object" && postOrId ? postOrId : { id: postOrId, feed_scope: activeFeed, entity_id: entitySelect?.value };
-  const url = new URL("/social.html", window.location.origin);
+  const url = new URL("/social.html", getPublicBaseUrl());
   url.searchParams.set("feed", post.feed_scope === "global" ? "global" : "entity");
-  if (post.feed_scope !== "global" && post.entity_id) {
-    url.searchParams.set("entity_id", String(post.entity_id));
+  const entityPublicId = post.entity_public_id || (post.feed_scope !== "global" ? entitySelect?.value : "");
+  if (post.feed_scope !== "global" && entityPublicId) {
+    url.searchParams.set("e", String(entityPublicId));
   }
-  url.searchParams.set("post", String(post.id));
+  url.searchParams.set("p", postKey(post));
+  const cKey = commentKey(commentOrId);
+  if (cKey) url.searchParams.set("c", cKey);
   return url.href;
 }
 
@@ -153,7 +191,8 @@ function loginUrlForFeed(feed = activeFeed) {
 }
 
 function loginUrlForPost(postOrId) {
-  return `/login.html?next=${encodeURIComponent(postUrl(postOrId))}`;
+  const url = new URL(postUrl(postOrId));
+  return `/login.html?next=${encodeURIComponent(`${url.pathname}${url.search}${url.hash}`)}`;
 }
 
 function publicGlobalMode() {
@@ -221,6 +260,19 @@ function updateFeedNotice() {
   feedNotice.classList.toggle("hidden", !message);
 }
 
+function populatePostAsOptions() {
+  if (!postAsSelect || !postAsWrap) return;
+  const postingEntities = Array.isArray(currentFeedPermissions.posting_entities) ? currentFeedPermissions.posting_entities : [];
+  postAsSelect.innerHTML = "";
+  postingEntities.forEach((entity) => {
+    const option = document.createElement("option");
+    option.value = entity.public_id || entity.id;
+    option.textContent = entity.name || "Entity";
+    postAsSelect.appendChild(option);
+  });
+  postAsWrap.classList.toggle("hidden", activeFeed !== "global" || postingEntities.length <= 1);
+}
+
 function applyFeedPermissions(permissions = {}) {
   currentFeedPermissions = {
     ...defaultFeedPermissions(activeFeed),
@@ -230,6 +282,7 @@ function applyFeedPermissions(permissions = {}) {
   };
   updatePostControls();
   updateFeedNotice();
+  populatePostAsOptions();
 }
 
 function canInteractWithRecord(record, action = "interact") {
@@ -400,9 +453,14 @@ function openPostModal(post = null, trigger = document.activeElement) {
   existingImages = Array.isArray(post?.images) ? post.images.map((image) => ({ ...image })) : [];
   form?.reset();
   if (contentInput) contentInput.value = post?.content || "";
+  if (contentInput) resetMentionPublicIds(contentInput);
   if (scopeSelect) {
     scopeSelect.value = modalFeed;
     scopeSelect.disabled = true;
+  }
+  populatePostAsOptions();
+  if (postAsSelect && post?.entity_public_id) {
+    postAsSelect.value = post.entity_public_id;
   }
   if (postModalTitle) {
     postModalTitle.textContent = post ? "Edit Post" : modalFeed === "global" ? "New Global Post" : "New Entity Post";
@@ -487,9 +545,18 @@ function setEmptyState(kind) {
   }
 }
 
-function buildAvatar(name, extraClass = "") {
+function buildAvatar(name, extraClass = "", imageUrl = "") {
   const avatar = document.createElement("div");
   avatar.className = `social-avatar ${extraClass}`;
+  const safeUrl = safeImageUrl(imageUrl);
+  if (safeUrl) {
+    const img = document.createElement("img");
+    img.src = safeUrl;
+    img.alt = "";
+    img.loading = "lazy";
+    avatar.appendChild(img);
+    return avatar;
+  }
   avatar.style.background = avatarStyle(name);
   avatar.textContent = initials(name);
   return avatar;
@@ -511,15 +578,60 @@ function buildMenuItem(label, icon, handler, options = {}) {
   item.type = "button";
   item.className = `social-post-menu-item ${options.danger ? "is-danger" : ""}`;
   item.setAttribute("role", "menuitem");
+  item.dataset.originalLabel = label;
+  item.dataset.originalIcon = icon;
   item.innerHTML = `${icon}<span>${label}</span>`;
   item.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    closePostActionMenus();
+    if (!options.keepOpen) {
+      closePostActionMenus();
+    }
     const overflowButtonElement = item.closest(".social-post-menu-wrap")?.querySelector(".social-post-menu-button");
-    handler(overflowButtonElement || item);
+    handler(item, overflowButtonElement || item);
   });
   return item;
+}
+
+async function copyUrlToClipboard(href) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(href);
+    return;
+  }
+  const input = document.createElement("textarea");
+  input.value = href;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const ok = document.execCommand("copy");
+  input.remove();
+  if (!ok) {
+    throw new Error("Clipboard unavailable");
+  }
+}
+
+function showCopiedState(item) {
+  const originalIcon = item.dataset.originalIcon || icons.copy;
+  const originalLabel = item.dataset.originalLabel || "Copy link";
+  item.classList.add("is-copied");
+  item.innerHTML = `${icons.check}<span>Copied</span>`;
+  copyLive && (copyLive.textContent = "Link copied");
+  window.setTimeout(() => {
+    item.classList.remove("is-copied");
+    item.innerHTML = `${originalIcon}<span>${originalLabel}</span>`;
+  }, 1700);
+}
+
+function showCopyError(item, href) {
+  item.classList.add("is-error");
+  item.innerHTML = `${icons.copy}<span>Copy failed</span>`;
+  copyLive && (copyLive.textContent = `Copy failed. Link: ${href}`);
+  window.setTimeout(() => {
+    item.classList.remove("is-error");
+    item.innerHTML = `${item.dataset.originalIcon || icons.copy}<span>${item.dataset.originalLabel || "Copy link"}</span>`;
+  }, 2200);
 }
 
 function buildPostActionsMenu(post) {
@@ -538,21 +650,14 @@ function buildPostActionsMenu(post) {
   menu.className = "social-post-menu";
   menu.setAttribute("role", "menu");
 
-  menu.appendChild(buildMenuItem("Copy link", icons.copy, async (trigger) => {
-    await copyPostLink(post);
-    const label = trigger.querySelector("span");
-    if (label) {
-      label.textContent = "Copied";
-      window.setTimeout(() => {
-        label.textContent = "Copy link";
-      }, 1200);
-    }
-  }));
+  menu.appendChild(buildMenuItem("Copy link", icons.copy, async (item) => {
+    await copyPostLink(post, item);
+  }, { keepOpen: true }));
   if (post.can_edit || post.can_manage) {
-    menu.appendChild(buildMenuItem("Edit post", icons.edit, (trigger) => openPostModal(post, trigger)));
+    menu.appendChild(buildMenuItem("Edit post", icons.edit, (_item, trigger) => openPostModal(post, trigger)));
   }
   if (post.can_delete || post.can_manage) {
-    menu.appendChild(buildMenuItem("Delete post", icons.trash, (trigger) => openDeleteModal("post", post.id, post.content, trigger), { danger: true }));
+    menu.appendChild(buildMenuItem("Delete post", icons.trash, (_item, trigger) => openDeleteModal("post", postKey(post), post.content, trigger), { danger: true }));
   }
 
   button.addEventListener("click", (event) => {
@@ -633,7 +738,20 @@ function upsertCommentInCache(comment) {
 function removeCommentFromCache(postId, commentId) {
   const id = Number(postId);
   if (!id) return;
-  const comments = (commentsByPost.get(id) || []).filter((comment) => Number(comment.id) !== Number(commentId));
+  const target = Number(commentId);
+  const removeIds = new Set([target]);
+  let changed = true;
+  const existing = commentsByPost.get(id) || [];
+  while (changed) {
+    changed = false;
+    existing.forEach((comment) => {
+      if (removeIds.has(Number(comment.parent_comment_id)) && !removeIds.has(Number(comment.id))) {
+        removeIds.add(Number(comment.id));
+        changed = true;
+      }
+    });
+  }
+  const comments = existing.filter((comment) => !removeIds.has(Number(comment.id)));
   commentsByPost.set(id, comments);
 }
 
@@ -665,6 +783,7 @@ function updateFeedEmptyState() {
 
 function upsertPostCard(post, comments = null, options = {}) {
   if (!post?.id) return false;
+  postsById.set(Number(post.id), post);
   if (Array.isArray(comments)) {
     setCommentsForPost(post.id, comments);
   } else if (!commentsByPost.has(Number(post.id))) {
@@ -691,6 +810,7 @@ function upsertPostCard(post, comments = null, options = {}) {
 function removePostCard(postId) {
   const el = document.getElementById(`post-${postId}`);
   el?.remove();
+  postsById.delete(Number(postId));
   commentsByPost.delete(Number(postId));
   updateFeedEmptyState();
 }
@@ -721,7 +841,8 @@ async function toggleLike(button, targetType, id) {
     updateLikeButton(button, targetType, liked, likesCount);
 
     if (targetType === "post") {
-      document.querySelectorAll(`[data-post-like-count="${id}"]`).forEach((countEl) => {
+      const countKey = button.closest(".social-post-card")?.dataset.postId || id;
+      document.querySelectorAll(`[data-post-like-count="${countKey}"]`).forEach((countEl) => {
         countEl.textContent = `${likesCount} ${likesCount === 1 ? "like" : "likes"}`;
       });
     }
@@ -737,14 +858,116 @@ function focusCommentInput(postId, detail = false) {
   input?.focus();
 }
 
-async function copyPostLink(post) {
+async function copyPostLink(post, item = null) {
   const href = postUrl(post);
   try {
-    await navigator.clipboard?.writeText(href);
-    setFeedNotice("Post link copied.");
+    await copyUrlToClipboard(href);
+    if (item) showCopiedState(item);
   } catch (err) {
-    setFeedNotice(`Copy this link: ${href}`);
+    if (item) showCopyError(item, href);
+    else setStatus(`Copy this link: ${href}`, false);
   }
+}
+
+async function copyCommentLink(comment, post, item = null) {
+  const href = postUrl(post || { id: comment.post_id, public_id: comment.post_public_id, feed_scope: activeFeed }, comment);
+  try {
+    await copyUrlToClipboard(href);
+    if (item) showCopiedState(item);
+  } catch (err) {
+    if (item) showCopyError(item, href);
+    else setStatus(`Copy this link: ${href}`, false);
+  }
+}
+
+function selectedMentionPublicIds(input) {
+  return [...(input?._mentionPublicIds || new Set())];
+}
+
+function resetMentionPublicIds(input) {
+  if (input) input._mentionPublicIds = new Set();
+}
+
+function mentionSearchTerm(input) {
+  const value = input.value || "";
+  const cursor = input.selectionStart ?? value.length;
+  const before = value.slice(0, cursor);
+  const at = before.lastIndexOf("@");
+  if (at < 0 || (at > 0 && /\S/.test(before[at - 1]))) return null;
+  const term = before.slice(at + 1);
+  if (term.length > 40 || /[\n\r.,;:!?()[\]{}]/.test(term)) return null;
+  return { at, term: term.trim(), before, after: value.slice(cursor) };
+}
+
+function closeMentionDropdown(input) {
+  input?._mentionDropdown?.remove();
+  if (input) input._mentionDropdown = null;
+}
+
+function attachMentionAutocomplete(input) {
+  if (!input || input._mentionsReady) return;
+  input._mentionsReady = true;
+  resetMentionPublicIds(input);
+  let timer = 0;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    const match = mentionSearchTerm(input);
+    if (!match || match.term.length < 1) {
+      closeMentionDropdown(input);
+      return;
+    }
+    timer = window.setTimeout(async () => {
+      mentionAbort?.abort?.();
+      mentionAbort = new AbortController();
+      try {
+        const params = new URLSearchParams({ q: match.term, feed_scope: activeFeed });
+        if (activeFeed === "entity" && entitySelect?.value) params.set("e", entitySelect.value);
+        const response = await apiFetch(`/social/mentions?${params.toString()}`, { skipFallback: true, signal: mentionAbort.signal });
+        renderMentionDropdown(input, response?.data || [], match);
+      } catch (err) {
+        if (err?.name !== "AbortError") closeMentionDropdown(input);
+      }
+    }, 150);
+  });
+  input.addEventListener("blur", () => window.setTimeout(() => closeMentionDropdown(input), 180));
+}
+
+function renderMentionDropdown(input, suggestions, match) {
+  closeMentionDropdown(input);
+  if (!suggestions.length) return;
+  if (input.parentElement && getComputedStyle(input.parentElement).position === "static") {
+    input.parentElement.style.position = "relative";
+  }
+  const menu = document.createElement("div");
+  menu.className = "social-mention-menu";
+  menu.setAttribute("role", "listbox");
+  suggestions.forEach((suggestion) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "social-mention-option";
+    button.setAttribute("role", "option");
+    const name = document.createElement("span");
+    name.className = "social-mention-name";
+    name.textContent = suggestion.full_name || "NCP User";
+    const tag = document.createElement("span");
+    tag.className = "social-mention-tag";
+    tag.textContent = suggestion.tag || "Member";
+    button.append(name, tag);
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      const current = mentionSearchTerm(input) || match;
+      const mentionText = `@${suggestion.full_name} `;
+      input.value = `${current.before.slice(0, current.at)}${mentionText}${current.after}`;
+      input._mentionPublicIds ||= new Set();
+      if (suggestion.public_id) input._mentionPublicIds.add(suggestion.public_id);
+      closeMentionDropdown(input);
+      input.focus();
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    menu.appendChild(button);
+  });
+  input.insertAdjacentElement("afterend", menu);
+  input._mentionDropdown = menu;
 }
 
 function buildActionButton(label, icon, options = {}) {
@@ -758,10 +981,183 @@ function buildActionButton(label, icon, options = {}) {
   return button;
 }
 
-function renderComment(comment) {
+function cssEscape(value) {
+  return window.CSS?.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, "\\$&");
+}
+
+function commentParentId(comment) {
+  return Number(comment?.parent_comment_id || 0);
+}
+
+function buildCommentThreads(comments = []) {
+  const sorted = [...comments].sort((a, b) => parseDate(a.created_at) - parseDate(b.created_at));
+  const byId = new Map();
+  const children = new Map();
+  sorted.forEach((comment) => {
+    byId.set(Number(comment.id), comment);
+  });
+  const roots = [];
+  sorted.forEach((comment) => {
+    const parentId = commentParentId(comment);
+    if (parentId && byId.has(parentId)) {
+      const list = children.get(parentId) || [];
+      list.push(comment);
+      children.set(parentId, list);
+    } else {
+      roots.push(comment);
+    }
+  });
+  return { roots, children };
+}
+
+function countReplies(comment, children) {
+  const direct = children.get(Number(comment.id)) || [];
+  return direct.reduce((total, child) => total + 1 + countReplies(child, children), 0);
+}
+
+function renderCommentMenu(comment, post) {
+  const wrap = document.createElement("div");
+  wrap.className = "social-post-menu-wrap social-comment-menu-wrap";
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "social-post-menu-button social-comment-menu-button";
+  button.setAttribute("aria-label", "Comment actions");
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", "false");
+  button.innerHTML = icons.more;
+
+  const menu = document.createElement("div");
+  menu.className = "social-post-menu social-comment-menu";
+  menu.setAttribute("role", "menu");
+  menu.appendChild(buildMenuItem("Copy link", icons.copy, async (item) => copyCommentLink(comment, post, item), { keepOpen: true }));
+  if (comment.can_edit || comment.can_manage) {
+    menu.appendChild(buildMenuItem("Edit comment", icons.edit, (_item, trigger) => startCommentEdit(comment, post, trigger)));
+  }
+  if (comment.can_delete || comment.can_manage) {
+    menu.appendChild(buildMenuItem("Delete comment", icons.trash, (_item, trigger) => openDeleteModal("comment", commentKey(comment), comment.comment, trigger), { danger: true }));
+  }
+
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const opening = !wrap.classList.contains("is-open");
+    closePostActionMenus(wrap);
+    wrap.classList.toggle("is-open", opening);
+    button.setAttribute("aria-expanded", opening ? "true" : "false");
+    if (opening) requestAnimationFrame(() => menu.querySelector("button")?.focus());
+  });
+
+  wrap.append(button, menu);
+  return wrap;
+}
+
+function startCommentEdit(comment, post, trigger) {
+  const row = document.querySelector(`[data-comment-key="${cssEscape(commentKey(comment))}"]`);
+  const bubble = row?.querySelector(".social-comment-bubble");
+  if (!row || !bubble) return;
+  bubble.innerHTML = "";
+  const editForm = document.createElement("form");
+  editForm.className = "flex flex-col sm:flex-row gap-2";
+  const input = document.createElement("input");
+  input.className = "input-field py-2 text-sm flex-1";
+  input.value = comment.comment || "";
+  input.autocomplete = "off";
+  attachMentionAutocomplete(input);
+  const save = document.createElement("button");
+  save.type = "submit";
+  save.className = "btn btn-secondary px-3 py-2 text-xs";
+  save.textContent = "Save";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "btn btn-ghost px-3 py-2 text-xs";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", () => {
+    row.replaceWith(renderComment(comment, { post, detail: Boolean(row.closest("[data-detail='1']")), depth: Number(row.dataset.depth || 0), rootKey: row.dataset.rootKey || commentKey(comment) }));
+    trigger?.focus?.();
+  });
+  editForm.append(input, save, cancel);
+  editForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const nextValue = input.value.trim();
+    if (!nextValue) return;
+    save.disabled = true;
+    try {
+      const resp = await apiFetch(`/social/comments/${encodeURIComponent(commentKey(comment))}`, {
+        method: "PUT",
+        body: JSON.stringify({ comment: nextValue, mentioned_user_public_ids: selectedMentionPublicIds(input) })
+      });
+      const updatedComment = resp?.data?.comment || { ...comment, comment: nextValue, safe_html: null };
+      upsertCommentInCache(updatedComment);
+      row.replaceWith(renderComment(updatedComment, { post, detail: Boolean(row.closest("[data-detail='1']")), depth: Number(row.dataset.depth || 0), rootKey: row.dataset.rootKey || commentKey(updatedComment) }));
+    } catch (err) {
+      setStatus(normalizeError(err), false);
+    } finally {
+      save.disabled = false;
+    }
+  });
+  bubble.appendChild(editForm);
+  input.focus();
+}
+
+function renderReplyForm(post, parentComment, rootKey, detail) {
+  const form = document.createElement("form");
+  form.className = "social-comment-form social-reply-form";
+  const input = document.createElement("input");
+  input.className = "input-field font-medium py-2.5 px-4 text-sm flex-1 bg-[var(--bg-base)]";
+  input.placeholder = `Reply to ${parentComment.full_name || "comment"}...`;
+  input.autocomplete = "off";
+  attachMentionAutocomplete(input);
+  const submit = document.createElement("button");
+  submit.className = "btn btn-secondary px-4 py-2.5 text-sm w-full sm:w-auto";
+  submit.type = "submit";
+  submit.textContent = "Reply";
+  submit.disabled = true;
+  input.addEventListener("input", () => {
+    submit.disabled = input.value.trim().length === 0;
+  });
+  form.append(input, submit);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const value = input.value.trim();
+    if (!value) return;
+    submit.disabled = true;
+    try {
+      const resp = await apiFetch(`/social/${encodeURIComponent(postKey(post))}/comments`, {
+        method: "POST",
+        body: JSON.stringify({
+          comment: value,
+          parent_comment_public_id: commentKey(parentComment),
+          mentioned_user_public_ids: selectedMentionPublicIds(input)
+        })
+      });
+      const serverComment = resp?.data?.comment;
+      if (!serverComment?.id) {
+        setStatus("Reply saved, but the response was incomplete. Refresh to see the latest feed.", false);
+        return;
+      }
+      expandedReplyThreads.add(rootKey);
+      upsertCommentInCache(serverComment);
+      rerenderPostComments(post, detail);
+    } catch (err) {
+      setStatus(normalizeError(err), false);
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  return form;
+}
+
+function renderComment(comment, context = {}) {
+  const { post, detail = false, depth = 0, rootKey = commentKey(comment) } = context;
   const row = document.createElement("div");
   row.className = "social-comment group/comment";
   if (comment?.id) row.dataset.commentId = comment.id;
+  row.dataset.commentKey = commentKey(comment);
+  row.dataset.rootKey = rootKey;
+  row.dataset.depth = String(depth);
+  row.classList.toggle("social-comment--reply", depth > 0);
+  row.style.setProperty("--comment-depth", String(Math.min(depth, 2)));
 
   row.appendChild(buildAvatar(comment.full_name, "social-comment-avatar"));
 
@@ -774,10 +1170,18 @@ function renderComment(comment) {
   name.textContent = comment.full_name || "NCP User";
   const body = document.createElement("div");
   body.className = "social-comment-body";
+  if (depth > 1 && comment.replying_to_name) {
+    const replying = document.createElement("div");
+    replying.className = "social-replying-to";
+    replying.textContent = `Replying to @${comment.replying_to_name}`;
+    body.appendChild(replying);
+  }
   if (comment.safe_html) {
-    body.innerHTML = comment.safe_html;
+    const content = document.createElement("span");
+    content.innerHTML = comment.safe_html;
+    body.appendChild(content);
   } else {
-    body.textContent = comment.comment || "";
+    body.append(document.createTextNode(comment.comment || ""));
   }
   bubble.append(name, body);
 
@@ -793,69 +1197,74 @@ function renderComment(comment) {
     like.className = `social-comment-like ${comment.liked_by_me ? "is-active" : ""}`;
     like.setAttribute("aria-pressed", comment.liked_by_me ? "true" : "false");
     like.textContent = `${comment.liked_by_me ? "Liked" : "Like"}${comment.likes_count ? ` (${comment.likes_count})` : ""}`;
-    like.addEventListener("click", () => toggleLike(like, "comment", comment.id));
+    like.addEventListener("click", () => toggleLike(like, "comment", commentKey(comment)));
     tools.appendChild(like);
   }
 
-  if (comment.can_manage) {
-    const edit = document.createElement("button");
-    edit.type = "button";
-    edit.textContent = "Edit";
-    edit.addEventListener("click", () => {
-      bubble.innerHTML = "";
-      const editForm = document.createElement("form");
-      editForm.className = "flex flex-col sm:flex-row gap-2";
-      const input = document.createElement("input");
-      input.className = "input-field py-2 text-sm flex-1";
-      input.value = comment.comment || "";
-      const save = document.createElement("button");
-      save.type = "submit";
-      save.className = "btn btn-secondary px-3 py-2 text-xs";
-      save.textContent = "Save";
-      const cancel = document.createElement("button");
-      cancel.type = "button";
-      cancel.className = "btn btn-ghost px-3 py-2 text-xs";
-      cancel.textContent = "Cancel";
-      cancel.addEventListener("click", () => {
-        row.replaceWith(renderComment(comment));
-      });
-      editForm.append(input, save, cancel);
-      editForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const nextValue = input.value.trim();
-        if (!nextValue) return;
-        save.disabled = true;
-        try {
-          const resp = await apiFetch(`/social/comments/${comment.id}`, {
-            method: "PUT",
-            body: JSON.stringify({ comment: nextValue })
-          });
-          const updatedComment = resp?.data?.comment || {
-            ...comment,
-            comment: nextValue,
-            safe_html: null
-          };
-          replaceComment(updatedComment, row);
-        } catch (err) {
-          setStatus(normalizeError(err), false);
-        } finally {
-          save.disabled = false;
-        }
-      });
-      bubble.appendChild(editForm);
-      input.focus();
+  if (post && canInteractWithRecord(comment, "comment")) {
+    const reply = document.createElement("button");
+    reply.type = "button";
+    reply.className = "social-comment-like";
+    reply.textContent = "Reply";
+    reply.addEventListener("click", () => {
+      row.nextElementSibling?.classList?.contains("social-reply-form") && row.nextElementSibling.remove();
+      row.after(renderReplyForm(post, comment, rootKey, detail));
+      row.nextElementSibling?.querySelector("input")?.focus();
     });
-    const del = document.createElement("button");
-    del.type = "button";
-    del.textContent = "Delete";
-    del.className = "text-[var(--color-danger)]";
-    del.addEventListener("click", () => openDeleteModal("comment", comment.id, comment.comment, del));
-    tools.append(edit, del);
+    tools.appendChild(reply);
   }
+
+  tools.appendChild(renderCommentMenu(comment, post));
 
   bodyWrap.append(bubble, tools);
   row.appendChild(bodyWrap);
   return row;
+}
+
+function renderCommentThread(comment, container, post, children, options = {}) {
+  const rootKey = options.rootKey || commentKey(comment);
+  const depth = options.depth || 0;
+  container.appendChild(renderComment(comment, { post, detail: options.detail, depth: Math.min(depth, 2), rootKey }));
+  const direct = children.get(Number(comment.id)) || [];
+  if (!direct.length) return;
+  const totalReplies = countReplies(comment, children);
+  const expanded = options.detail || expandedReplyThreads.has(rootKey) || (pendingCommentKey && hasCommentInThread(comment, children, pendingCommentKey));
+  if (!expanded) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "social-view-replies";
+    button.textContent = `View replies (${totalReplies})`;
+    button.addEventListener("click", () => {
+      expandedReplyThreads.add(rootKey);
+      rerenderPostComments(post, options.detail);
+    });
+    container.appendChild(button);
+    return;
+  }
+  direct.forEach((reply) => renderCommentThread(reply, container, post, children, {
+    detail: options.detail,
+    depth: depth + 1,
+    rootKey,
+  }));
+}
+
+function hasCommentInThread(comment, children, key) {
+  if (commentKey(comment) === key || String(comment.id) === key) return true;
+  return (children.get(Number(comment.id)) || []).some((child) => hasCommentInThread(child, children, key));
+}
+
+function renderCommentsInto(commentsWrap, post, detail) {
+  const comments = commentsByPost.get(Number(post.id)) || [];
+  commentsWrap.querySelectorAll(":scope > .social-comment, :scope > .social-view-replies, :scope > .social-reply-form").forEach((node) => node.remove());
+  const { roots, children } = buildCommentThreads(comments);
+  roots.forEach((comment) => renderCommentThread(comment, commentsWrap, post, children, { detail, rootKey: commentKey(comment) }));
+}
+
+function rerenderPostComments(post, detail = false) {
+  document.querySelectorAll(`[data-comments-for-post="${post.id}"][data-detail="${detail ? "1" : "0"}"]`).forEach((wrap) => {
+    renderCommentsInto(wrap, post, detail);
+  });
+  updateCommentCount(post.id);
 }
 
 function shouldShowReadMore(post) {
@@ -868,18 +1277,21 @@ function renderPost(post, options = {}) {
   card.id = `${detail ? "detail-post" : "post"}-${post.id}`;
   card.className = `social-post-card ${detail ? "social-post-card--detail" : ""}`;
   card.dataset.postUserId = post.user_id ?? '';
+  card.dataset.postId = String(post.id);
+  card.dataset.postKey = postKey(post);
   card.dataset.feedScope = post.feed_scope ?? '';
 
   const header = document.createElement("header");
   header.className = "social-post-header";
   const author = document.createElement("div");
   author.className = "social-author";
-  author.appendChild(buildAvatar(post.full_name));
+  const authorNameText = post.author_name || post.full_name || "NCP User";
+  author.appendChild(buildAvatar(authorNameText, "", post.author_avatar_url));
   const authorText = document.createElement("div");
   authorText.className = "min-w-0";
   const authorName = document.createElement("p");
   authorName.className = "social-author-name truncate";
-  authorName.textContent = post.full_name || "NCP User";
+  authorName.textContent = authorNameText;
   const meta = document.createElement("div");
   meta.className = "social-post-meta";
   const scope = document.createElement("span");
@@ -887,7 +1299,13 @@ function renderPost(post, options = {}) {
   scope.textContent = post.feed_scope === "global" ? "Global Feed" : post.entity_name || "Entity Feed";
   const time = document.createElement("span");
   time.textContent = formatTime(post.created_at);
-  meta.append(scope, document.createTextNode("•"), time);
+  meta.append(scope);
+  if (post.author_meta) {
+    const authorMeta = document.createElement("span");
+    authorMeta.textContent = post.author_meta;
+    meta.append(document.createTextNode("•"), authorMeta);
+  }
+  meta.append(document.createTextNode("•"), time);
   authorText.append(authorName, meta);
   author.appendChild(authorText);
   header.appendChild(author);
@@ -910,7 +1328,7 @@ function renderPost(post, options = {}) {
     readMore.type = "button";
     readMore.className = "social-read-more";
     readMore.textContent = "Read more";
-    readMore.addEventListener("click", () => openPostDetail(post.id, { push: true, post }));
+    readMore.addEventListener("click", () => openPostDetail(postKey(post), { push: true, post }));
     readMoreWrap.appendChild(readMore);
     card.appendChild(readMoreWrap);
   }
@@ -949,7 +1367,7 @@ function renderPost(post, options = {}) {
       active: post.liked_by_me,
       pressed: post.liked_by_me
     });
-    likeButton.addEventListener("click", () => toggleLike(likeButton, "post", post.id));
+    likeButton.addEventListener("click", () => toggleLike(likeButton, "post", postKey(post)));
     actions.appendChild(likeButton);
   }
   if (!publicGlobalMode() && canComment) {
@@ -961,7 +1379,9 @@ function renderPost(post, options = {}) {
 
   const commentsWrap = document.createElement("div");
   commentsWrap.className = "social-comments";
-  comments.forEach((comment) => commentsWrap.appendChild(renderComment(comment)));
+  commentsWrap.dataset.commentsForPost = String(post.id);
+  commentsWrap.dataset.detail = detail ? "1" : "0";
+  renderCommentsInto(commentsWrap, post, detail);
 
   if (canComment) {
     const commentForm = document.createElement("form");
@@ -971,6 +1391,7 @@ function renderPost(post, options = {}) {
     commentInput.className = "input-field font-medium py-2.5 px-4 text-sm flex-1 bg-[var(--bg-base)]";
     commentInput.placeholder = "Add a comment...";
     commentInput.autocomplete = "off";
+    attachMentionAutocomplete(commentInput);
     const commentSubmit = document.createElement("button");
     commentSubmit.className = "btn btn-secondary px-4 py-2.5 text-sm w-full sm:w-auto";
     commentSubmit.type = "submit";
@@ -986,9 +1407,9 @@ function renderPost(post, options = {}) {
       if (!value) return;
       commentSubmit.disabled = true;
         try {
-          const resp = await apiFetch(`/social/${post.id}/comments`, {
+          const resp = await apiFetch(`/social/${encodeURIComponent(postKey(post))}/comments`, {
             method: "POST",
-            body: JSON.stringify({ comment: value })
+            body: JSON.stringify({ comment: value, mentioned_user_public_ids: selectedMentionPublicIds(commentInput) })
           });
           const serverComment = resp?.data?.comment;
           const commentId = serverComment?.id || resp?.data?.id;
@@ -1009,8 +1430,10 @@ function renderPost(post, options = {}) {
             can_like: true,
             can_manage: Boolean(currentUser),
           };
-          appendCommentToPost(post.id, newComment, commentForm);
+          upsertCommentInCache(newComment);
+          rerenderPostComments(post, detail);
           commentInput.value = "";
+          resetMentionPublicIds(commentInput);
       } catch (err) {
         setStatus(normalizeError(err), false);
       } finally {
@@ -1043,9 +1466,29 @@ function setDetailStatus(message, kind = "error") {
   detailStatus.classList.toggle("hidden", !message);
 }
 
+function focusLinkedComment() {
+  if (!pendingCommentKey) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  requestAnimationFrame(() => {
+    const selector = `[data-comment-key="${cssEscape(pendingCommentKey)}"], [data-comment-id="${cssEscape(pendingCommentKey)}"]`;
+    const target = detailContent?.querySelector(selector);
+    if (!target) {
+      setDetailStatus("Comment not found.");
+      return;
+    }
+    setDetailStatus("");
+    target.classList.add("social-comment--highlight");
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    window.setTimeout(() => target.classList.remove("social-comment--highlight"), 2400);
+  });
+}
+
 function showFeedView(options = {}) {
   isShowingPostDetail = false;
   currentDetailPostId = 0;
+  currentDetailPostKey = "";
   detailView?.classList.add("hidden");
   detailContent && (detailContent.innerHTML = "");
   pageHeader?.classList.remove("hidden");
@@ -1060,14 +1503,19 @@ function showFeedView(options = {}) {
 
 function renderPostDetail(post, comments = [], permissions = {}) {
   if (!post?.id || !detailContent) return;
+  postsById.set(Number(post.id), post);
   activeFeed = post.feed_scope === "global" ? "global" : "entity";
-  if (post.entity_id && entitySelect) {
-    entitySelect.value = String(post.entity_id);
+  if ((post.entity_public_id || post.entity_id) && entitySelect) {
+    const entityValue = String(post.entity_public_id || post.entity_id);
+    if ([...entitySelect.options].some((option) => option.value === entityValue)) {
+      entitySelect.value = entityValue;
+    }
   }
-  lastFeedUrl = feedUrlForState(activeFeed, post.entity_id || entitySelect?.value || "");
+  lastFeedUrl = feedUrlForState(activeFeed, post.entity_public_id || entitySelect?.value || "");
   applyFeedPermissions(permissions || {});
   setCommentsForPost(post.id, comments);
   currentDetailPostId = Number(post.id);
+  currentDetailPostKey = postKey(post);
   isShowingPostDetail = true;
   pageHeader?.classList.add("hidden");
   feedShell?.classList.add("hidden");
@@ -1075,17 +1523,20 @@ function renderPostDetail(post, comments = [], permissions = {}) {
   setDetailStatus("");
   detailContent.innerHTML = "";
   detailContent.appendChild(renderPost(post, { detail: true }));
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  focusLinkedComment();
 }
 
 async function openPostDetail(postId, options = {}) {
-  const id = parsePositiveId(postId);
-  if (!id) return;
+  const key = String(postId || "").trim();
+  if (!key) return;
+  if (options.comment) {
+    pendingCommentKey = commentKey(options.comment);
+  }
   if (!lastFeedUrl) {
     lastFeedUrl = feedUrlForState(activeFeed, entitySelect?.value || "");
   }
   if (options.push) {
-    window.history.pushState({ view: "post", postId: id }, "", postUrl(options.post || id));
+    window.history.pushState({ view: "post", postId: key }, "", postUrl(options.post || key, options.comment || null));
   }
   isShowingPostDetail = true;
   pageHeader?.classList.add("hidden");
@@ -1094,14 +1545,14 @@ async function openPostDetail(postId, options = {}) {
   detailContent && (detailContent.innerHTML = "");
   setDetailStatus("Loading post...", "loading");
   try {
-    const response = await apiFetch(`/social/post/${encodeURIComponent(id)}`, { skipFallback: true });
+    const response = await apiFetch(`/social/post/${encodeURIComponent(key)}`, { skipFallback: true });
     renderPostDetail(response?.data?.post, response?.data?.comments || [], response?.meta?.permissions || {});
   } catch (err) {
     const status = Number(err?.status || 0);
     let message = "Post not found.";
     if (status === 401) {
       message = "Sign in to view this post.";
-      const nextUrl = loginUrlForPost(id);
+      const nextUrl = loginUrlForPost(key);
       promptSignIn("view this post", nextUrl);
       window.location.replace(nextUrl);
       return;
@@ -1137,6 +1588,7 @@ async function loadPosts(options = {}) {
     const posts = response?.data?.posts || [];
     const comments = response?.data?.comments || [];
     commentsByPost = new Map();
+    postsById = new Map();
     comments.forEach((comment) => {
       const postId = Number(comment.post_id);
       const list = commentsByPost.get(postId) || [];
@@ -1150,7 +1602,10 @@ async function loadPosts(options = {}) {
       return;
     }
 
-    posts.forEach((post) => postsEl.appendChild(renderPost(post)));
+    posts.forEach((post) => {
+      postsById.set(Number(post.id), post);
+      postsEl.appendChild(renderPost(post));
+    });
     if (!preserveScroll && /^#post-\d+$/.test(window.location.hash)) {
       document.querySelector(window.location.hash)?.scrollIntoView({ block: "center" });
     }
@@ -1202,13 +1657,14 @@ async function submitPost(event) {
       return;
     }
     formData.append("content", content);
+    selectedMentionPublicIds(contentInput).forEach((id) => formData.append("mentioned_user_public_ids[]", id));
     if (editingPost) {
       formData.append("keep_image_ids", existingImages.map((image) => String(image.id)).join(","));
     }
     selectedImages.forEach((image) => formData.append("images[]", image.file, image.file.name));
 
     if (editingPost) {
-      const resp = await apiFetch(`/social/${editingPost.id}/update`, { method: "POST", body: formData });
+      const resp = await apiFetch(`/social/${encodeURIComponent(postKey(editingPost))}/update`, { method: "POST", body: formData });
       const ok = upsertPostCard(resp?.data?.post, resp?.data?.comments);
       if (!ok) {
         setStatus("Post saved, but the response was incomplete. Refresh to see the latest feed.", false);
@@ -1231,6 +1687,8 @@ async function submitPost(event) {
         return;
       }
       formData.append("entity_id", entityId);
+    } else if (postAsSelect?.value) {
+      formData.append("entity_public_id", postAsSelect.value);
     }
     const resp = await apiFetch("/social", { method: "POST", body: formData });
     const ok = upsertPostCard(resp?.data?.post, resp?.data?.comments, { prepend: true });
@@ -1268,8 +1726,9 @@ imageInput?.addEventListener("change", () => {
 window.addEventListener("pagehide", clearSelectedImages);
 entitySelect?.addEventListener("change", () => loadPosts({ preserveScroll: true }));
 form?.addEventListener("submit", submitPost);
+if (contentInput) attachMentionAutocomplete(contentInput);
 detailBackBtn?.addEventListener("click", () => {
-  if (routePostId() && window.history.state?.view === "post") {
+  if (routePostKey() && window.history.state?.view === "post") {
     window.history.back();
     return;
   }
@@ -1299,21 +1758,29 @@ deleteConfirmBtn?.addEventListener("click", async () => {
     const resp = await apiFetch(url, { method: "DELETE" });
     closeDeleteModal();
     if (snapshotItem.type === "post") {
-      removePostCard(snapshotItem.id);
-      if (isShowingPostDetail && Number(currentDetailPostId) === Number(snapshotItem.id)) {
+      const deletedPostId = resp?.data?.id || snapshotItem.id;
+      removePostCard(deletedPostId);
+      if (isShowingPostDetail && (String(currentDetailPostId) === String(deletedPostId) || currentDetailPostKey === String(snapshotItem.id))) {
         showFeedView({ updateUrl: true });
       }
     } else if (snapshotItem.type === "comment") {
       const responsePostId = resp?.data?.post_id;
-      const selector = `[data-comment-id='${snapshotItem.id}']`;
+      const deletedCommentId = resp?.data?.id || snapshotItem.id;
+      const selector = `[data-comment-key="${cssEscape(snapshotItem.id)}"], [data-comment-id="${cssEscape(deletedCommentId)}"]`;
       const found = document.querySelector(selector);
-      // capture post card and id before removing the DOM node
-      const postCard = snapshotTrigger?.closest ? snapshotTrigger.closest('article') : null;
-      const postId = responsePostId || (postCard?.id ? postCard.id.replace("post-", "") : "");
-      found?.remove();
+      const isDetailComment = Boolean(found?.closest("#social-detail-content"));
+      const postCard = found?.closest("[data-post-id]") || (snapshotTrigger?.closest ? snapshotTrigger.closest("[data-post-id]") : null);
+      const postId = responsePostId || postCard?.dataset?.postId || "";
       if (postId) {
-        removeCommentFromCache(postId, snapshotItem.id);
+        removeCommentFromCache(postId, deletedCommentId);
+        const post = postsById.get(Number(postId));
+        if (post) {
+          rerenderPostComments(post, false);
+          if (isShowingPostDetail) rerenderPostComments(post, true);
+        }
         updateCommentCount(postId, resp?.data?.comments_count ?? null);
+      } else {
+        found?.remove();
       }
     }
   } catch (err) {
@@ -1355,10 +1822,10 @@ document.addEventListener("keydown", (event) => {
 function populateEntityOptions(entities) {
   if (!entitySelect) return;
   entitySelect.innerHTML = "";
-  const requestedEntityId = initialParams.get("entity_id");
+  const requestedEntityId = routeEntityKey();
   entities.forEach((entity) => {
     const option = document.createElement("option");
-    option.value = entity.id;
+    option.value = entity.public_id || entity.id;
     option.textContent = entity.name;
     entitySelect.appendChild(option);
   });
@@ -1376,7 +1843,8 @@ function populateEntityOptions(entities) {
 function initializeSocialPage(response = null) {
   currentUser = response?.data?.user || null;
   isAuthenticated = Boolean(currentUser);
-  const postId = routePostId();
+  const postId = routePostKey();
+  pendingCommentKey = routeCommentKey();
 
   if (userRequiresPasswordSetup(currentUser)) {
     window.location.replace("/reset_password.html?mode=session");
@@ -1385,7 +1853,7 @@ function initializeSocialPage(response = null) {
 
   if (isAuthenticated) {
     renderAuthenticatedShell();
-  } else if (activeFeed === "global" || routePostId()) {
+  } else if (activeFeed === "global" || routePostKey()) {
     renderPublicShell();
   } else {
     window.location.replace(loginUrlForFeed("entity"));
@@ -1402,7 +1870,8 @@ function initializeSocialPage(response = null) {
 }
 
 window.addEventListener("popstate", () => {
-  const postId = routePostId();
+  const postId = routePostKey();
+  pendingCommentKey = routeCommentKey();
   if (postId) {
     openPostDetail(postId, { push: false });
     return;
@@ -1410,7 +1879,7 @@ window.addEventListener("popstate", () => {
   showFeedView({ updateUrl: false });
   const params = new URLSearchParams(window.location.search);
   activeFeed = params.get("feed") === "global" ? "global" : "entity";
-  const entityId = params.get("entity_id");
+  const entityId = routeEntityKey();
   if (entityId && entitySelect && [...entitySelect.options].some((option) => option.value === entityId)) {
     entitySelect.value = entityId;
   }
@@ -1418,7 +1887,7 @@ window.addEventListener("popstate", () => {
   loadPosts();
 });
 
-apiFetch("/auth/me", { skipFallback: true })
+loadConfig().then(() => apiFetch("/auth/me", { skipFallback: true }))
   .then(initializeSocialPage)
   .catch((err) => {
     if ((err.status === 401 || err.status === 403 || /Unauthorized|Forbidden/.test(String(err.message))) && activeFeed === "global") {

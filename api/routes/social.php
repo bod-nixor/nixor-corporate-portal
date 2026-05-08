@@ -16,8 +16,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if ($method === 'GET' && $id === 'post' && $action) {
-        $postId = (int)$action;
-        if ($postId <= 0 || count($segments) !== 3) {
+        $postId = social_resolve_post_id($action);
+        if (!$postId || count($segments) !== 3) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
         $user = current_user();
@@ -48,9 +48,14 @@ function handle_social(string $method, array $segments): void {
 
     $user = require_auth();
 
+    if ($method === 'GET' && $id === 'mentions') {
+        social_handle_mentions_search($user);
+        return;
+    }
+
     if ($method === 'GET' && !$id) {
-        $entityId = (int)($_GET['entity_id'] ?? 0);
-        if ($entityId <= 0) {
+        $entityId = social_resolve_entity_identifier($_GET['e'] ?? ($_GET['entity_public_id'] ?? ($_GET['entity_id'] ?? '')));
+        if (!$entityId) {
             respond(['ok' => false, 'error' => 'entity_id required'], 400);
         }
         if (!social_can_view_entity_feed($user, $entityId)) {
@@ -72,9 +77,21 @@ function handle_social(string $method, array $segments): void {
             if (!social_can_post_global_feed($user)) {
                 respond(['ok' => false, 'error' => 'Forbidden'], 403);
             }
+            $entityId = social_resolve_entity_identifier($data['entity_public_id'] ?? ($data['entity_id'] ?? null));
+            if (!$entityId) {
+                $postingEntities = social_global_posting_entities($user);
+                if (count($postingEntities) === 1) {
+                    $entityId = (int)$postingEntities[0]['id'];
+                } else {
+                    respond(['ok' => false, 'error' => 'Choose which entity is posting globally'], 400);
+                }
+            }
+            if (!social_can_post_global_feed_as_entity($user, $entityId)) {
+                respond(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
         } else {
-            $entityId = (int)($data['entity_id'] ?? 0);
-            if ($entityId <= 0) {
+            $entityId = social_resolve_entity_identifier($data['entity_public_id'] ?? ($data['entity_id'] ?? null));
+            if (!$entityId) {
                 respond(['ok' => false, 'error' => 'entity_id required'], 400);
             }
             if (!social_can_post_entity_feed($user, $entityId)) {
@@ -89,8 +106,8 @@ function handle_social(string $method, array $segments): void {
         $imageCleanup = ['delete_after_commit' => [], 'delete_on_rollback' => []];
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare('INSERT INTO social_posts (endeavour_id, entity_id, feed_scope, user_id, content) VALUES (?, ?, ?, ?, ?)');
-            $stmt->execute([$endeavourId, $entityId, $feedScope, $user['id'], $content]);
+            $stmt = $pdo->prepare('INSERT INTO social_posts (public_id, endeavour_id, entity_id, feed_scope, user_id, content) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([generate_public_id('pst'), $endeavourId, $entityId, $feedScope, $user['id'], $content]);
             $postId = (int)$pdo->lastInsertId();
             $imageCleanup = social_sync_post_images($postId, $data, $user, $entityId, $uploadedImages);
             social_sync_mentions($postId, null, $data, $feedScope);
@@ -122,14 +139,16 @@ function handle_social(string $method, array $segments): void {
 
     if ($method === 'POST' && $id && $action === 'comments') {
         $data = read_json();
-        $post = social_fetch_post((int)$id);
+        $postId = social_resolve_post_id($id);
+        $post = $postId ? social_fetch_post($postId) : null;
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
         social_require_post_interaction($post, $user);
         $comment = require_non_empty($data['comment'] ?? '', 'comment', 1500);
-        $stmt = db()->prepare('INSERT INTO social_comments (post_id, user_id, comment) VALUES (?, ?, ?)');
-        $stmt->execute([(int)$post['id'], $user['id'], $comment]);
+        $parentCommentId = social_resolve_parent_comment_id($data, (int)$post['id']);
+        $stmt = db()->prepare('INSERT INTO social_comments (public_id, post_id, parent_comment_id, user_id, comment) VALUES (?, ?, ?, ?, ?)');
+        $stmt->execute([generate_public_id('cmt'), (int)$post['id'], $parentCommentId, $user['id'], $comment]);
         $commentId = (int)db()->lastInsertId();
         social_sync_mentions((int)$post['id'], $commentId, $data, $post['feed_scope'] ?? 'entity');
         log_activity($user['id'], 'social_post', (int)$post['id'], 'commented', 'Social comment added');
@@ -141,7 +160,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if ($method === 'POST' && $id && $action === 'like') {
-        $post = social_fetch_post((int)$id);
+        $postId = social_resolve_post_id($id);
+        $post = $postId ? social_fetch_post($postId) : null;
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
@@ -151,7 +171,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if ($method === 'POST' && $id === 'comments' && $action && ($segments[3] ?? '') === 'like') {
-        $comment = social_fetch_comment((int)$action);
+        $commentId = social_resolve_comment_id($action);
+        $comment = $commentId ? social_fetch_comment($commentId) : null;
         if (!$comment) {
             respond(['ok' => false, 'error' => 'Comment not found'], 404);
         }
@@ -161,7 +182,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if (($method === 'PUT' && $id && $action === '') || ($method === 'POST' && $id && $action === 'update')) {
-        $post = social_fetch_post((int)$id);
+        $postId = social_resolve_post_id($id);
+        $post = $postId ? social_fetch_post($postId) : null;
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
@@ -206,7 +228,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if ($method === 'PUT' && $id === 'comments' && $action) {
-        $comment = social_fetch_comment((int)$action);
+        $commentId = social_resolve_comment_id($action);
+        $comment = $commentId ? social_fetch_comment($commentId) : null;
         if (!$comment) {
             respond(['ok' => false, 'error' => 'Comment not found'], 404);
         }
@@ -215,7 +238,7 @@ function handle_social(string $method, array $segments): void {
         }
         $data = read_json();
         $content = require_non_empty($data['comment'] ?? $comment['comment'], 'comment', 1500);
-        $stmt = db()->prepare('UPDATE social_comments SET comment = ? WHERE id = ?');
+        $stmt = db()->prepare('UPDATE social_comments SET comment = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
         $stmt->execute([$content, (int)$comment['id']]);
         social_sync_mentions((int)$comment['post_id'], (int)$comment['id'], $data, $comment['feed_scope'] ?? 'entity');
         log_activity($user['id'], 'social_post', (int)$comment['post_id'], 'comment_updated', 'Social comment updated');
@@ -226,7 +249,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if ($method === 'DELETE' && $id === 'comments' && $action) {
-        $comment = social_fetch_comment((int)$action);
+        $commentId = social_resolve_comment_id($action);
+        $comment = $commentId ? social_fetch_comment($commentId) : null;
         if (!$comment) {
             respond(['ok' => false, 'error' => 'Comment not found'], 404);
         }
@@ -245,7 +269,8 @@ function handle_social(string $method, array $segments): void {
     }
 
     if ($method === 'DELETE' && $id && $action === '') {
-        $post = social_fetch_post((int)$id);
+        $postId = social_resolve_post_id($id);
+        $post = $postId ? social_fetch_post($postId) : null;
         if (!$post) {
             respond(['ok' => false, 'error' => 'Post not found'], 404);
         }
@@ -284,7 +309,7 @@ function social_read_request_data(): array {
     }
 
     $data = $_POST;
-    foreach (['image_urls', 'image_file_ids', 'keep_image_ids', 'mentioned_user_ids', 'mentioned_entity_ids'] as $field) {
+    foreach (['image_urls', 'image_file_ids', 'keep_image_ids', 'mentioned_user_ids', 'mentioned_user_public_ids', 'mentioned_entity_ids', 'mentioned_entity_public_ids'] as $field) {
         if (array_key_exists($field, $data)) {
             $data[$field] = social_request_array($data[$field]);
         }
@@ -301,6 +326,35 @@ function social_request_array($value): array {
         return [];
     }
     return array_values(array_filter(array_map('trim', explode(',', $value)), static fn($item) => $item !== ''));
+}
+
+function social_resolve_post_id($identifier): ?int {
+    return resolve_public_or_internal_id('social_posts', $identifier);
+}
+
+function social_resolve_comment_id($identifier): ?int {
+    return resolve_public_or_internal_id('social_comments', $identifier);
+}
+
+function social_resolve_entity_identifier($identifier): ?int {
+    return resolve_public_or_internal_id('entities', $identifier);
+}
+
+function social_resolve_parent_comment_id(array $data, int $postId): ?int {
+    $raw = $data['parent_comment_public_id'] ?? ($data['parent_comment_id'] ?? null);
+    if ($raw === null || $raw === '') {
+        return null;
+    }
+    $parentId = social_resolve_comment_id($raw);
+    if (!$parentId) {
+        respond(['ok' => false, 'error' => 'Parent comment not found'], 400);
+    }
+    $stmt = db()->prepare('SELECT post_id FROM social_comments WHERE id = ?');
+    $stmt->execute([$parentId]);
+    if ((int)$stmt->fetchColumn() !== $postId) {
+        respond(['ok' => false, 'error' => 'Parent comment must belong to the same post'], 400);
+    }
+    return $parentId;
 }
 
 function social_uploaded_image_files(): array {
@@ -380,6 +434,7 @@ function social_feed_permissions(string $scope, ?int $entityId, ?array $user): a
             'can_like' => $canInteract,
             'can_comment' => $canInteract,
             'authenticated' => (bool)$user,
+            'posting_entities' => $user ? social_global_posting_entities($user) : [],
         ];
     }
 
@@ -397,10 +452,64 @@ function social_feed_permissions(string $scope, ?int $entityId, ?array $user): a
     ];
 }
 
+function social_global_posting_entities(array $user): array {
+    if (!$user || empty($user['id'])) {
+        return [];
+    }
+    $entityIds = [];
+    if (function_exists('rbac_user_has_assignments') && rbac_user_has_assignments((int)$user['id'])) {
+        foreach (rbac_roles_for_user($user) as $role) {
+            $entityId = (int)($role['entity_id'] ?? 0);
+            if ($entityId > 0 && social_role_is_c_level($role)) {
+                $entityIds[$entityId] = true;
+            }
+        }
+    } else {
+        foreach (legacy_memberships_for_user((int)$user['id']) as $membership) {
+            $entityId = (int)($membership['entity_id'] ?? 0);
+            $department = $membership['department'] ?? '';
+            $role = $membership['role'] ?? '';
+            $isCLevel = ($user['global_role'] ?? '') === 'ceo'
+                || ($role === 'manager' && in_array($department, ['communications', 'hr'], true));
+            if ($entityId > 0 && $isCLevel) {
+                $entityIds[$entityId] = true;
+            }
+        }
+    }
+    if (!$entityIds) {
+        return [];
+    }
+    $ids = array_keys($entityIds);
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = db()->prepare("SELECT id, public_id, name, avatar_path, avatar_mime_type FROM entities WHERE id IN ({$in}) ORDER BY name");
+    $stmt->execute($ids);
+    return array_map(static function ($row) {
+        return [
+            'id' => (int)$row['id'],
+            'public_id' => $row['public_id'] ?: public_id_for_row('entities', (int)$row['id']),
+            'name' => $row['name'],
+            'avatar_url' => social_entity_avatar_url($row),
+        ];
+    }, $stmt->fetchAll());
+}
+
+function social_can_post_global_feed_as_entity(array $user, int $entityId): bool {
+    if ($entityId <= 0 || !social_can_post_global_feed($user)) {
+        return false;
+    }
+    foreach (social_global_posting_entities($user) as $entity) {
+        if ((int)$entity['id'] === $entityId) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
     if ($scope === 'global') {
         $stmt = db()->prepare(
-            'SELECT sp.*, u.full_name, e.name AS entity_name
+            'SELECT sp.*, u.full_name, u.public_id AS user_public_id,
+                    e.name AS entity_name, e.public_id AS entity_public_id, e.avatar_path AS entity_avatar_path, e.avatar_mime_type AS entity_avatar_mime_type
              FROM social_posts sp
              JOIN users u ON u.id = sp.user_id
              LEFT JOIN entities e ON e.id = sp.entity_id
@@ -411,7 +520,8 @@ function social_fetch_feed(?int $entityId, string $scope, ?array $user): array {
         $stmt->execute();
     } else {
         $stmt = db()->prepare(
-            'SELECT sp.*, u.full_name, e.name AS entity_name
+            'SELECT sp.*, u.full_name, u.public_id AS user_public_id,
+                    e.name AS entity_name, e.public_id AS entity_public_id, e.avatar_path AS entity_avatar_path, e.avatar_mime_type AS entity_avatar_mime_type
              FROM social_posts sp
              JOIN users u ON u.id = sp.user_id
              JOIN entities e ON e.id = sp.entity_id
@@ -439,6 +549,22 @@ function social_fetch_post_detail(int $postId, ?array $user): ?array {
     ];
 }
 
+function social_entity_avatar_url(array $row): ?string {
+    $path = trim((string)($row['entity_avatar_path'] ?? $row['avatar_path'] ?? ''));
+    if ($path === '') {
+        return null;
+    }
+    $entityPublicId = $row['entity_public_id'] ?? $row['public_id'] ?? null;
+    if (!$entityPublicId && !empty($row['entity_id'])) {
+        $entityPublicId = public_id_for_row('entities', (int)$row['entity_id']);
+    } elseif (!$entityPublicId && !empty($row['id'])) {
+        $entityPublicId = public_id_for_row('entities', (int)$row['id']);
+    }
+    return $entityPublicId
+        ? '/api/files/download?type=entity_avatar&id=' . rawurlencode((string)$entityPublicId)
+        : null;
+}
+
 function social_hydrate_posts(array $posts, ?array $user): array {
     $postIds = array_map(fn($row) => (int)$row['id'], $posts);
     $comments = social_comments_for_posts($postIds, $user);
@@ -452,6 +578,24 @@ function social_hydrate_posts(array $posts, ?array $user): array {
 
     $posts = array_map(static function ($post) use ($user, $images, $mentions, $likeCounts, $liked) {
         $postId = (int)$post['id'];
+        $post['public_id'] = $post['public_id'] ?: public_id_for_row('social_posts', $postId);
+        $entityId = (int)($post['entity_id'] ?? 0);
+        if ($entityId > 0) {
+            $post['entity_public_id'] = $post['entity_public_id'] ?: public_id_for_row('entities', $entityId);
+        }
+        $post['author_name'] = (($post['feed_scope'] ?? '') === 'global' && !empty($post['entity_name']))
+            ? $post['entity_name']
+            : ($post['full_name'] ?? 'NCP User');
+        $post['author_avatar_url'] = (($post['feed_scope'] ?? '') === 'global')
+            ? social_entity_avatar_url($post)
+            : null;
+        $post['author_meta'] = (($post['feed_scope'] ?? '') === 'global')
+            ? 'Posted by an executive'
+            : null;
+        if (($post['feed_scope'] ?? '') === 'global') {
+            $post['full_name'] = $post['author_name'];
+            unset($post['user_public_id']);
+        }
         $post['safe_html'] = social_render_markdown($post['content']);
         $post['images'] = $images[$postId] ?? [];
         $post['mentions'] = $mentions[$postId] ?? [];
@@ -471,12 +615,21 @@ function social_hydrate_posts(array $posts, ?array $user): array {
 
     $comments = array_map(static function ($comment) use ($user, $commentLikeCounts, $commentLiked) {
         $commentId = (int)$comment['id'];
+        $comment['public_id'] = $comment['public_id'] ?: public_id_for_row('social_comments', $commentId);
+        $comment['parent_public_id'] = $comment['parent_public_id'] ?: (
+            !empty($comment['parent_comment_id'])
+                ? public_id_for_row('social_comments', (int)$comment['parent_comment_id'])
+                : null
+        );
+        $comment['replying_to_name'] = $comment['parent_author_name'] ?? null;
         $comment['safe_html'] = social_render_markdown($comment['comment']);
         $comment['likes_count'] = $commentLikeCounts[$commentId] ?? 0;
         $comment['liked_by_me'] = isset($commentLiked[$commentId]);
         $comment['can_interact'] = social_record_allows_interaction($comment, $user);
         $comment['can_like'] = $comment['can_interact'];
         $comment['can_manage'] = $user ? social_user_can_manage_record($user, $comment, (int)$comment['user_id']) : false;
+        $comment['can_edit'] = $comment['can_manage'];
+        $comment['can_delete'] = $comment['can_manage'];
         if (!$user) {
             unset($comment['user_id'], $comment['entity_id']);
         }
@@ -487,7 +640,7 @@ function social_hydrate_posts(array $posts, ?array $user): array {
 }
 
 function social_fetch_post(int $postId): ?array {
-    $stmt = db()->prepare('SELECT sp.*, u.full_name, e.name AS entity_name FROM social_posts sp JOIN users u ON u.id = sp.user_id LEFT JOIN entities e ON e.id = sp.entity_id WHERE sp.id = ?');
+    $stmt = db()->prepare('SELECT sp.*, u.full_name, u.public_id AS user_public_id, e.name AS entity_name, e.public_id AS entity_public_id, e.avatar_path AS entity_avatar_path, e.avatar_mime_type AS entity_avatar_mime_type FROM social_posts sp JOIN users u ON u.id = sp.user_id LEFT JOIN entities e ON e.id = sp.entity_id WHERE sp.id = ?');
     $stmt->execute([$postId]);
     $post = $stmt->fetch();
     return $post ?: null;
@@ -507,9 +660,11 @@ function social_fetch_comment(int $commentId): ?array {
 
 function social_fetch_comment_detail(int $commentId, ?array $user): ?array {
     $stmt = db()->prepare(
-        'SELECT sc.*, u.full_name, sp.entity_id, sp.feed_scope
+        'SELECT sc.*, u.full_name, u.public_id AS user_public_id, parent.public_id AS parent_public_id, parent_user.full_name AS parent_author_name, sp.entity_id, sp.feed_scope
          FROM social_comments sc
          JOIN users u ON u.id = sc.user_id
+         LEFT JOIN social_comments parent ON parent.id = sc.parent_comment_id
+         LEFT JOIN users parent_user ON parent_user.id = parent.user_id
          JOIN social_posts sp ON sp.id = sc.post_id
          WHERE sc.id = ?'
     );
@@ -519,12 +674,21 @@ function social_fetch_comment_detail(int $commentId, ?array $user): ?array {
         return null;
     }
     $commentId = (int)$comment['id'];
+    $comment['public_id'] = $comment['public_id'] ?: public_id_for_row('social_comments', $commentId);
+    $comment['parent_public_id'] = $comment['parent_public_id'] ?: (
+        !empty($comment['parent_comment_id'])
+            ? public_id_for_row('social_comments', (int)$comment['parent_comment_id'])
+            : null
+    );
+    $comment['replying_to_name'] = $comment['parent_author_name'] ?? null;
     $comment['safe_html'] = social_render_markdown($comment['comment']);
     $comment['likes_count'] = social_like_count_target('comment', $commentId);
     $comment['liked_by_me'] = $user ? isset(social_liked_targets('comment', [$commentId], (int)$user['id'])[$commentId]) : false;
     $comment['can_interact'] = social_record_allows_interaction($comment, $user);
     $comment['can_like'] = $comment['can_interact'];
     $comment['can_manage'] = $user ? social_user_can_manage_record($user, $comment, (int)$comment['user_id']) : false;
+    $comment['can_edit'] = $comment['can_manage'];
+    $comment['can_delete'] = $comment['can_manage'];
     if (!$user) {
         unset($comment['user_id'], $comment['entity_id']);
     }
@@ -578,8 +742,8 @@ function social_validate_endeavour_id($raw, ?int $entityId): ?int {
     if ($entityId === null) {
         respond(['ok' => false, 'error' => 'Endeavour links are only supported in entity feeds'], 400);
     }
-    $endeavourId = filter_var($raw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
-    if ($endeavourId === false) {
+    $endeavourId = resolve_public_or_internal_id('endeavours', $raw);
+    if (!$endeavourId) {
         respond(['ok' => false, 'error' => 'Invalid endeavour_id'], 400);
     }
     $endeavourCheck = db()->prepare('SELECT id FROM endeavours WHERE id = ? AND entity_id = ?');
@@ -752,8 +916,8 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
 
         $pdo->prepare('DELETE FROM social_post_images WHERE post_id = ?')->execute([$postId]);
         $stmt = $pdo->prepare(
-            'INSERT INTO social_post_images (post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO social_post_images (public_id, post_id, file_drive_item_id, image_url, storage_path, original_name, mime_type, size_bytes, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         social_upload_log('social_sync_post_images.insert_start', [
             'post_id' => $postId,
@@ -785,6 +949,7 @@ function social_sync_post_images(int $postId, array $data, array $user, ?int $en
             ]);
         
             $stmt->execute([
+                generate_public_id('img'),
                 $postId,
                 $fileDriveItemId,
                 !empty($image['url']) ? $image['url'] : null,
@@ -858,21 +1023,36 @@ function social_cleanup_storage_paths(array $paths): void {
 
 
 function social_validate_mentions(array $data, string $scope): void {
-    $hasMentions = array_key_exists('mentioned_user_ids', $data) || array_key_exists('mentioned_entity_ids', $data);
+    $hasMentions = array_key_exists('mentioned_user_ids', $data)
+        || array_key_exists('mentioned_user_public_ids', $data)
+        || array_key_exists('mentioned_entity_ids', $data)
+        || array_key_exists('mentioned_entity_public_ids', $data);
     if (!$hasMentions) {
         return;
     }
-    $userIds = social_normalize_id_list($data['mentioned_user_ids'] ?? []);
-    $entityIds = social_normalize_id_list($data['mentioned_entity_ids'] ?? []);
+    $userIds = social_mention_user_ids($data);
+    $entityIds = social_mention_entity_ids($data);
     if ($entityIds && $scope !== 'global') {
         respond(['ok' => false, 'error' => 'Entity mentions are only allowed in the global feed'], 400);
     }
     social_validate_ids_exist('users', $userIds, 'mentioned_user_ids');
     social_validate_ids_exist('entities', $entityIds, 'mentioned_entity_ids');
+    $actor = current_user();
+    if ($actor && $userIds) {
+        $allowed = array_fill_keys(social_discoverable_user_ids($actor), true);
+        foreach ($userIds as $userId) {
+            if (!isset($allowed[$userId])) {
+                respond(['ok' => false, 'error' => 'One or more mentioned users are not available'], 403);
+            }
+        }
+    }
 }
 
 function social_sync_mentions(int $postId, ?int $commentId, array $data, string $scope): void {
-    $hasMentions = array_key_exists('mentioned_user_ids', $data) || array_key_exists('mentioned_entity_ids', $data);
+    $hasMentions = array_key_exists('mentioned_user_ids', $data)
+        || array_key_exists('mentioned_user_public_ids', $data)
+        || array_key_exists('mentioned_entity_ids', $data)
+        || array_key_exists('mentioned_entity_public_ids', $data);
     if (!$hasMentions) {
         return;
     }
@@ -883,8 +1063,8 @@ function social_sync_mentions(int $postId, ?int $commentId, array $data, string 
         db()->prepare('DELETE FROM social_mentions WHERE post_id = ? AND comment_id IS NULL')->execute([$postId]);
     }
 
-    $userIds = social_normalize_id_list($data['mentioned_user_ids'] ?? []);
-    $entityIds = social_normalize_id_list($data['mentioned_entity_ids'] ?? []);
+    $userIds = social_mention_user_ids($data);
+    $entityIds = social_mention_entity_ids($data);
 
     $stmt = db()->prepare('INSERT INTO social_mentions (post_id, comment_id, mentioned_user_id, mentioned_entity_id) VALUES (?, ?, ?, ?)');
     foreach ($userIds as $userId) {
@@ -893,6 +1073,166 @@ function social_sync_mentions(int $postId, ?int $commentId, array $data, string 
     foreach ($entityIds as $entityId) {
         $stmt->execute([$postId, $commentId, null, $entityId]);
     }
+    social_notify_mentioned_users($postId, $commentId, $userIds);
+}
+
+function social_mention_user_ids(array $data): array {
+    $ids = social_normalize_id_list($data['mentioned_user_ids'] ?? []);
+    foreach (social_request_array($data['mentioned_user_public_ids'] ?? []) as $publicId) {
+        $resolved = resolve_public_or_internal_id('users', $publicId);
+        if ($resolved) {
+            $ids[] = $resolved;
+        }
+    }
+    return array_values(array_unique(array_filter(array_map('intval', $ids))));
+}
+
+function social_mention_entity_ids(array $data): array {
+    $ids = social_normalize_id_list($data['mentioned_entity_ids'] ?? []);
+    foreach (social_request_array($data['mentioned_entity_public_ids'] ?? []) as $publicId) {
+        $resolved = resolve_public_or_internal_id('entities', $publicId);
+        if ($resolved) {
+            $ids[] = $resolved;
+        }
+    }
+    return array_values(array_unique(array_filter(array_map('intval', $ids))));
+}
+
+function social_notify_mentioned_users(int $postId, ?int $commentId, array $userIds): void {
+    $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+    if (!$userIds) {
+        return;
+    }
+    $actor = current_user();
+    $post = social_fetch_post($postId);
+    if (!$post) {
+        return;
+    }
+    $postPublicId = $post['public_id'] ?: public_id_for_row('social_posts', $postId);
+    $commentPublicId = $commentId ? public_id_for_row('social_comments', $commentId) : null;
+    $entityPublicId = !empty($post['entity_id']) ? public_id_for_row('entities', (int)$post['entity_id']) : null;
+    $payload = [
+        'title' => 'You were mentioned',
+        'message' => ($actor['full_name'] ?? 'Someone') . ($commentId ? ' mentioned you in a comment.' : ' mentioned you in a post.'),
+        'feed_scope' => $post['feed_scope'] ?? 'entity',
+        'post_public_id' => $postPublicId,
+        'comment_public_id' => $commentPublicId,
+        'entity_public_id' => $entityPublicId,
+        'target_url' => public_relative_url('social.html', [
+            'feed' => ($post['feed_scope'] ?? '') === 'entity' ? 'entity' : 'global',
+            'e' => ($post['feed_scope'] ?? '') === 'entity' ? $entityPublicId : null,
+            'p' => $postPublicId,
+            'c' => $commentPublicId,
+        ]),
+    ];
+    foreach ($userIds as $userId) {
+        if ($actor && (int)$actor['id'] === $userId) {
+            continue;
+        }
+        create_platform_notification($userId, 'social_mention', $payload);
+    }
+}
+
+function social_handle_mentions_search(array $user): void {
+    $query = trim((string)($_GET['q'] ?? ($_GET['query'] ?? '')));
+    if (mb_strlen($query, 'UTF-8') < 1) {
+        respond(['ok' => true, 'data' => []]);
+    }
+    $entityId = social_resolve_entity_identifier($_GET['e'] ?? ($_GET['entity_public_id'] ?? ($_GET['entity_id'] ?? '')));
+    $discoverableEntityIds = [];
+    if ($entityId && social_can_view_entity_feed($user, $entityId)) {
+        $discoverableEntityIds[] = $entityId;
+    } else {
+        $discoverableEntityIds = social_discoverable_entity_ids($user);
+    }
+    if (!$discoverableEntityIds) {
+        respond(['ok' => true, 'data' => []]);
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $discoverableEntityIds))));
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $escaped = str_replace(['%', '_'], ['\\%', '\\_'], $query);
+    $params = array_merge(['%' . $escaped . '%'], $ids);
+    $stmt = db()->prepare(
+        "SELECT DISTINCT u.id, u.public_id, u.full_name
+         FROM users u
+         JOIN entity_memberships em ON em.user_id = u.id
+         WHERE u.status = 'active'
+           AND u.full_name LIKE ? ESCAPE '\\\\'
+           AND em.entity_id IN ({$in})
+         ORDER BY u.full_name
+         LIMIT 10"
+    );
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll();
+    respond(['ok' => true, 'data' => array_map(static function ($row) use ($ids) {
+        $tags = social_mention_tags_for_user((int)$row['id'], $ids);
+        return [
+            'id' => (int)$row['id'],
+            'public_id' => $row['public_id'] ?: public_id_for_row('users', (int)$row['id']),
+            'full_name' => $row['full_name'],
+            'tag' => $tags[0] ?? '',
+            'entities' => $tags,
+        ];
+    }, $rows)]);
+}
+
+function social_discoverable_entity_ids(array $user): array {
+    $ids = [];
+    foreach (legacy_memberships_for_user((int)$user['id']) as $membership) {
+        if (!empty($membership['entity_id'])) {
+            $ids[] = (int)$membership['entity_id'];
+        }
+    }
+    foreach (rbac_entity_ids_for_permission($user, 'social.view') as $entityId) {
+        $ids[] = (int)$entityId;
+    }
+    if (rbac_has_global_permission($user, 'social.view')) {
+        try {
+            $ids = array_merge($ids, array_map('intval', db()->query('SELECT id FROM entities')->fetchAll(PDO::FETCH_COLUMN)));
+        } catch (PDOException $e) {
+        }
+    }
+    return array_values(array_unique(array_filter($ids)));
+}
+
+function social_discoverable_user_ids(array $user): array {
+    $entityIds = social_discoverable_entity_ids($user);
+    if (!$entityIds) {
+        return [(int)$user['id']];
+    }
+    $in = implode(',', array_fill(0, count($entityIds), '?'));
+    $stmt = db()->prepare(
+        "SELECT DISTINCT u.id
+         FROM users u
+         JOIN entity_memberships em ON em.user_id = u.id
+         WHERE u.status = 'active' AND em.entity_id IN ({$in})"
+    );
+    $stmt->execute($entityIds);
+    $ids = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    $ids[] = (int)$user['id'];
+    return array_values(array_unique(array_filter($ids)));
+}
+
+function social_mention_tags_for_user(int $userId, array $allowedEntityIds): array {
+    if (!$allowedEntityIds) {
+        return [];
+    }
+    $in = implode(',', array_fill(0, count($allowedEntityIds), '?'));
+    $stmt = db()->prepare(
+        "SELECT em.role, em.department, e.name
+         FROM entity_memberships em
+         JOIN entities e ON e.id = em.entity_id
+         WHERE em.user_id = ? AND em.entity_id IN ({$in})
+         ORDER BY e.name"
+    );
+    $stmt->execute(array_merge([$userId], $allowedEntityIds));
+    $tags = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $label = in_array($row['role'] ?? '', ['manager', 'executive'], true) ? 'Executive' : 'Member';
+        $tags[] = $label . ' · ' . $row['name'];
+    }
+    return array_values(array_unique($tags));
 }
 
 function social_normalize_id_list($raw): array {
@@ -928,9 +1268,11 @@ function social_comments_for_posts(array $postIds, ?array $user): array {
     }
     $in = implode(',', array_fill(0, count($postIds), '?'));
     $stmt = db()->prepare(
-        "SELECT sc.*, u.full_name, sp.entity_id, sp.feed_scope
+        "SELECT sc.*, u.full_name, u.public_id AS user_public_id, parent.public_id AS parent_public_id, parent_user.full_name AS parent_author_name, sp.entity_id, sp.feed_scope
          FROM social_comments sc
          JOIN users u ON u.id = sc.user_id
+         LEFT JOIN social_comments parent ON parent.id = sc.parent_comment_id
+         LEFT JOIN users parent_user ON parent_user.id = parent.user_id
          JOIN social_posts sp ON sp.id = sc.post_id
          WHERE sc.post_id IN ({$in})
          ORDER BY sc.created_at ASC"
@@ -949,7 +1291,7 @@ function social_images_for_posts(array $postIds): array {
     }
     $in = implode(',', array_fill(0, count($postIds), '?'));
     $stmt = db()->prepare(
-        "SELECT spi.*, f.name AS file_name
+        "SELECT spi.*, f.name AS file_name, f.public_id AS file_public_id
          FROM social_post_images spi
          LEFT JOIN file_drive_items f ON f.id = spi.file_drive_item_id
          WHERE spi.post_id IN ({$in})
@@ -959,13 +1301,16 @@ function social_images_for_posts(array $postIds): array {
     foreach ($stmt->fetchAll() as $row) {
         $postId = (int)$row['post_id'];
         $url = $row['image_url'];
+        $imagePublicId = $row['public_id'] ?: public_id_for_row('social_post_images', (int)$row['id']);
         if (!$url && !empty($row['storage_path'])) {
-            $url = '/api/files/download?type=social_image&id=' . urlencode((string)$row['id']);
+            $url = '/api/files/download?type=social_image&id=' . urlencode((string)$imagePublicId);
         } elseif (!$url && $row['file_drive_item_id']) {
-            $url = '/api/files/download?type=drive&id=' . urlencode((string)$row['file_drive_item_id']);
+            $filePublicId = $row['file_public_id'] ?: public_id_for_row('file_drive_items', (int)$row['file_drive_item_id']);
+            $url = '/api/files/download?type=drive&id=' . urlencode((string)($filePublicId ?: $row['file_drive_item_id']));
         }
         $map[$postId][] = [
             'id' => (int)$row['id'],
+            'public_id' => $imagePublicId,
             'url' => $url,
             'file_drive_item_id' => $row['file_drive_item_id'] ? (int)$row['file_drive_item_id'] : null,
             'name' => $row['original_name'] ?: $row['file_name'],
@@ -986,7 +1331,7 @@ function social_mentions_for_posts(array $postIds): array {
     }
     $in = implode(',', array_fill(0, count($postIds), '?'));
     $stmt = db()->prepare(
-        "SELECT sm.*, u.full_name AS user_name, e.name AS entity_name
+        "SELECT sm.*, u.full_name AS user_name, u.public_id AS user_public_id, e.name AS entity_name, e.public_id AS entity_public_id
          FROM social_mentions sm
          LEFT JOIN users u ON u.id = sm.mentioned_user_id
          LEFT JOIN entities e ON e.id = sm.mentioned_entity_id
@@ -998,8 +1343,10 @@ function social_mentions_for_posts(array $postIds): array {
         $postId = (int)$row['post_id'];
         $map[$postId][] = [
             'user_id' => $row['mentioned_user_id'] ? (int)$row['mentioned_user_id'] : null,
+            'user_public_id' => $row['user_public_id'] ?: ($row['mentioned_user_id'] ? public_id_for_row('users', (int)$row['mentioned_user_id']) : null),
             'user_name' => $row['user_name'],
             'entity_id' => $row['mentioned_entity_id'] ? (int)$row['mentioned_entity_id'] : null,
+            'entity_public_id' => $row['entity_public_id'] ?: ($row['mentioned_entity_id'] ? public_id_for_row('entities', (int)$row['mentioned_entity_id']) : null),
             'entity_name' => $row['entity_name'],
             'comment_id' => $row['comment_id'] ? (int)$row['comment_id'] : null,
         ];

@@ -431,7 +431,7 @@ if (loadMoreBtn) {
         loadMoreBtn.disabled = true;
         loadMoreBtn.textContent = 'Loading...';
         try {
-            const res = await dashboardApiFetch(`/announcements?entity_id=${encodeURIComponent(currentEntityId)}&offset=${announcementsOffset}&limit=${ANNOUNCEMENTS_LIMIT}`);
+            const res = await dashboardApiFetch(`/announcements?e=${encodeURIComponent(currentEntityId)}&offset=${announcementsOffset}&limit=${ANNOUNCEMENTS_LIMIT}`);
             if (res?.data && res.data.length > 0) {
                 res.data.forEach(ann => {
                     announcementsList.appendChild(renderAnnouncement(ann, window._canManageAnnouncements));
@@ -473,7 +473,7 @@ const loadDashboard = async (entityId) => {
     setListMessage(pendingDocsList, 'Loading pending docs...');
     setListMessage(meetingsList, 'Loading meetings...');
     setListMessage(deadlinesList, 'Loading deadlines...');
-    const dashboardPath = `/dashboard?entity_id=${encodeURIComponent(entityId)}`;
+    const dashboardPath = `/dashboard?e=${encodeURIComponent(entityId)}`;
     try {
         const response = await dashboardApiFetch(dashboardPath);
         const data = response?.data || {};
@@ -550,11 +550,16 @@ const initDashboard = async () => {
         entitySelect.innerHTML = '';
         entities.forEach((entity) => {
             const option = document.createElement('option');
-            option.value = entity.id;
+            option.value = entity.public_id || entity.id;
             option.textContent = entity.name;
             entitySelect.appendChild(option);
         });
-        const selected = entities[0]?.id;
+        const requested = new URLSearchParams(window.location.search).get('e')
+            || new URLSearchParams(window.location.search).get('entity_public_id')
+            || new URLSearchParams(window.location.search).get('entity_id');
+        const selected = requested && entities.some(entity => String(entity.public_id || entity.id) === String(requested))
+            ? requested
+            : (entities[0]?.public_id || entities[0]?.id);
         logDashboard('selectedEntityId', selected || null);
         if (selected) {
             entitySelect.value = selected;

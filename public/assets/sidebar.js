@@ -1,4 +1,4 @@
-import { apiFetch, clearMobileAuthToken, getCsrfToken, isNativeRuntime, loginUrlForCurrentPage } from '/assets/app.js';
+import { apiFetch, clearMobileAuthToken, getCsrfToken, isNativeRuntime, loginUrlForCurrentPage, unregisterNativePushToken } from '/assets/app.js';
 
 const fallbackLinks = [
   { id: 'settings', href: '/settings.html', text: 'Settings', permission: 'nav.settings' }
@@ -159,8 +159,12 @@ async function fetchNotifications() {
         const unreadCount = parseInt(response.meta?.unread || '0', 10);
         if (unreadCount > 0) {
           badge.classList.remove('hidden');
+          badge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+          badge.setAttribute('aria-label', `${unreadCount} unread notifications`);
         } else {
           badge.classList.add('hidden');
+          badge.textContent = '';
+          badge.removeAttribute('aria-label');
         }
         
         if (response.data.length === 0) {
@@ -184,7 +188,7 @@ export function renderSidebar(activeId) {
           <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
-          <span id="global-notification-badge" class="hidden absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-[var(--bg-base)]"></span>
+          <span id="global-notification-badge" class="hidden absolute -top-1 -right-1 min-w-[1.15rem] h-[1.15rem] px-1 bg-red-500 rounded-full border border-[var(--bg-base)] text-[10px] font-bold leading-[1.05rem] text-white text-center"></span>
         </button>
         <div id="global-notification-dropdown" class="hidden absolute right-0 mt-2 bg-[var(--bg-surface)] border border-[var(--border-strong)] rounded-xl shadow-2xl z-50 flex-col font-sans overflow-hidden">
           <div class="p-4 border-b border-[var(--border-subtle)] flex justify-between items-center gap-4 bg-[var(--bg-surface-hover)] rounded-t-xl backdrop-blur-sm">
@@ -253,6 +257,7 @@ if (typeof document !== 'undefined') {
       (async () => {
         try {
           if (isNativeRuntime()) {
+            await unregisterNativePushToken();
             await apiFetch('/auth/mobile/logout', { method: 'POST', skipCsrf: true });
           } else {
             await apiFetch('/auth/logout', { method: 'POST' });
@@ -334,6 +339,16 @@ if (typeof document !== 'undefined') {
       apiFetch(`/notifications/${id}/read`, { method: 'POST', skipFallback: true }).then(() => {
         fetchNotifications();
       }).catch(console.error);
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const dropdown = document.getElementById('global-notification-dropdown');
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+      dropdown.classList.add('hidden');
+      document.getElementById('global-notification-bell')?.setAttribute('aria-expanded', 'false');
+      document.getElementById('global-notification-bell')?.focus();
     }
   });
 }
