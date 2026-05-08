@@ -14,6 +14,12 @@ const emptyEl = document.getElementById("social-empty");
 const emptyTitle = document.getElementById("social-empty-title");
 const emptySubtitle = document.getElementById("social-empty-subtitle");
 const loadingEl = document.getElementById("social-loading");
+const pageHeader = document.querySelector(".app-page-header");
+const feedShell = document.querySelector(".social-feed-shell");
+const detailView = document.getElementById("social-detail-view");
+const detailBackBtn = document.getElementById("social-detail-back");
+const detailStatus = document.getElementById("social-detail-status");
+const detailContent = document.getElementById("social-detail-content");
 const openPostModalBtn = document.getElementById("open-post-modal");
 const signInButton = document.getElementById("social-signin-button");
 const feedNotice = document.getElementById("social-feed-notice");
@@ -54,6 +60,9 @@ let modalTrigger = null;
 let lockedScrollY = 0;
 let currentUser = null;
 let isAuthenticated = false;
+let currentDetailPostId = 0;
+let isShowingPostDetail = false;
+let lastFeedUrl = "";
 let currentFeedPermissions = {
   scope: activeFeed,
   can_view: false,
@@ -70,6 +79,7 @@ const icons = {
   copy: '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 8h9a2 2 0 012 2v9a2 2 0 01-2 2H8a2 2 0 01-2-2v-9a2 2 0 012-2zm-3 8H4a2 2 0 01-2-2V5a2 2 0 012-2h9a2 2 0 012 2v1"></path></svg>',
   edit: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>',
   trash: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>',
+  more: '<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.6" d="M12 6.75h.01M12 12h.01M12 17.25h.01"></path></svg>',
   close: '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.3" d="M6 18L18 6M6 6l12 12"></path></svg>'
 };
 
@@ -86,6 +96,43 @@ function setStatus(message, ok = false) {
 
 function hideStatus() {
   statusEl?.classList.add("hidden");
+}
+
+function parsePositiveId(value) {
+  const id = Number.parseInt(String(value || ""), 10);
+  return Number.isFinite(id) && id > 0 ? id : 0;
+}
+
+function routePostId() {
+  return parsePositiveId(new URLSearchParams(window.location.search).get("post"));
+}
+
+function feedUrlForState(feed = activeFeed, entityId = entitySelect?.value || "") {
+  const url = new URL("/social.html", window.location.origin);
+  if (feed === "global") {
+    url.searchParams.set("feed", "global");
+  } else if (entityId) {
+    url.searchParams.set("feed", "entity");
+    url.searchParams.set("entity_id", String(entityId));
+  }
+  return `${url.pathname}${url.search}`;
+}
+
+function postUrl(postOrId) {
+  const post = typeof postOrId === "object" && postOrId ? postOrId : { id: postOrId, feed_scope: activeFeed, entity_id: entitySelect?.value };
+  const url = new URL("/social.html", window.location.origin);
+  url.searchParams.set("feed", post.feed_scope === "global" ? "global" : "entity");
+  if (post.feed_scope !== "global" && post.entity_id) {
+    url.searchParams.set("entity_id", String(post.entity_id));
+  }
+  url.searchParams.set("post", String(post.id));
+  return url.href;
+}
+
+function setFeedNotice(message) {
+  if (!feedNotice) return;
+  feedNotice.textContent = message;
+  feedNotice.classList.toggle("hidden", !message);
 }
 
 function defaultFeedPermissions(feed = activeFeed) {
@@ -408,13 +455,11 @@ function setActiveFeed(feed, options = {}) {
   updatePostControls();
   updateFeedNotice();
   if (scopeSelect && !editingPost) scopeSelect.value = activeFeed;
-  const url = new URL(window.location.href);
-  if (activeFeed === "global") {
-    url.searchParams.set("feed", "global");
-  } else {
-    url.searchParams.delete("feed");
+  const nextFeedUrl = feedUrlForState(activeFeed, entitySelect?.value || "");
+  lastFeedUrl = nextFeedUrl;
+  if (!isShowingPostDetail) {
+    window.history.replaceState({ view: "feed" }, "", nextFeedUrl);
   }
-  window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   if (!options.skipLoad) loadPosts();
 }
 
@@ -446,28 +491,79 @@ function buildAvatar(name, extraClass = "") {
   return avatar;
 }
 
-function buildManageActions(post) {
-  const actions = document.createElement("div");
-  actions.className = "flex shrink-0 items-center gap-1";
+function closePostActionMenus(except = null) {
+  document.querySelectorAll(".social-post-menu-wrap.is-open").forEach((wrap) => {
+    if (except && wrap === except) return;
+    const button = wrap.querySelector(".social-post-menu-button");
+    const hadFocus = wrap.contains(document.activeElement);
+    wrap.classList.remove("is-open");
+    button?.setAttribute("aria-expanded", "false");
+    if (hadFocus) button?.focus();
+  });
+}
 
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.className = "btn btn-ghost px-2 py-1 h-auto";
-  editBtn.title = "Edit post";
-  editBtn.setAttribute("aria-label", "Edit post");
-  editBtn.innerHTML = icons.edit;
-  editBtn.addEventListener("click", () => openPostModal(post, editBtn));
+function buildMenuItem(label, icon, handler, options = {}) {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = `social-post-menu-item ${options.danger ? "is-danger" : ""}`;
+  item.setAttribute("role", "menuitem");
+  item.innerHTML = `${icon}<span>${label}</span>`;
+  item.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closePostActionMenus();
+    handler(item);
+  });
+  return item;
+}
 
-  const deleteBtn = document.createElement("button");
-  deleteBtn.type = "button";
-  deleteBtn.className = "btn btn-ghost px-2 py-1 h-auto text-[var(--color-danger)]";
-  deleteBtn.title = "Delete post";
-  deleteBtn.setAttribute("aria-label", "Delete post");
-  deleteBtn.innerHTML = icons.trash;
-  deleteBtn.addEventListener("click", () => openDeleteModal("post", post.id, post.content, deleteBtn));
+function buildPostActionsMenu(post) {
+  const wrap = document.createElement("div");
+  wrap.className = "social-post-menu-wrap";
 
-  actions.append(editBtn, deleteBtn);
-  return actions;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "social-post-menu-button";
+  button.setAttribute("aria-label", "Post actions");
+  button.setAttribute("aria-haspopup", "menu");
+  button.setAttribute("aria-expanded", "false");
+  button.innerHTML = icons.more;
+
+  const menu = document.createElement("div");
+  menu.className = "social-post-menu";
+  menu.setAttribute("role", "menu");
+
+  menu.appendChild(buildMenuItem("Copy link", icons.copy, async (trigger) => {
+    await copyPostLink(post);
+    const label = trigger.querySelector("span");
+    if (label) {
+      label.textContent = "Copied";
+      window.setTimeout(() => {
+        label.textContent = "Copy link";
+      }, 1200);
+    }
+  }));
+  if (post.can_edit || post.can_manage) {
+    menu.appendChild(buildMenuItem("Edit post", icons.edit, (trigger) => openPostModal(post, trigger)));
+  }
+  if (post.can_delete || post.can_manage) {
+    menu.appendChild(buildMenuItem("Delete post", icons.trash, (trigger) => openDeleteModal("post", post.id, post.content, trigger), { danger: true }));
+  }
+
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const opening = !wrap.classList.contains("is-open");
+    closePostActionMenus(wrap);
+    wrap.classList.toggle("is-open", opening);
+    button.setAttribute("aria-expanded", opening ? "true" : "false");
+    if (opening) {
+      requestAnimationFrame(() => menu.querySelector("button")?.focus());
+    }
+  });
+
+  wrap.append(button, menu);
+  return wrap;
 }
 
 function buildImageGrid(images) {
@@ -508,12 +604,12 @@ function setCommentsForPost(postId, comments = []) {
 function updateCommentCount(postId, explicitCount = null) {
   const id = Number(postId);
   if (!id) return;
-  const countEl = document.getElementById(`post-comment-count-${id}`);
-  if (!countEl) return;
   const count = explicitCount === null
     ? (commentsByPost.get(id) || []).length
     : Math.max(0, Number(explicitCount) || 0);
-  countEl.textContent = `${count} ${count === 1 ? "comment" : "comments"}`;
+  document.querySelectorAll(`[data-post-comment-count="${id}"]`).forEach((countEl) => {
+    countEl.textContent = `${count} ${count === 1 ? "comment" : "comments"}`;
+  });
 }
 
 function upsertCommentInCache(comment) {
@@ -578,6 +674,10 @@ function upsertPostCard(post, comments = null, options = {}) {
   } else {
     postsEl.appendChild(nextCard);
   }
+  if (isShowingPostDetail && Number(currentDetailPostId) === Number(post.id) && detailContent) {
+    detailContent.innerHTML = "";
+    detailContent.appendChild(renderPost(post, { detail: true }));
+  }
   loadingEl.classList.add("hidden");
   emptyEl.classList.add("hidden");
   return true;
@@ -616,10 +716,9 @@ async function toggleLike(button, targetType, id) {
     updateLikeButton(button, targetType, liked, likesCount);
 
     if (targetType === "post") {
-      const countEl = document.getElementById(`post-like-count-${id}`);
-      if (countEl) {
+      document.querySelectorAll(`[data-post-like-count="${id}"]`).forEach((countEl) => {
         countEl.textContent = `${likesCount} ${likesCount === 1 ? "like" : "likes"}`;
-      }
+      });
     }
   } catch (err) {
     setStatus(normalizeError(err), false);
@@ -628,15 +727,19 @@ async function toggleLike(button, targetType, id) {
   }
 }
 
-function focusCommentInput(postId) {
-  const input = document.getElementById(`comment-input-${postId}`);
+function focusCommentInput(postId, detail = false) {
+  const input = document.getElementById(`comment-input-${detail ? "detail-" : ""}${postId}`);
   input?.focus();
 }
 
-function copyPostLink(postId) {
-  const url = new URL(window.location.href);
-  url.hash = `post-${postId}`;
-  navigator.clipboard?.writeText(url.href).catch(() => {});
+async function copyPostLink(post) {
+  const href = postUrl(post);
+  try {
+    await navigator.clipboard?.writeText(href);
+    setFeedNotice("Post link copied.");
+  } catch (err) {
+    setFeedNotice(`Copy this link: ${href}`);
+  }
 }
 
 function buildActionButton(label, icon, options = {}) {
@@ -750,10 +853,15 @@ function renderComment(comment) {
   return row;
 }
 
-function renderPost(post) {
+function shouldShowReadMore(post) {
+  return String(post?.content || "").trim().length > 360;
+}
+
+function renderPost(post, options = {}) {
+  const detail = Boolean(options.detail);
   const card = document.createElement("article");
-  card.id = `post-${post.id}`;
-  card.className = "social-post-card";
+  card.id = `${detail ? "detail-post" : "post"}-${post.id}`;
+  card.className = `social-post-card ${detail ? "social-post-card--detail" : ""}`;
   card.dataset.postUserId = post.user_id ?? '';
   card.dataset.feedScope = post.feed_scope ?? '';
 
@@ -778,17 +886,29 @@ function renderPost(post) {
   authorText.append(authorName, meta);
   author.appendChild(authorText);
   header.appendChild(author);
-  if (post.can_manage) header.appendChild(buildManageActions(post));
+  header.appendChild(buildPostActionsMenu(post));
   card.appendChild(header);
 
   const content = document.createElement("div");
-  content.className = "social-post-content";
+  content.className = `social-post-content ${!detail && shouldShowReadMore(post) ? "social-post-content--clamped" : ""}`;
   if (post.safe_html) {
     content.innerHTML = post.safe_html;
   } else {
     content.textContent = post.content || "";
   }
   card.appendChild(content);
+
+  if (!detail && shouldShowReadMore(post)) {
+    const readMoreWrap = document.createElement("div");
+    readMoreWrap.className = "social-read-more-row";
+    const readMore = document.createElement("button");
+    readMore.type = "button";
+    readMore.className = "social-read-more";
+    readMore.textContent = "Read more";
+    readMore.addEventListener("click", () => openPostDetail(post.id, { push: true, post }));
+    readMoreWrap.appendChild(readMore);
+    card.appendChild(readMoreWrap);
+  }
 
   const images = buildImageGrid(post.images);
   if (images) card.appendChild(images);
@@ -797,10 +917,12 @@ function renderPost(post) {
   const stats = document.createElement("div");
   stats.className = "social-stats-row";
   const likeCount = document.createElement("span");
-  likeCount.id = `post-like-count-${post.id}`;
+  likeCount.id = `post-like-count-${detail ? "detail-" : ""}${post.id}`;
+  likeCount.dataset.postLikeCount = String(post.id);
   likeCount.textContent = `${post.likes_count || 0} ${Number(post.likes_count || 0) === 1 ? "like" : "likes"}`;
   const commentCount = document.createElement("span");
-  commentCount.id = `post-comment-count-${post.id}`;
+  commentCount.id = `post-comment-count-${detail ? "detail-" : ""}${post.id}`;
+  commentCount.dataset.postCommentCount = String(post.id);
   commentCount.textContent = `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`;
   stats.append(likeCount, commentCount);
   card.appendChild(stats);
@@ -827,12 +949,9 @@ function renderPost(post) {
   }
   if (!publicGlobalMode() && canComment) {
     const commentButton = buildActionButton("Comment", icons.comment);
-    commentButton.addEventListener("click", () => focusCommentInput(post.id));
+    commentButton.addEventListener("click", () => focusCommentInput(post.id, detail));
     actions.appendChild(commentButton);
   }
-  const copyButton = buildActionButton("Copy Link", icons.copy);
-  copyButton.addEventListener("click", () => copyPostLink(post.id));
-  actions.appendChild(copyButton);
   card.appendChild(actions);
 
   const commentsWrap = document.createElement("div");
@@ -840,10 +959,10 @@ function renderPost(post) {
   comments.forEach((comment) => commentsWrap.appendChild(renderComment(comment)));
 
   if (canComment) {
-  const commentForm = document.createElement("form");
+    const commentForm = document.createElement("form");
     commentForm.className = "social-comment-form";
     const commentInput = document.createElement("input");
-    commentInput.id = `comment-input-${post.id}`;
+    commentInput.id = `comment-input-${detail ? "detail-" : ""}${post.id}`;
     commentInput.className = "input-field font-medium py-2.5 px-4 text-sm flex-1 bg-[var(--bg-base)]";
     commentInput.placeholder = "Add a comment...";
     commentInput.autocomplete = "off";
@@ -912,6 +1031,80 @@ function renderPost(post) {
   return card;
 }
 
+function setDetailStatus(message, kind = "error") {
+  if (!detailStatus) return;
+  detailStatus.textContent = message;
+  detailStatus.className = `social-detail-status ${kind === "loading" ? "is-loading" : ""}`;
+  detailStatus.classList.toggle("hidden", !message);
+}
+
+function showFeedView(options = {}) {
+  isShowingPostDetail = false;
+  currentDetailPostId = 0;
+  detailView?.classList.add("hidden");
+  detailContent && (detailContent.innerHTML = "");
+  pageHeader?.classList.remove("hidden");
+  feedShell?.classList.remove("hidden");
+  setActiveFeed(activeFeed, { skipLoad: true });
+  closePostActionMenus();
+  if (options.updateUrl !== false) {
+    const nextUrl = lastFeedUrl || feedUrlForState(activeFeed, entitySelect?.value || "");
+    window.history.pushState({ view: "feed" }, "", nextUrl);
+  }
+}
+
+function renderPostDetail(post, comments = [], permissions = {}) {
+  if (!post?.id || !detailContent) return;
+  activeFeed = post.feed_scope === "global" ? "global" : "entity";
+  if (post.entity_id && entitySelect) {
+    entitySelect.value = String(post.entity_id);
+  }
+  lastFeedUrl = feedUrlForState(activeFeed, post.entity_id || entitySelect?.value || "");
+  applyFeedPermissions(permissions || {});
+  setCommentsForPost(post.id, comments);
+  currentDetailPostId = Number(post.id);
+  isShowingPostDetail = true;
+  pageHeader?.classList.add("hidden");
+  feedShell?.classList.add("hidden");
+  detailView?.classList.remove("hidden");
+  setDetailStatus("");
+  detailContent.innerHTML = "";
+  detailContent.appendChild(renderPost(post, { detail: true }));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function openPostDetail(postId, options = {}) {
+  const id = parsePositiveId(postId);
+  if (!id) return;
+  if (!lastFeedUrl) {
+    lastFeedUrl = feedUrlForState(activeFeed, entitySelect?.value || "");
+  }
+  if (options.push) {
+    window.history.pushState({ view: "post", postId: id }, "", postUrl(options.post || id));
+  }
+  isShowingPostDetail = true;
+  pageHeader?.classList.add("hidden");
+  feedShell?.classList.add("hidden");
+  detailView?.classList.remove("hidden");
+  detailContent && (detailContent.innerHTML = "");
+  setDetailStatus("Loading post...", "loading");
+  try {
+    const response = await apiFetch(`/social/post/${encodeURIComponent(id)}`, { skipFallback: true });
+    renderPostDetail(response?.data?.post, response?.data?.comments || [], response?.meta?.permissions || {});
+  } catch (err) {
+    const status = Number(err?.status || 0);
+    let message = "Post not found.";
+    if (status === 401) {
+      message = "Sign in to view this post.";
+      promptSignIn("view this post");
+    } else if (status === 403) {
+      message = "You do not have access to this post.";
+    }
+    detailContent && (detailContent.innerHTML = "");
+    setDetailStatus(message);
+  }
+}
+
 async function loadPosts(options = {}) {
   const preserveScroll = Boolean(options.preserveScroll);
   const previousScrollY = window.scrollY || 0;
@@ -930,6 +1123,7 @@ async function loadPosts(options = {}) {
 
   try {
     const url = activeFeed === "global" ? "/social/global" : `/social?entity_id=${encodeURIComponent(entityId)}`;
+    lastFeedUrl = feedUrlForState(activeFeed, entityId);
     const response = await apiFetch(url);
     applyFeedPermissions(response?.meta?.permissions || response?.data?.permissions || {});
     const posts = response?.data?.posts || [];
@@ -1066,6 +1260,20 @@ imageInput?.addEventListener("change", () => {
 window.addEventListener("pagehide", clearSelectedImages);
 entitySelect?.addEventListener("change", () => loadPosts({ preserveScroll: true }));
 form?.addEventListener("submit", submitPost);
+detailBackBtn?.addEventListener("click", () => {
+  if (routePostId() && window.history.state?.view === "post") {
+    window.history.back();
+    return;
+  }
+  showFeedView({ updateUrl: true });
+  if (!postsEl?.children.length) loadPosts();
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest?.(".social-post-menu-wrap")) {
+    closePostActionMenus();
+  }
+});
 
 deleteCancelBtn?.addEventListener("click", closeDeleteModal);
 deleteCloseBtn?.addEventListener("click", closeDeleteModal);
@@ -1084,6 +1292,9 @@ deleteConfirmBtn?.addEventListener("click", async () => {
     closeDeleteModal();
     if (snapshotItem.type === "post") {
       removePostCard(snapshotItem.id);
+      if (isShowingPostDetail && Number(currentDetailPostId) === Number(snapshotItem.id)) {
+        showFeedView({ updateUrl: true });
+      }
     } else if (snapshotItem.type === "comment") {
       const responsePostId = resp?.data?.post_id;
       const selector = `[data-comment-id='${snapshotItem.id}']`;
@@ -1105,6 +1316,9 @@ deleteConfirmBtn?.addEventListener("click", async () => {
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closePostActionMenus();
+  }
   if (!postModal?.classList.contains("hidden")) {
     if (event.key === "Escape" && !isSubmitting) {
       event.preventDefault();
@@ -1133,12 +1347,16 @@ document.addEventListener("keydown", (event) => {
 function populateEntityOptions(entities) {
   if (!entitySelect) return;
   entitySelect.innerHTML = "";
+  const requestedEntityId = initialParams.get("entity_id");
   entities.forEach((entity) => {
     const option = document.createElement("option");
     option.value = entity.id;
     option.textContent = entity.name;
     entitySelect.appendChild(option);
   });
+  if (requestedEntityId && [...entitySelect.options].some((option) => option.value === requestedEntityId)) {
+    entitySelect.value = requestedEntityId;
+  }
   if (!entities.length) {
     const option = document.createElement("option");
     option.value = "";
@@ -1150,6 +1368,7 @@ function populateEntityOptions(entities) {
 function initializeSocialPage(response = null) {
   currentUser = response?.data?.user || null;
   isAuthenticated = Boolean(currentUser);
+  const postId = routePostId();
 
   if (userRequiresPasswordSetup(currentUser)) {
     window.location.replace("/reset_password.html?mode=session");
@@ -1158,7 +1377,7 @@ function initializeSocialPage(response = null) {
 
   if (isAuthenticated) {
     renderAuthenticatedShell();
-  } else if (activeFeed === "global") {
+  } else if (activeFeed === "global" || routePostId()) {
     renderPublicShell();
   } else {
     window.location.replace(loginUrlForFeed("entity"));
@@ -1166,9 +1385,30 @@ function initializeSocialPage(response = null) {
   }
 
   populateEntityOptions(isAuthenticated ? response?.data?.entities || [] : []);
+  if (postId) {
+    openPostDetail(postId, { push: false });
+    return;
+  }
   setActiveFeed(activeFeed, { skipLoad: true });
   loadPosts();
 }
+
+window.addEventListener("popstate", () => {
+  const postId = routePostId();
+  if (postId) {
+    openPostDetail(postId, { push: false });
+    return;
+  }
+  showFeedView({ updateUrl: false });
+  const params = new URLSearchParams(window.location.search);
+  activeFeed = params.get("feed") === "global" ? "global" : "entity";
+  const entityId = params.get("entity_id");
+  if (entityId && entitySelect && [...entitySelect.options].some((option) => option.value === entityId)) {
+    entitySelect.value = entityId;
+  }
+  setActiveFeed(activeFeed, { skipLoad: true });
+  loadPosts();
+});
 
 apiFetch("/auth/me", { skipFallback: true })
   .then(initializeSocialPage)
