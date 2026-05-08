@@ -264,6 +264,10 @@ function portal_send_push_webhook(array $token, array $payload, string $urlKey =
     if ($url === '') {
         throw new RuntimeException('Push webhook URL missing.');
     }
+    $scheme = strtolower((string)parse_url($url, PHP_URL_SCHEME));
+    if ($scheme !== 'https') {
+        throw new RuntimeException('Push webhook URL must use https scheme.');
+    }
     $body = json_encode([
         'platform' => $token['platform'],
         'token' => $token['token'],
@@ -303,8 +307,13 @@ function portal_send_push_webhook(array $token, array $payload, string $urlKey =
         curl_setopt($ch, CURLOPT_FAILONERROR, false);
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErrno = curl_errno($ch);
+        $curlErr = curl_error($ch);
         curl_close($ch);
         $statusLine = $httpCode ? 'HTTP/1.1 ' . (int)$httpCode : '';
+        if ($curlErrno) {
+            $statusLine .= ' curl_error=' . (int)$curlErrno . ':' . trim($curlErr);
+        }
     } else {
         $context = stream_context_create([
             'http' => [
