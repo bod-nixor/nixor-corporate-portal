@@ -563,6 +563,16 @@ function social_assert_post_images_schema_ready(): void {
         return;
     }
 
+    // Use APCu to cache readiness across requests when available
+    $cacheKey = 'social_post_images_schema_ready';
+    if (function_exists('apcu_fetch')) {
+        $cached = @apcu_fetch($cacheKey);
+        if ($cached === true) {
+            $ready = true;
+            return;
+        }
+    }
+
     $requiredColumns = [
         'id',
         'post_id',
@@ -591,6 +601,9 @@ function social_assert_post_images_schema_ready(): void {
         throw new RuntimeException('social_post_images schema is missing required columns: ' . implode(', ', $missing));
     }
     $ready = true;
+    if (function_exists('apcu_store')) {
+        @apcu_store($cacheKey, true, 0);
+    }
 }
 
 function social_sync_post_images(int $postId, array $data, array $user, ?int $entityId, array $uploadedFiles = []): array {

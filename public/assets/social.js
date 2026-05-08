@@ -1007,9 +1007,11 @@ async function submitPost(event) {
 
     if (editingPost) {
       const resp = await apiFetch(`/social/${editingPost.id}/update`, { method: "POST", body: formData });
-      closePostModal(true);
-      if (!upsertPostCard(resp?.data?.post, resp?.data?.comments)) {
+      const ok = upsertPostCard(resp?.data?.post, resp?.data?.comments);
+      if (!ok) {
         setStatus("Post saved, but the response was incomplete. Refresh to see the latest feed.", false);
+      } else {
+        closePostModal(true);
       }
       return;
     }
@@ -1029,9 +1031,11 @@ async function submitPost(event) {
       formData.append("entity_id", entityId);
     }
     const resp = await apiFetch("/social", { method: "POST", body: formData });
-    closePostModal(true);
-    if (!upsertPostCard(resp?.data?.post, resp?.data?.comments, { prepend: true })) {
+    const ok = upsertPostCard(resp?.data?.post, resp?.data?.comments, { prepend: true });
+    if (!ok) {
       setStatus("Post published, but the response was incomplete. Refresh to see the latest feed.", false);
+    } else {
+      closePostModal(true);
     }
   } catch (err) {
     setStatus(normalizeError(err), false);
@@ -1084,9 +1088,10 @@ deleteConfirmBtn?.addEventListener("click", async () => {
       const responsePostId = resp?.data?.post_id;
       const selector = `[data-comment-id='${snapshotItem.id}']`;
       const found = document.querySelector(selector);
-      found?.remove();
+      // capture post card and id before removing the DOM node
       const postCard = snapshotTrigger?.closest ? snapshotTrigger.closest('article') : null;
       const postId = responsePostId || (postCard?.id ? postCard.id.replace("post-", "") : "");
+      found?.remove();
       if (postId) {
         removeCommentFromCache(postId, snapshotItem.id);
         updateCommentCount(postId, resp?.data?.comments_count ?? null);
