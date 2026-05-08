@@ -1345,3 +1345,20 @@ loadConfig().then(() => {
   initOpenAppBanner();
   initPushNotifications();
 });
+
+// Explicit named exports to ensure module consumers receive expected symbols
+export {
+  apiFetch,
+  getPublicBaseUrl,
+  loadConfig,
+  normalizeError,
+  buildApiUrl,
+  bootstrapCsrf,
+  getCsrfToken,
+  isNativeRuntime,
+  getNativePlatform,
+  loginUrlForCurrentPage,
+  getConfig,
+  setCsrfToken,
+  getApiBase,
+};
