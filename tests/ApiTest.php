@@ -649,6 +649,17 @@ final class ApiTest extends TestCase {
         $this->assertSame(403, $unapproved['status']);
         $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $unapproved['data']);
 
+        $this->createUser('suspended.connect@nixorcollege.edu.pk', 'Password123!', 'staff');
+        db()->prepare('UPDATE users SET status = "suspended" WHERE email = ?')->execute(['suspended.connect@nixorcollege.edu.pk']);
+        $this->createConnectIdentity('suspended.connect@nixorcollege.edu.pk', true, ['display_name' => 'Suspended Connect']);
+        $suspended = $client->request('POST', '/api/connect/identity/resolve-google', [
+            ...$body,
+            'google_sub' => 'google-sub-suspended',
+            'email' => 'suspended.connect@nixorcollege.edu.pk',
+        ], $this->connectServiceHeaders());
+        $this->assertSame(403, $suspended['status']);
+        $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $suspended['data']);
+
         db()->prepare('DELETE FROM connect_google_identities WHERE email = ?')->execute(['connect.user@nixorcollege.edu.pk']);
         $localUserId = $this->createUser('connect.user@nixorcollege.edu.pk', 'Password123!', 'staff');
         $identityId = $this->createConnectIdentity('connect.user@nixorcollege.edu.pk', true, ['display_name' => 'Connect User']);
@@ -739,6 +750,20 @@ final class ApiTest extends TestCase {
         ], ["X-CSRF-Token: {$admin->csrfToken}"]);
         $this->assertSame(200, $created['status']);
         $identityId = (int)$created['data']['data']['entitlement']['id'];
+
+        $unchangedUpdate = $admin->request('PUT', '/api/admin/connect-entitlements/' . $identityId, [
+            'email' => 'admin-created@nixorcollege.edu.pk',
+            'display_name' => 'Admin Created',
+            'is_allowed' => true,
+            'is_school_admin' => false,
+            'is_approved_developer' => true,
+            'developer_permissions' => ['apps:create', 'apps:manage:own'],
+            'owned_developer_app_ids' => ['app_admin_created'],
+            'memberships' => [
+                ['server_public_id' => 'srv_admin_created', 'role' => 'member'],
+            ],
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(200, $unchangedUpdate['status']);
 
         $invalidUpdate = $admin->request('PUT', '/api/admin/connect-entitlements/' . $identityId, [
             'email' => 'admin-created@nixorcollege.edu.pk',

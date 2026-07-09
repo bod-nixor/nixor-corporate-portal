@@ -145,9 +145,6 @@ function connect_string_list_from_input($value, string $field, ?array $allowedVa
         if ($allowedValues !== null && !in_array($item, $allowedValues, true)) {
             respond(['ok' => false, 'error' => "Invalid {$field}"], 400);
         }
-        if ($requiredPrefix !== null && !str_starts_with($item, $requiredPrefix)) {
-            respond(['ok' => false, 'error' => "Invalid {$field}"], 400);
-        }
         if ($requiredPrefix === 'app_' && !preg_match('/^app_[A-Za-z0-9_-]+$/', $item)) {
             respond(['ok' => false, 'error' => "Invalid {$field}"], 400);
         }
@@ -172,7 +169,7 @@ function connect_normalize_memberships($memberships): array {
         }
         $serverPublicId = trim((string)($membership['server_public_id'] ?? ''));
         $role = trim((string)($membership['role'] ?? 'member'));
-        if ($serverPublicId === '' || !str_starts_with($serverPublicId, 'srv_') || !preg_match('/^srv_[A-Za-z0-9_-]+$/', $serverPublicId)) {
+        if ($serverPublicId === '' || !preg_match('/^srv_[A-Za-z0-9_-]+$/', $serverPublicId)) {
             respond(['ok' => false, 'error' => 'Invalid server_public_id'], 400);
         }
         if (!in_array($role, $roles, true)) {
@@ -303,9 +300,13 @@ function connect_resolve_google_payload(array $data, bool $bindGoogleSub = false
         return connect_not_allowed($email, 'identity_not_allowed');
     }
 
-    $linkedStatus = (string)($identity['linked_user_status'] ?? '');
-    if ((int)($identity['user_id'] ?? 0) > 0 && $linkedStatus !== '' && $linkedStatus !== 'active') {
-        return connect_not_allowed($email, 'linked_user_inactive');
+    $configuredUserId = (int)($identity['user_id'] ?? 0);
+    $resolvedUserId = (int)($identity['resolved_user_id'] ?? 0);
+    $resolvedStatus = $configuredUserId > 0
+        ? (string)($identity['linked_user_status'] ?? '')
+        : (string)($identity['email_user_status'] ?? '');
+    if ($resolvedUserId > 0 && $resolvedStatus !== 'active') {
+        return connect_not_allowed($email, 'resolved_user_inactive');
     }
 
     $googleSub = trim((string)($data['google_sub'] ?? ''));
@@ -444,6 +445,10 @@ function connect_update_identity(int $identityId, array $data, array $actor): ar
             connect_encode_string_array($payload['owned_developer_app_ids']),
             $identityId,
         ]);
+        if ($stmt->rowCount() === 0 && !connect_fetch_identity_by_id($identityId)) {
+            $pdo->rollBack();
+            respond(['ok' => false, 'error' => 'Connect identity not found'], 404);
+        }
         connect_sync_memberships($identityId, $payload['memberships']);
         $pdo->commit();
     } catch (PDOException $e) {
@@ -461,7 +466,11 @@ function connect_update_identity(int $identityId, array $data, array $actor): ar
         throw $e;
     }
     log_activity($actor['id'], 'connect_identity', $identityId, 'updated', 'Connect entitlement updated');
-    return connect_identity_for_admin(connect_fetch_identity_by_id($identityId));
+    $identity = connect_fetch_identity_by_id($identityId);
+    if (!$identity) {
+        respond(['ok' => false, 'error' => 'Connect identity not found'], 404);
+    }
+    return connect_identity_for_admin($identity);
 }
 
 function connect_delete_identity(int $identityId, array $actor): void {
