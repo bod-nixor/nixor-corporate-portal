@@ -7,7 +7,17 @@ $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $path = preg_replace('#^/api(?:/index\\.php)?#', '', $path);
 $segments = array_values(array_filter(explode('/', $path)));
 
-if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true) && !in_array($segments[0] ?? '', ['auth', 'public'], true)) {
+function is_csrf_exempt_service_route(string $method, array $segments): bool {
+    return $method === 'POST'
+        && ($segments[0] ?? '') === 'connect'
+        && ($segments[1] ?? '') === 'identity'
+        && ($segments[2] ?? '') === 'resolve-google'
+        && count($segments) === 3;
+}
+
+if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
+    && !in_array($segments[0] ?? '', ['auth', 'public'], true)
+    && !is_csrf_exempt_service_route($method, $segments)) {
     require_csrf();
 }
 
@@ -84,6 +94,10 @@ try {
         case 'config':
             require_once __DIR__ . '/routes/config.php';
             handle_config($method, $segments);
+            break;
+        case 'connect':
+            require_once __DIR__ . '/routes/connect.php';
+            handle_connect($method, $segments);
             break;
         default:
             respond(['ok' => false, 'error' => 'Not Found'], 404);

@@ -81,6 +81,134 @@
         </div>
       </section>
 
+      <section class="mt-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.85fr)] gap-8 animate-fade-in"
+        style="animation-delay: 80ms;">
+        <div class="card p-0 overflow-hidden border-[var(--border-strong)] shadow-sm">
+          <div class="px-6 py-5 border-b border-[var(--border-subtle)] bg-[rgba(255,255,255,0.015)]">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 class="text-lg font-bold tracking-tight">Nixor Connect Access</h2>
+                <p class="text-xs font-medium text-[var(--text-tertiary)] mt-1">Google SSO entitlements for Nixor Connect.</p>
+              </div>
+              <div class="flex flex-col sm:flex-row gap-3">
+                <input id="connect-search" type="search" aria-label="Search Connect entitlements by email or name"
+                  placeholder="Search email or name" class="input-field font-medium min-w-[220px]" />
+                <button id="connect-new" type="button" class="btn btn-secondary px-4">New Entitlement</button>
+              </div>
+            </div>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left whitespace-nowrap">
+              <thead
+                class="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-wider bg-[var(--bg-surface)] border-b border-[var(--border-subtle)]">
+                <tr>
+                  <th class="px-6 py-3">User</th>
+                  <th class="px-6 py-3">Allowed</th>
+                  <th class="px-6 py-3">Developer</th>
+                  <th class="px-6 py-3">Memberships</th>
+                  <th class="px-6 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="connect-entitlements-list"
+                class="divide-y divide-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] font-medium"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="space-y-8">
+          <div class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)]">
+            <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+              <h2 id="connect-form-title" class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Add Connect Entitlement</h2>
+            </div>
+            <form id="connect-form" class="p-6 space-y-5 bg-[var(--bg-surface)]">
+              <input id="connect-id" type="hidden" name="id" />
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                  <label for="connect-email"
+                    class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Google Email</label>
+                  <input id="connect-email" name="email" type="email" required placeholder="user@nixorcollege.edu.pk"
+                    class="input-field font-medium" />
+                </div>
+                <div class="space-y-1.5">
+                  <label for="connect-display-name"
+                    class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Display Name</label>
+                  <input id="connect-display-name" name="display_name" placeholder="User Name" class="input-field font-medium" />
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                <label for="connect-google-sub"
+                  class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Google Subject</label>
+                <input id="connect-google-sub" name="google_sub" placeholder="Optional; can bind on first successful resolve"
+                  class="input-field font-medium" />
+              </div>
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between gap-3">
+                  <label for="connect-matrix-user-id"
+                    class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Matrix User ID</label>
+                  <button id="connect-auto-matrix" type="button" class="btn btn-ghost px-3 py-1 text-xs">Use Auto</button>
+                </div>
+                <input id="connect-matrix-user-id" name="matrix_user_id" placeholder="@user:connect.nixorcorporate.com"
+                  class="input-field font-medium" />
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                  <span class="text-sm font-semibold">Allowed</span>
+                  <input id="connect-is-allowed" type="checkbox" name="is_allowed" class="h-5 w-5 accent-[var(--color-primary)]" />
+                </label>
+                <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                  <span class="text-sm font-semibold">School Admin</span>
+                  <input id="connect-is-school-admin" type="checkbox" name="is_school_admin" class="h-5 w-5 accent-[var(--color-primary)]" />
+                </label>
+                <label class="flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-4 py-3">
+                  <span class="text-sm font-semibold">Developer</span>
+                  <input id="connect-is-approved-developer" type="checkbox" name="is_approved_developer" class="h-5 w-5 accent-[var(--color-primary)]" />
+                </label>
+              </div>
+              <div class="space-y-2">
+                <p class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Developer Permissions</p>
+                <div id="connect-developer-permissions" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+              </div>
+              <div class="space-y-1.5">
+                <label for="connect-owned-apps"
+                  class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Owned App IDs</label>
+                <textarea id="connect-owned-apps" name="owned_developer_app_ids" rows="2" placeholder="app_..."
+                  class="input-field resize-y"></textarea>
+              </div>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Server Memberships</p>
+                  <button id="connect-add-membership" type="button" class="btn btn-secondary px-3 py-1.5 text-xs">Add Membership</button>
+                </div>
+                <div id="connect-memberships" class="space-y-3"></div>
+              </div>
+              <div id="connect-status"
+                class="hidden text-sm rounded-lg px-4 py-3 font-medium border border-[var(--border-subtle)]"></div>
+              <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                <button id="connect-submit" class="btn btn-primary flex-1 shadow-sm" type="submit">Save Entitlement</button>
+                <button id="connect-reset" class="btn btn-ghost px-5" type="button">Reset</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card p-0 overflow-hidden shadow-sm border-[var(--border-strong)] bg-[rgba(255,255,255,0.02)]">
+            <div class="px-6 py-5 border-b border-[var(--border-subtle)]">
+              <h2 class="text-lg font-bold tracking-tight text-[var(--text-primary)]">Test Resolve</h2>
+            </div>
+            <form id="connect-test-form" class="p-6 space-y-4 bg-[var(--bg-surface)]">
+              <div class="space-y-1.5">
+                <label for="connect-test-email"
+                  class="block text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Email</label>
+                <input id="connect-test-email" name="email" type="email" required placeholder="user@nixorcollege.edu.pk"
+                  class="input-field font-medium" />
+              </div>
+              <button class="btn btn-secondary w-full" type="submit">Test Resolve</button>
+              <pre id="connect-test-output"
+                class="hidden text-xs leading-relaxed overflow-auto max-h-72 rounded-lg border border-[var(--border-subtle)] bg-black/20 p-4 text-[var(--text-secondary)]"></pre>
+            </form>
+          </div>
+        </div>
+      </section>
+
       <section class="mt-10 grid grid-cols-1 xl:grid-cols-2 gap-8 animate-fade-in" style="animation-delay: 100ms;">
         <div class="card p-0 overflow-hidden border-[var(--border-strong)] shadow-sm">
           <div class="px-6 py-5 border-b border-[var(--border-subtle)] bg-[rgba(255,255,255,0.015)]">

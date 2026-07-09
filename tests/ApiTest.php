@@ -9,6 +9,9 @@ final class ApiTest extends TestCase {
     private static string $baseUrl;
 
     public static function setUpBeforeClass(): void {
+        $_ENV['NCP_API_SHARED_SECRET'] = 'test-connect-shared-secret';
+        $_SERVER['NCP_API_SHARED_SECRET'] = 'test-connect-shared-secret';
+        putenv('NCP_API_SHARED_SECRET=test-connect-shared-secret');
         self::$baseUrl = getenv('TEST_BASE_URL') ?: 'http://127.0.0.1:8001';
         apply_migrations(db(), __DIR__ . '/../sql/migrations');
         self::startServer();
@@ -610,6 +613,176 @@ final class ApiTest extends TestCase {
         $forcedRow = $forced->fetch();
         $this->assertSame(1, (int)$forcedRow['force_password_reset']);
         $this->assertSame(1, (int)$forcedRow['password_reset_forced_by']);
+    }
+
+    public function testConnectGoogleResolveServiceAuthAndEntitlementContract(): void {
+        $client = new TestClient(self::$baseUrl);
+        $body = [
+            'google_sub' => 'google-sub-normal',
+            'email' => 'connect.user@nixorcollege.edu.pk',
+            'name' => 'Connect User',
+            'picture' => 'https://example.com/avatar.png',
+            'email_verified' => true,
+        ];
+
+        $missingAuth = $client->request('POST', '/api/connect/identity/resolve-google', $body);
+        $this->assertSame(401, $missingAuth['status']);
+        $this->assertSame(['ok' => false, 'error' => 'unauthorized'], $missingAuth['data']);
+
+        $badAuth = $client->request('POST', '/api/connect/identity/resolve-google', $body, ['Authorization: Bearer wrong-token']);
+        $this->assertSame(401, $badAuth['status']);
+        $this->assertSame(['ok' => false, 'error' => 'unauthorized'], $badAuth['data']);
+
+        $unverified = $client->request('POST', '/api/connect/identity/resolve-google', [
+            ...$body,
+            'email_verified' => false,
+        ], $this->connectServiceHeaders());
+        $this->assertSame(403, $unverified['status']);
+        $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $unverified['data']);
+
+        $unknown = $client->request('POST', '/api/connect/identity/resolve-google', $body, $this->connectServiceHeaders());
+        $this->assertSame(403, $unknown['status']);
+        $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $unknown['data']);
+
+        $this->createConnectIdentity('connect.user@nixorcollege.edu.pk', false, ['display_name' => 'Pending User']);
+        $unapproved = $client->request('POST', '/api/connect/identity/resolve-google', $body, $this->connectServiceHeaders());
+        $this->assertSame(403, $unapproved['status']);
+        $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $unapproved['data']);
+
+        $this->createUser('suspended.connect@nixorcollege.edu.pk', 'Password123!', 'staff');
+        db()->prepare('UPDATE users SET status = "suspended" WHERE email = ?')->execute(['suspended.connect@nixorcollege.edu.pk']);
+        $this->createConnectIdentity('suspended.connect@nixorcollege.edu.pk', true, ['display_name' => 'Suspended Connect']);
+        $suspended = $client->request('POST', '/api/connect/identity/resolve-google', [
+            ...$body,
+            'google_sub' => 'google-sub-suspended',
+            'email' => 'suspended.connect@nixorcollege.edu.pk',
+        ], $this->connectServiceHeaders());
+        $this->assertSame(403, $suspended['status']);
+        $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $suspended['data']);
+
+        db()->prepare('DELETE FROM connect_google_identities WHERE email = ?')->execute(['connect.user@nixorcollege.edu.pk']);
+        $localUserId = $this->createUser('connect.user@nixorcollege.edu.pk', 'Password123!', 'staff');
+        $identityId = $this->createConnectIdentity('connect.user@nixorcollege.edu.pk', true, ['display_name' => 'Connect User']);
+        $this->addConnectMembership($identityId, 'srv_1de34dba73134a9fb62661a65fd1263e', 'moderator');
+
+        $allowed = $client->request('POST', '/api/connect/identity/resolve-google', $body, $this->connectServiceHeaders());
+        $this->assertSame(200, $allowed['status']);
+        $this->assertSame(['ok', 'user'], array_keys($allowed['data']));
+        $user = $allowed['data']['user'];
+        $this->assertSame([
+            'id',
+            'email',
+            'display_name',
+            'matrix_user_id',
+            'is_school_admin',
+            'is_approved_developer',
+            'developer_permissions',
+            'owned_developer_app_ids',
+            'memberships',
+        ], array_keys($user));
+        $this->assertSame((string)$localUserId, $user['id']);
+        $this->assertSame('connect.user@nixorcollege.edu.pk', $user['email']);
+        $this->assertSame('Connect User', $user['display_name']);
+        $this->assertSame('@connect.user:connect.nixorcorporate.com', $user['matrix_user_id']);
+        $this->assertFalse($user['is_school_admin']);
+        $this->assertFalse($user['is_approved_developer']);
+        $this->assertSame([], $user['developer_permissions']);
+        $this->assertSame([], $user['owned_developer_app_ids']);
+        $this->assertSame([
+            ['server_public_id' => 'srv_1de34dba73134a9fb62661a65fd1263e', 'role' => 'moderator'],
+        ], $user['memberships']);
+        $boundSub = db()->prepare('SELECT google_sub FROM connect_google_identities WHERE id = ?');
+        $boundSub->execute([$identityId]);
+        $this->assertSame('google-sub-normal', $boundSub->fetchColumn());
+
+        $devIdentityId = $this->createConnectIdentity('developer@nixorcollege.edu.pk', true, [
+            'display_name' => 'Developer User',
+            'matrix_user_id' => '@developer.manual:connect.nixorcorporate.com',
+            'is_school_admin' => true,
+            'is_approved_developer' => true,
+            'developer_permissions' => ['apps:create', 'apps:manage:own', 'tokens:dangerous-scopes'],
+            'owned_developer_app_ids' => ['app_alpha', 'app_beta'],
+        ]);
+        $this->addConnectMembership($devIdentityId, 'srv_developer', 'owner');
+        $developer = $client->request('POST', '/api/connect/identity/resolve-google', [
+            ...$body,
+            'google_sub' => 'google-sub-developer',
+            'email' => 'developer@nixorcollege.edu.pk',
+            'name' => 'Google Developer Name',
+        ], $this->connectServiceHeaders());
+
+        $this->assertSame(200, $developer['status']);
+        $developerUser = $developer['data']['user'];
+        $this->assertTrue($developerUser['is_school_admin']);
+        $this->assertTrue($developerUser['is_approved_developer']);
+        $this->assertSame(['apps:create', 'apps:manage:own', 'tokens:dangerous-scopes'], $developerUser['developer_permissions']);
+        $this->assertSame(['app_alpha', 'app_beta'], $developerUser['owned_developer_app_ids']);
+        $this->assertSame('@developer.manual:connect.nixorcorporate.com', $developerUser['matrix_user_id']);
+        $this->assertSame([['server_public_id' => 'srv_developer', 'role' => 'owner']], $developerUser['memberships']);
+    }
+
+    public function testAdminConnectEntitlementsValidateMembershipRolesAndTestResolve(): void {
+        $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $admin = $this->loginClient('admin@example.com', 'Password123!');
+
+        $invalidCreate = $admin->request('POST', '/api/admin/connect-entitlements', [
+            'email' => 'invalid-role@nixorcollege.edu.pk',
+            'display_name' => 'Invalid Role',
+            'is_allowed' => true,
+            'memberships' => [
+                ['server_public_id' => 'srv_invalid_role', 'role' => 'manager'],
+            ],
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(400, $invalidCreate['status']);
+        $this->assertSame('Invalid membership role', $invalidCreate['data']['error']);
+
+        $created = $admin->request('POST', '/api/admin/connect-entitlements', [
+            'email' => 'admin-created@nixorcollege.edu.pk',
+            'display_name' => 'Admin Created',
+            'is_allowed' => true,
+            'is_school_admin' => false,
+            'is_approved_developer' => true,
+            'developer_permissions' => ['apps:create', 'apps:manage:own'],
+            'owned_developer_app_ids' => ['app_admin_created'],
+            'memberships' => [
+                ['server_public_id' => 'srv_admin_created', 'role' => 'member'],
+            ],
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(200, $created['status']);
+        $identityId = (int)$created['data']['data']['entitlement']['id'];
+
+        $unchangedUpdate = $admin->request('PUT', '/api/admin/connect-entitlements/' . $identityId, [
+            'email' => 'admin-created@nixorcollege.edu.pk',
+            'display_name' => 'Admin Created',
+            'is_allowed' => true,
+            'is_school_admin' => false,
+            'is_approved_developer' => true,
+            'developer_permissions' => ['apps:create', 'apps:manage:own'],
+            'owned_developer_app_ids' => ['app_admin_created'],
+            'memberships' => [
+                ['server_public_id' => 'srv_admin_created', 'role' => 'member'],
+            ],
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(200, $unchangedUpdate['status']);
+
+        $invalidUpdate = $admin->request('PUT', '/api/admin/connect-entitlements/' . $identityId, [
+            'email' => 'admin-created@nixorcollege.edu.pk',
+            'display_name' => 'Admin Created',
+            'is_allowed' => true,
+            'memberships' => [
+                ['server_public_id' => 'srv_admin_created', 'role' => 'manager'],
+            ],
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(400, $invalidUpdate['status']);
+        $this->assertSame('Invalid membership role', $invalidUpdate['data']['error']);
+
+        $testResolve = $admin->request('POST', '/api/admin/connect-entitlements/test-resolve', [
+            'email' => 'admin-created@nixorcollege.edu.pk',
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(200, $testResolve['status']);
+        $this->assertSame(200, $testResolve['data']['data']['status']);
+        $this->assertTrue($testResolve['data']['data']['response']['ok']);
+        $this->assertSame(['apps:create', 'apps:manage:own'], $testResolve['data']['data']['response']['user']['developer_permissions']);
     }
 
     public function testAdminSetupBlockedForNonAdmin(): void {
@@ -1637,6 +1810,37 @@ final class ApiTest extends TestCase {
     private function createUserWithHash(string $email, ?string $hash, string $role): int {
         $stmt = db()->prepare('INSERT INTO users (email, password_hash, full_name, global_role) VALUES (?, ?, ?, ?)');
         $stmt->execute([$email, $hash, ucfirst($role), $role]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function connectServiceHeaders(string $token = 'test-connect-shared-secret'): array {
+        return ["Authorization: Bearer {$token}"];
+    }
+
+    private function createConnectIdentity(string $email, bool $allowed, array $overrides = []): int {
+        $stmt = db()->prepare(
+            'INSERT INTO connect_google_identities
+             (user_id, google_sub, email, display_name, matrix_user_id, is_allowed, is_school_admin, is_approved_developer, developer_permissions, owned_developer_app_ids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([
+            $overrides['user_id'] ?? null,
+            $overrides['google_sub'] ?? null,
+            strtolower($email),
+            $overrides['display_name'] ?? 'Connect User',
+            $overrides['matrix_user_id'] ?? null,
+            $allowed ? 1 : 0,
+            !empty($overrides['is_school_admin']) ? 1 : 0,
+            !empty($overrides['is_approved_developer']) ? 1 : 0,
+            json_encode($overrides['developer_permissions'] ?? []),
+            json_encode($overrides['owned_developer_app_ids'] ?? []),
+        ]);
+        return (int)db()->lastInsertId();
+    }
+
+    private function addConnectMembership(int $identityId, string $serverPublicId, string $role): int {
+        $stmt = db()->prepare('INSERT INTO connect_user_memberships (identity_id, server_public_id, role) VALUES (?, ?, ?)');
+        $stmt->execute([$identityId, $serverPublicId, $role]);
         return (int)db()->lastInsertId();
     }
 

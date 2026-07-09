@@ -19,8 +19,34 @@ const openEntityForm = document.getElementById('open-entity-form');
 const closeEntityForm = document.getElementById('entity-close');
 const entityModalTitle = document.getElementById('entity-modal-title');
 const entitySubmit = document.getElementById('entity-submit');
+const connectSearch = document.getElementById('connect-search');
+const connectNew = document.getElementById('connect-new');
+const connectList = document.getElementById('connect-entitlements-list');
+const connectForm = document.getElementById('connect-form');
+const connectFormTitle = document.getElementById('connect-form-title');
+const connectStatus = document.getElementById('connect-status');
+const connectId = document.getElementById('connect-id');
+const connectEmail = document.getElementById('connect-email');
+const connectDisplayName = document.getElementById('connect-display-name');
+const connectGoogleSub = document.getElementById('connect-google-sub');
+const connectMatrixUserId = document.getElementById('connect-matrix-user-id');
+const connectAutoMatrix = document.getElementById('connect-auto-matrix');
+const connectIsAllowed = document.getElementById('connect-is-allowed');
+const connectIsSchoolAdmin = document.getElementById('connect-is-school-admin');
+const connectIsApprovedDeveloper = document.getElementById('connect-is-approved-developer');
+const connectDeveloperPermissionsEl = document.getElementById('connect-developer-permissions');
+const connectOwnedApps = document.getElementById('connect-owned-apps');
+const connectMemberships = document.getElementById('connect-memberships');
+const connectAddMembership = document.getElementById('connect-add-membership');
+const connectReset = document.getElementById('connect-reset');
+const connectTestForm = document.getElementById('connect-test-form');
+const connectTestOutput = document.getElementById('connect-test-output');
 
 let editingEntity = null;
+let connectEntitlements = [];
+let connectSearchTimer = null;
+let connectDeveloperPermissions = ['apps:create', 'apps:manage:own', 'apps:manage:all', 'tokens:dangerous-scopes'];
+let connectMembershipRoles = ['member', 'moderator', 'admin', 'owner'];
 
 const setStatus = (el, message, ok) => {
     el.textContent = message;
@@ -35,6 +61,226 @@ const renderEntityAvatar = (entity) => {
         return `<img src="${entity.avatar_url}" alt="" class="w-9 h-9 rounded-full object-cover border border-[--border-strong]" />`;
     }
     return `<div class="w-9 h-9 rounded-full bg-[--bg-surface-hover] border border-[--border-strong] flex items-center justify-center text-xs font-bold text-[--text-secondary]">${entityInitials(entity.name)}</div>`;
+};
+
+const connectSplitList = (value) => String(value || '').split(/[\s,]+/).map(item => item.trim()).filter(Boolean);
+
+const connectMatrixIdForEmail = (email) => {
+    const local = String(email || '').toLowerCase().split('@')[0] || '';
+    let safe = local.replace(/[^a-z0-9._=/-]+/g, '.').replace(/[.]{2,}/g, '.').replace(/^[._=/-]+|[._=/-]+$/g, '');
+    if (!safe) safe = 'user';
+    return `@${safe.slice(0, 120)}:connect.nixorcorporate.com`;
+};
+
+const connectBooleanBadge = (value, label) => {
+    const span = document.createElement('span');
+    span.className = value ? 'badge badge-success' : 'badge bg-slate-800 text-slate-300 border border-slate-700';
+    span.textContent = value ? label : 'No';
+    return span;
+};
+
+const renderConnectPermissions = (selected = []) => {
+    connectDeveloperPermissionsEl.innerHTML = '';
+    connectDeveloperPermissions.forEach((permission) => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] px-3 py-2 text-sm font-semibold';
+        const text = document.createElement('span');
+        text.textContent = permission;
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = permission;
+        input.className = 'h-4 w-4 accent-[var(--color-primary)]';
+        input.checked = selected.includes(permission);
+        label.append(text, input);
+        connectDeveloperPermissionsEl.appendChild(label);
+    });
+};
+
+const createConnectMembershipRow = (membership = {}) => {
+    const row = document.createElement('div');
+    row.className = 'connect-membership-row grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_140px_auto] gap-2 items-center';
+    const server = document.createElement('input');
+    server.className = 'input-field font-medium';
+    server.placeholder = 'srv_...';
+    server.value = membership.server_public_id || '';
+    server.dataset.connectServerPublicId = '1';
+    const role = document.createElement('select');
+    role.className = 'input-field font-medium';
+    role.dataset.connectMembershipRole = '1';
+    connectMembershipRoles.forEach((roleValue) => {
+        const option = document.createElement('option');
+        option.value = roleValue;
+        option.textContent = roleValue;
+        role.appendChild(option);
+    });
+    role.value = membership.role || 'member';
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn btn-ghost px-3 py-2';
+    remove.textContent = 'Remove';
+    remove.addEventListener('click', () => row.remove());
+    row.append(server, role, remove);
+    connectMemberships.appendChild(row);
+};
+
+const resetConnectForm = () => {
+    connectForm.reset();
+    connectId.value = '';
+    connectFormTitle.textContent = 'Add Connect Entitlement';
+    connectStatus.classList.add('hidden');
+    connectMemberships.innerHTML = '';
+    renderConnectPermissions([]);
+};
+
+const populateConnectForm = (entitlement) => {
+    connectForm.reset();
+    connectId.value = entitlement.id;
+    connectEmail.value = entitlement.email || '';
+    connectDisplayName.value = entitlement.display_name || '';
+    connectGoogleSub.value = entitlement.google_sub || '';
+    connectMatrixUserId.value = entitlement.matrix_user_id || '';
+    connectIsAllowed.checked = Boolean(entitlement.is_allowed);
+    connectIsSchoolAdmin.checked = Boolean(entitlement.is_school_admin);
+    connectIsApprovedDeveloper.checked = Boolean(entitlement.is_approved_developer);
+    connectOwnedApps.value = (entitlement.owned_developer_app_ids || []).join('\n');
+    renderConnectPermissions(entitlement.developer_permissions || []);
+    connectMemberships.innerHTML = '';
+    (entitlement.memberships || []).forEach(createConnectMembershipRow);
+    connectFormTitle.textContent = `Edit ${entitlement.email || 'Connect Entitlement'}`;
+    connectStatus.classList.add('hidden');
+    connectEmail.focus();
+};
+
+const collectConnectPayload = () => {
+    if (!connectEmail.checkValidity()) {
+        connectEmail.reportValidity();
+        return null;
+    }
+    const ownedApps = connectSplitList(connectOwnedApps.value);
+    const invalidApp = ownedApps.find(appId => !/^app_[A-Za-z0-9_-]+$/.test(appId));
+    if (invalidApp) {
+        setStatus(connectStatus, 'Owned app IDs must start with app_.', false);
+        return null;
+    }
+    const memberships = [];
+    for (const row of connectMemberships.querySelectorAll('.connect-membership-row')) {
+        const serverPublicId = row.querySelector('[data-connect-server-public-id]')?.value.trim() || '';
+        const role = row.querySelector('[data-connect-membership-role]')?.value || 'member';
+        if (!serverPublicId) {
+            continue;
+        }
+        if (!/^srv_[A-Za-z0-9_-]+$/.test(serverPublicId)) {
+            setStatus(connectStatus, 'Server public IDs must start with srv_.', false);
+            return null;
+        }
+        if (!connectMembershipRoles.includes(role)) {
+            setStatus(connectStatus, 'Choose a valid membership role.', false);
+            return null;
+        }
+        memberships.push({ server_public_id: serverPublicId, role });
+    }
+    return {
+        email: connectEmail.value.trim(),
+        display_name: connectDisplayName.value.trim(),
+        google_sub: connectGoogleSub.value.trim(),
+        matrix_user_id: connectMatrixUserId.value.trim(),
+        is_allowed: connectIsAllowed.checked,
+        is_school_admin: connectIsSchoolAdmin.checked,
+        is_approved_developer: connectIsApprovedDeveloper.checked,
+        developer_permissions: Array.from(connectDeveloperPermissionsEl.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value),
+        owned_developer_app_ids: ownedApps,
+        memberships,
+    };
+};
+
+const renderConnectList = () => {
+    connectList.innerHTML = '';
+    if (connectEntitlements.length === 0) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.className = 'py-6 text-center text-[var(--text-tertiary)]';
+        cell.textContent = 'No Connect entitlements found.';
+        row.appendChild(cell);
+        connectList.appendChild(row);
+        return;
+    }
+    connectEntitlements.forEach((entitlement) => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-800/30 transition-colors text-slate-300';
+        const userCell = document.createElement('td');
+        userCell.className = 'px-6 py-3';
+        const name = document.createElement('p');
+        name.className = 'font-semibold text-slate-200';
+        name.textContent = entitlement.display_name || entitlement.email;
+        const email = document.createElement('p');
+        email.className = 'text-xs text-slate-400 mt-1';
+        email.textContent = entitlement.email;
+        userCell.append(name, email);
+        const allowed = document.createElement('td');
+        allowed.className = 'px-6 py-3';
+        allowed.appendChild(connectBooleanBadge(entitlement.is_allowed, 'Allowed'));
+        const developer = document.createElement('td');
+        developer.className = 'px-6 py-3';
+        developer.textContent = entitlement.is_school_admin
+            ? 'School admin'
+            : (entitlement.is_approved_developer ? 'Approved developer' : `${(entitlement.owned_developer_app_ids || []).length} owned apps`);
+        const memberships = document.createElement('td');
+        memberships.className = 'px-6 py-3 text-slate-400';
+        memberships.textContent = `${(entitlement.memberships || []).length}`;
+        const actions = document.createElement('td');
+        actions.className = 'px-6 py-3';
+        const wrap = document.createElement('div');
+        wrap.className = 'flex flex-wrap gap-2';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'btn btn-secondary text-xs px-3 py-1.5';
+        edit.textContent = 'Edit';
+        edit.addEventListener('click', () => populateConnectForm(entitlement));
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn btn-ghost text-xs px-3 py-1.5';
+        remove.textContent = 'Delete';
+        remove.addEventListener('click', async () => {
+            if (!confirm(`Delete Connect entitlement for ${entitlement.email}?`)) return;
+            remove.disabled = true;
+            try {
+                await apiFetch(`/admin/connect-entitlements/${entitlement.id}`, { method: 'DELETE' });
+                await loadConnectEntitlements();
+                resetConnectForm();
+            } catch (err) {
+                setStatus(connectStatus, normalizeError(err), false);
+            } finally {
+                remove.disabled = false;
+            }
+        });
+        wrap.append(edit, remove);
+        actions.appendChild(wrap);
+        row.append(userCell, allowed, developer, memberships, actions);
+        connectList.appendChild(row);
+    });
+};
+
+const loadConnectEntitlements = async () => {
+    try {
+        const query = connectSearch?.value?.trim() || '';
+        const response = await apiFetch(`/admin/connect-entitlements${query ? `?q=${encodeURIComponent(query)}` : ''}`);
+        connectDeveloperPermissions = response?.data?.developer_permissions || connectDeveloperPermissions;
+        connectMembershipRoles = response?.data?.membership_roles || connectMembershipRoles;
+        connectEntitlements = response?.data?.entitlements || [];
+        renderConnectPermissions(Array.from(connectDeveloperPermissionsEl.querySelectorAll('input[type="checkbox"]:checked')).map(input => input.value));
+        renderConnectList();
+    } catch (err) {
+        console.error('Failed to load Connect entitlements:', err);
+        connectList.innerHTML = '';
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.className = 'py-6 text-center text-red-400';
+        cell.textContent = 'Failed to load Connect entitlements.';
+        row.appendChild(cell);
+        connectList.appendChild(row);
+    }
 };
 
 const avatarInput = document.getElementById('modal-entity-avatar');
@@ -355,6 +601,69 @@ membershipForm.addEventListener('submit', async (event) => {
     }
 });
 
+connectSearch.addEventListener('input', () => {
+    clearTimeout(connectSearchTimer);
+    connectSearchTimer = setTimeout(loadConnectEntitlements, 250);
+});
+
+connectNew.addEventListener('click', resetConnectForm);
+connectReset.addEventListener('click', resetConnectForm);
+connectAddMembership.addEventListener('click', () => createConnectMembershipRow());
+connectAutoMatrix.addEventListener('click', () => {
+    connectMatrixUserId.value = connectMatrixIdForEmail(connectEmail.value);
+});
+
+connectForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const payload = collectConnectPayload();
+    if (!payload) return;
+    const submitBtn = connectForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    const id = connectId.value;
+    try {
+        const response = await apiFetch(id ? `/admin/connect-entitlements/${encodeURIComponent(id)}` : '/admin/connect-entitlements', {
+            method: id ? 'PUT' : 'POST',
+            body: JSON.stringify(payload)
+        });
+        setStatus(connectStatus, 'Connect entitlement saved.', true);
+        await loadConnectEntitlements();
+        populateConnectForm(response?.data?.entitlement);
+    } catch (err) {
+        setStatus(connectStatus, normalizeError(err), false);
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+});
+
+connectTestForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const emailInput = connectTestForm.querySelector('[name="email"]');
+    if (!emailInput.checkValidity()) {
+        emailInput.reportValidity();
+        return;
+    }
+    const submitBtn = connectTestForm.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const response = await apiFetch('/admin/connect-entitlements/test-resolve', {
+            method: 'POST',
+            body: JSON.stringify({ email: emailInput.value.trim() })
+        });
+        connectTestOutput.textContent = JSON.stringify({
+            http_status: response?.data?.status,
+            body: response?.data?.response
+        }, null, 2);
+        connectTestOutput.classList.remove('hidden');
+    } catch (err) {
+        connectTestOutput.textContent = normalizeError(err);
+        connectTestOutput.classList.remove('hidden');
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+});
+
+resetConnectForm();
 loadSummary();
+loadConnectEntitlements();
 loadEntities();
 loadUsers();
