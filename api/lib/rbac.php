@@ -370,7 +370,7 @@ function rbac_has_global_permission(array $user, string $permission): bool {
 function legacy_permissions_for_user(array $user, ?int $entityId = null): array {
     $all = [
         'nav.dashboard','nav.entity_endeavours','nav.entity_drive','nav.calendar','nav.social','nav.volunteering','nav.volunteering_ops','nav.settings','nav.admin',
-        'admin.manage_entities','admin.manage_users','admin.manage_roles','admin.assign_roles','entity.view','entity.announce',
+        'admin.manage_entities','admin.manage_users','admin.manage_roles','admin.assign_roles','admin.manage_connect','entity.view','entity.announce',
         'drive.view','drive.manage','drive.label','endeavour.view','endeavour.create','endeavour.edit','endeavour.submit_docs',
         'endeavour.approve_mob','endeavour.approve_sa','endeavour.approve_edit','endeavour.view_confidential','endeavour.manage_periods',
         'volunteering.view','volunteering.register','volunteering.shortlist','volunteering.ops',
@@ -385,10 +385,10 @@ function legacy_permissions_for_user(array $user, ?int $entityId = null): array 
     $perms = ['nav.settings', 'settings.view', 'notifications.manage_preferences', 'social.global.view'];
     $globalRole = $user['global_role'] ?? '';
     if ($globalRole === 'board') {
-        return array_values(array_diff($all, ['nav.admin','admin.manage_entities','admin.manage_users','admin.manage_roles','admin.assign_roles','endeavour.approve_sa','volunteering.ops']));
+        return array_values(array_diff($all, ['nav.admin','admin.manage_entities','admin.manage_users','admin.manage_roles','admin.assign_roles','admin.manage_connect','endeavour.approve_sa','volunteering.ops']));
     }
     if ($globalRole === 'student_affairs') {
-        return array_values(array_diff($all, ['nav.admin','admin.manage_entities','admin.manage_users','admin.manage_roles','admin.assign_roles','endeavour.approve_mob']));
+        return array_values(array_diff($all, ['nav.admin','admin.manage_entities','admin.manage_users','admin.manage_roles','admin.assign_roles','admin.manage_connect','endeavour.approve_mob']));
     }
 
     $memberships = legacy_memberships_for_user((int)$user['id'], $entityId);
