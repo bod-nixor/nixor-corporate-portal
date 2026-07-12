@@ -249,6 +249,7 @@ function handle_endeavours(string $method, array $segments): void {
         ]);
         $endeavourId = (int)db()->lastInsertId();
         log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'Executive created endeavour', ['phase' => 'PRE_EVENT']);
+        connect_enqueue_entitlement_change_safely((int)$user['id'], 'project_created', ['endeavour_id' => $endeavourId]);
         emit_ws_event('endeavour.created', ['id' => $endeavourId]);
         respond(['ok' => true, 'data' => ['id' => $endeavourId, 'public_id' => public_id_for_row('endeavours', $endeavourId)]]);
     }
@@ -350,6 +351,7 @@ function handle_endeavours(string $method, array $segments): void {
             throw $e;
         }
         log_activity($user['id'], 'endeavour', $id, 'registered', 'Volunteer registered');
+        connect_enqueue_entitlement_change_safely((int)$user['id'], 'project_registration_created', ['endeavour_id' => $id]);
         respond(['ok' => true, 'data' => ['registered' => true]]);
     }
 
@@ -635,9 +637,10 @@ function handle_endeavours(string $method, array $segments): void {
         if ($registrationId <= 0) {
             respond(['ok' => false, 'error' => 'registration_id required'], 400);
         }
-        $check = db()->prepare('SELECT id FROM volunteer_registrations WHERE id = ? AND endeavour_id = ?');
+        $check = db()->prepare('SELECT id, user_id FROM volunteer_registrations WHERE id = ? AND endeavour_id = ?');
         $check->execute([$registrationId, $id]);
-        if (!$check->fetch()) {
+        $registration = $check->fetch();
+        if (!$registration) {
             respond(['ok' => false, 'error' => 'Registration not found'], 404);
         }
         if ($subAction === 'shortlist') {
@@ -647,6 +650,7 @@ function handle_endeavours(string $method, array $segments): void {
             require_permission('volunteering.shortlist', (int)$endeavour['entity_id'], $user);
             $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "shortlisted" WHERE id = ?');
             $stmt->execute([$registrationId]);
+            connect_enqueue_entitlement_change_safely((int)$registration['user_id'], 'project_registration_shortlisted', ['endeavour_id' => $id, 'registration_id' => $registrationId, 'actor_id' => (int)$user['id']]);
             respond(['ok' => true]);
         }
         if ($subAction === 'reject') {
@@ -656,6 +660,7 @@ function handle_endeavours(string $method, array $segments): void {
             require_permission('volunteering.shortlist', (int)$endeavour['entity_id'], $user);
             $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "rejected" WHERE id = ?');
             $stmt->execute([$registrationId]);
+            connect_enqueue_entitlement_change_safely((int)$registration['user_id'], 'project_registration_rejected', ['endeavour_id' => $id, 'registration_id' => $registrationId, 'actor_id' => (int)$user['id']]);
             respond(['ok' => true]);
         }
         if ($subAction === 'attendance') {

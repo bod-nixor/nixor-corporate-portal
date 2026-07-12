@@ -5,6 +5,8 @@ require_once __DIR__ . '/../api/lib/mail.php';
 require_once __DIR__ . '/../api/lib/activity.php';
 require_once __DIR__ . '/../api/lib/http.php';
 require_once __DIR__ . '/../api/lib/public_ids.php';
+require_once __DIR__ . '/../api/lib/rbac.php';
+require_once __DIR__ . '/../api/lib/connect.php';
 require_once __DIR__ . '/../api/lib/notifications_dispatch.php';
 
 $isCli = php_sapi_name() === 'cli';
@@ -24,6 +26,13 @@ if ($pushNotificationId > 0) {
     exit;
 }
 
+$connectOutboxOnly = $isCli && cron_cli_bool_arg($_SERVER['argv'] ?? [], 'connect_entitlement_outbox');
+if ($connectOutboxOnly) {
+    $payload = ['ok' => true, 'data' => ['connect_entitlement_outbox' => dispatch_connect_entitlement_outbox()]];
+    echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
+    exit;
+}
+
 $token = env_value('CRON_TOKEN', '');
 if (!$isCli && $token && !hash_equals($token, (string)($_GET['token'] ?? ''))) {
     http_response_code(403);
@@ -35,6 +44,7 @@ $results = [
     'deadline_reminders' => run_deadline_reminders(),
     'consent_reminders' => run_consent_reminders(),
     'daily_digest' => run_daily_digest(),
+    'connect_entitlement_outbox' => dispatch_connect_entitlement_outbox(),
 ];
 
 $payload = ['ok' => true, 'data' => $results];
@@ -165,4 +175,13 @@ function cron_cli_int_arg(array $argv, string $name): int {
         }
     }
     return 0;
+}
+
+function cron_cli_bool_arg(array $argv, string $name): bool {
+    foreach ($argv as $arg) {
+        if ((string)$arg === $name || (string)$arg === $name . '=1' || (string)$arg === $name . '=true') {
+            return true;
+        }
+    }
+    return false;
 }

@@ -87,6 +87,7 @@ function handle_users(string $method, array $segments): void {
             );
         }
         log_activity($user['id'], 'user', $userId, 'created', 'User created with password setup required', ['invite_email_attempted' => $sendInvite && $status === 'active', 'invite_email_sent' => $emailSent]);
+        connect_enqueue_entitlement_change_safely($userId, 'user_created', ['actor_id' => (int)$user['id']]);
         respond(['ok' => true, 'data' => ['id' => $userId, 'password_setup_required' => true, 'invite_email_sent' => $emailSent]]);
     }
 
@@ -140,6 +141,7 @@ function handle_users(string $method, array $segments): void {
             throw $e;
         }
         log_activity($user['id'], 'user', $userId, 'updated', 'User updated');
+        connect_enqueue_entitlement_change_safely($userId, 'user_updated', ['actor_id' => (int)$user['id']]);
         respond(['ok' => true]);
     }
 
@@ -151,6 +153,7 @@ function handle_users(string $method, array $segments): void {
             respond(['ok' => false, 'error' => 'User not found'], 404);
         }
         log_activity($user['id'], 'user', $userId, 'deleted', 'User soft-deleted');
+        connect_enqueue_entitlement_change_safely($userId, 'user_deleted', ['actor_id' => (int)$user['id']]);
         respond(['ok' => true]);
     }
 
@@ -250,6 +253,7 @@ function handle_user_role_assignments(string $method, int $userId, array $segmen
         $stmt->execute([$userId, $roleId, $entityId, $actor['id']]);
         $newId = (int)db()->lastInsertId();
         log_activity($actor['id'], 'user', $userId, 'role_assigned', 'RBAC role assigned', ['assignment_id' => $newId, 'role_id' => $roleId, 'entity_id' => $entityId]);
+        connect_enqueue_entitlement_change_safely($userId, 'role_assigned', ['assignment_id' => $newId, 'role_id' => $roleId, 'entity_id' => $entityId, 'actor_id' => (int)$actor['id']]);
         respond(['ok' => true, 'data' => ['id' => $newId]]);
     }
 
@@ -260,6 +264,7 @@ function handle_user_role_assignments(string $method, int $userId, array $segmen
             respond(['ok' => false, 'error' => 'Assignment not found'], 404);
         }
         log_activity($actor['id'], 'user', $userId, 'role_removed', 'RBAC role assignment removed', ['assignment_id' => $assignmentId]);
+        connect_enqueue_entitlement_change_safely($userId, 'role_removed', ['assignment_id' => $assignmentId, 'actor_id' => (int)$actor['id']]);
         respond(['ok' => true]);
     }
 

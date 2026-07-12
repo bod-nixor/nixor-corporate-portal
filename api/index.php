@@ -10,8 +10,10 @@ $segments = array_values(array_filter(explode('/', $path)));
 function is_csrf_exempt_service_route(string $method, array $segments): bool {
     return $method === 'POST'
         && ($segments[0] ?? '') === 'connect'
-        && ($segments[1] ?? '') === 'identity'
-        && ($segments[2] ?? '') === 'resolve-google'
+        && (
+            (($segments[1] ?? '') === 'identity' && ($segments[2] ?? '') === 'resolve-google')
+            || (($segments[1] ?? '') === 'entitlements' && ($segments[2] ?? '') === 'resolve')
+        )
         && count($segments) === 3;
 }
 
