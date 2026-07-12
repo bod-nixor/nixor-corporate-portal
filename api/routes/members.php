@@ -61,18 +61,21 @@ function handle_members(string $method, array $segments): void {
         ]);
         $membershipId = (int)db()->lastInsertId();
         log_activity($user['id'], 'member', $membershipId, 'created', 'Membership created');
+        connect_enqueue_entitlement_change_safely($userId, 'entity_membership_created', ['membership_id' => $membershipId, 'entity_id' => $entityId, 'actor_id' => (int)$user['id']]);
         respond(['ok' => true, 'data' => ['id' => $membershipId]]);
     }
 
     if ($method === 'DELETE' && $id) {
-        $check = db()->prepare('SELECT id FROM entity_memberships WHERE id = ?');
+        $check = db()->prepare('SELECT id, user_id, entity_id FROM entity_memberships WHERE id = ?');
         $check->execute([$id]);
-        if (!$check->fetch()) {
+        $membership = $check->fetch();
+        if (!$membership) {
             respond(['ok' => false, 'error' => 'Membership not found'], 404);
         }
         $stmt = db()->prepare('DELETE FROM entity_memberships WHERE id = ?');
         $stmt->execute([$id]);
         log_activity($user['id'], 'member', (int)$id, 'deleted', 'Membership deleted');
+        connect_enqueue_entitlement_change_safely((int)$membership['user_id'], 'entity_membership_deleted', ['membership_id' => (int)$id, 'entity_id' => (int)$membership['entity_id'], 'actor_id' => (int)$user['id']]);
         respond(['ok' => true]);
     }
 

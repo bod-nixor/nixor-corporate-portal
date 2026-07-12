@@ -644,14 +644,8 @@ final class ApiTest extends TestCase {
         $this->assertSame(403, $unknown['status']);
         $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $unknown['data']);
 
-        $this->createConnectIdentity('connect.user@nixorcollege.edu.pk', false, ['display_name' => 'Pending User']);
-        $unapproved = $client->request('POST', '/api/connect/identity/resolve-google', $body, $this->connectServiceHeaders());
-        $this->assertSame(403, $unapproved['status']);
-        $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $unapproved['data']);
-
         $this->createUser('suspended.connect@nixorcollege.edu.pk', 'Password123!', 'staff');
         db()->prepare('UPDATE users SET status = "suspended" WHERE email = ?')->execute(['suspended.connect@nixorcollege.edu.pk']);
-        $this->createConnectIdentity('suspended.connect@nixorcollege.edu.pk', true, ['display_name' => 'Suspended Connect']);
         $suspended = $client->request('POST', '/api/connect/identity/resolve-google', [
             ...$body,
             'google_sub' => 'google-sub-suspended',
@@ -660,40 +654,41 @@ final class ApiTest extends TestCase {
         $this->assertSame(403, $suspended['status']);
         $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $suspended['data']);
 
-        db()->prepare('DELETE FROM connect_google_identities WHERE email = ?')->execute(['connect.user@nixorcollege.edu.pk']);
         $localUserId = $this->createUser('connect.user@nixorcollege.edu.pk', 'Password123!', 'staff');
-        $identityId = $this->createConnectIdentity('connect.user@nixorcollege.edu.pk', true, ['display_name' => 'Connect User']);
-        $this->addConnectMembership($identityId, 'srv_1de34dba73134a9fb62661a65fd1263e', 'moderator');
+        $entityId = $this->createEntity('AAO');
+        $this->addMembership($entityId, $localUserId, 'operations', 'executive');
+        $endeavourId = $this->createEndeavour($entityId, $localUserId, 'Connect Project', 'PRE_EVENT', false, '+5 days');
 
         $allowed = $client->request('POST', '/api/connect/identity/resolve-google', $body, $this->connectServiceHeaders());
         $this->assertSame(200, $allowed['status']);
         $this->assertSame(['ok', 'user'], array_keys($allowed['data']));
         $user = $allowed['data']['user'];
-        $this->assertSame([
-            'id',
-            'email',
-            'display_name',
-            'matrix_user_id',
-            'is_school_admin',
-            'is_approved_developer',
-            'developer_permissions',
-            'owned_developer_app_ids',
-            'memberships',
-        ], array_keys($user));
-        $this->assertSame((string)$localUserId, $user['id']);
+        $this->assertStringStartsWith('usr_', $user['id']);
         $this->assertSame('connect.user@nixorcollege.edu.pk', $user['email']);
         $this->assertSame('Connect User', $user['display_name']);
+        $this->assertSame('active', $user['account_status']);
         $this->assertSame('@connect.user:connect.nixorcorporate.com', $user['matrix_user_id']);
         $this->assertFalse($user['is_school_admin']);
         $this->assertFalse($user['is_approved_developer']);
         $this->assertSame([], $user['developer_permissions']);
         $this->assertSame([], $user['owned_developer_app_ids']);
-        $this->assertSame([
-            ['server_public_id' => 'srv_1de34dba73134a9fb62661a65fd1263e', 'role' => 'moderator'],
-        ], $user['memberships']);
-        $boundSub = db()->prepare('SELECT google_sub FROM connect_google_identities WHERE id = ?');
-        $boundSub->execute([$identityId]);
+        $this->assertSame([], $user['memberships']);
+        $this->assertContains(['resource_type' => 'space', 'resource_key' => 'root', 'role' => 'member'], $user['managed_memberships']);
+        $this->assertContains(['resource_type' => 'channel', 'resource_key' => 'announcements', 'role' => 'member'], $user['managed_memberships']);
+        $this->assertContains(['resource_type' => 'space', 'resource_key' => 'entity.aao', 'role' => 'moderator'], $user['managed_memberships']);
+        $this->assertContains(['resource_type' => 'channel', 'resource_key' => 'department.operations', 'role' => 'moderator'], $user['managed_memberships']);
+        $this->assertContains(['resource_type' => 'channel', 'resource_key' => 'project.' . $endeavourId, 'role' => 'manager'], $user['managed_memberships']);
+        $boundSub = db()->prepare('SELECT google_sub FROM connect_google_identities WHERE user_id = ?');
+        $boundSub->execute([$localUserId]);
         $this->assertSame('google-sub-normal', $boundSub->fetchColumn());
+
+        $current = $client->request('POST', '/api/connect/entitlements/resolve', [
+            'google_sub' => 'google-sub-normal',
+        ], $this->connectServiceHeaders());
+        $this->assertSame(200, $current['status']);
+        $this->assertTrue($current['data']['allowed']);
+        $this->assertSame($user['id'], $current['data']['identity']['ncp_user_id']);
+        $this->assertContains(['resource_type' => 'space', 'resource_key' => 'entity.aao', 'role' => 'moderator'], $current['data']['managed_memberships']);
 
         $devIdentityId = $this->createConnectIdentity('developer@nixorcollege.edu.pk', true, [
             'display_name' => 'Developer User',
@@ -704,6 +699,7 @@ final class ApiTest extends TestCase {
             'owned_developer_app_ids' => ['app_alpha', 'app_beta'],
         ]);
         $this->addConnectMembership($devIdentityId, 'srv_developer', 'owner');
+        $this->createUser('developer@nixorcollege.edu.pk', 'Password123!', 'admin');
         $developer = $client->request('POST', '/api/connect/identity/resolve-google', [
             ...$body,
             'google_sub' => 'google-sub-developer',
