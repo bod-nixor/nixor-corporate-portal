@@ -861,7 +861,7 @@ function handle_endeavours(string $method, array $segments): void {
         }
         $link = base_url() . '/consent.html?token=' . urlencode($token) . '&endeavour_id=' . urlencode((string)$id);
         $body = '<p>Please sign the parent consent for the Nixor endeavour.</p><p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">Sign consent</a></p>';
-        send_email($parentEmail, 'Parent Consent Required', $body, true);
+        send_transactional_email($parentEmail, 'Parent Consent Required', $body, true);
         log_activity($user['id'], 'endeavour', $id, 'consent_requested', 'Consent requested', ['application_id' => $applicationId]);
         emit_ws_event('endeavour.consent_requested', ['id' => $id]);
         respond(['ok' => true]);
@@ -1547,24 +1547,15 @@ function evaluate_phase_transition(int $endeavourId): void {
 }
 
 function notify_shortlisted(int $endeavourId, int $entityId): void {
-    $stmt = db()->prepare('SELECT vr.user_id, u.email, u.full_name, s.parent_email, s.parent_email_secondary FROM volunteer_registrations vr JOIN users u ON vr.user_id = u.id LEFT JOIN students s ON s.user_id = u.id WHERE vr.endeavour_id = ? AND vr.status = "shortlisted"');
+    $stmt = db()->prepare('SELECT vr.user_id FROM volunteer_registrations vr WHERE vr.endeavour_id = ? AND vr.status = "shortlisted"');
     $stmt->execute([$endeavourId]);
     $rows = $stmt->fetchAll();
     if (!$rows) {
         return;
     }
+    error_log('Automated shortlist email fan-out disabled; no emails sent.');
     $endeavour = fetch_endeavour($endeavourId);
     $title = $endeavour ? $endeavour['name'] : 'Endeavour';
-    $details = $endeavour
-        ? sprintf(
-            '<p><strong>Event:</strong> %s</p><p><strong>Venue:</strong> %s</p><p><strong>Start:</strong> %s</p><p><strong>End:</strong> %s</p><p><strong>Transport fee:</strong> %s</p>',
-            htmlspecialchars($title, ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars((string)($endeavour['venue'] ?? 'TBD'), ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars((string)($endeavour['event_start_at'] ?? 'TBD'), ENT_QUOTES, 'UTF-8'),
-            htmlspecialchars((string)($endeavour['event_end_at'] ?? 'TBD'), ENT_QUOTES, 'UTF-8'),
-            !empty($endeavour['transport_fee_required']) ? htmlspecialchars((string)($endeavour['transport_fee_amount'] ?? $endeavour['transport_payment_required'] ?? 'Required'), ENT_QUOTES, 'UTF-8') : 'Not required'
-        )
-        : '';
     foreach ($rows as $row) {
         $payload = [
             'endeavour_id' => $endeavourId,
@@ -1573,16 +1564,7 @@ function notify_shortlisted(int $endeavourId, int $entityId): void {
             'entity_public_id' => public_id_for_row('entities', $entityId),
             'title' => $title
         ];
-        $body = '<p>You have been shortlisted for the Nixor endeavour: ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '.</p>';
-        $sent = send_email($row['email'], 'You have been shortlisted', $body, true);
-        create_notification((int)$row['user_id'], 'volunteer_shortlisted', $payload, !$sent);
-        $parentEmail = $row['parent_email'] ?: $row['parent_email_secondary'];
-        if ($parentEmail) {
-            $parentBody = '<p>Your child has been shortlisted for a Nixor Corporate endeavour.</p>' . $details . '<p>If you would not like your child to participate, please reply to this email.</p>';
-            send_email($parentEmail, 'Volunteer shortlisted', $parentBody, true, 'support@nixorcollege.edu.pk');
-        } else {
-            error_log('Parent email missing for shortlisted volunteer user_id=' . $row['user_id']);
-        }
+        create_notification((int)$row['user_id'], 'volunteer_shortlisted', $payload);
     }
 }
 

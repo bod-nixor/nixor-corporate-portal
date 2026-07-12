@@ -14,25 +14,6 @@ if (!$isCli) {
     header('Content-Type: application/json');
 }
 
-$pushNotificationId = $isCli ? cron_cli_int_arg($_SERVER['argv'] ?? [], 'push_notification_id') : 0;
-if ($pushNotificationId > 0) {
-    dispatch_push_for_notification($pushNotificationId);
-    $payload = ['ok' => true, 'data' => ['push_notification_id' => $pushNotificationId]];
-    if ($isCli) {
-        echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
-    } else {
-        echo json_encode($payload);
-    }
-    exit;
-}
-
-$connectOutboxOnly = $isCli && cron_cli_bool_arg($_SERVER['argv'] ?? [], 'connect_entitlement_outbox');
-if ($connectOutboxOnly) {
-    $payload = ['ok' => true, 'data' => ['connect_entitlement_outbox' => dispatch_connect_entitlement_outbox()]];
-    echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
-    exit;
-}
-
 $token = env_value('CRON_TOKEN', '');
 if (!$isCli && $token && !hash_equals($token, (string)($_GET['token'] ?? ''))) {
     http_response_code(403);
@@ -40,148 +21,119 @@ if (!$isCli && $token && !hash_equals($token, (string)($_GET['token'] ?? ''))) {
     exit;
 }
 
-$results = [
-    'deadline_reminders' => run_deadline_reminders(),
-    'consent_reminders' => run_consent_reminders(),
-    'daily_digest' => run_daily_digest(),
-    'connect_entitlement_outbox' => dispatch_connect_entitlement_outbox(),
-];
-
-$payload = ['ok' => true, 'data' => $results];
-if ($isCli) {
-    echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
-} else {
+$command = $isCli ? cron_parse_cli_args($_SERVER['argv'] ?? []) : ['command' => 'full'];
+if (!empty($command['error'])) {
+    $payload = ['ok' => false, 'error' => $command['error']];
+    if ($isCli) {
+        echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
+        exit(2);
+    }
+    http_response_code(400);
     echo json_encode($payload);
+    exit;
 }
 
+if ($command['command'] === 'push_notification') {
+    dispatch_push_for_notification((int)$command['push_notification_id']);
+    cron_emit(['ok' => true, 'data' => ['push_notification_id' => (int)$command['push_notification_id']]], $isCli);
+    exit;
+}
+
+if ($command['command'] === 'connect_entitlement_outbox') {
+    cron_emit(['ok' => true, 'data' => ['connect_entitlement_outbox' => dispatch_connect_entitlement_outbox()]], $isCli);
+    exit;
+}
+
+$results = run_full_cron();
+
+$payload = ['ok' => true, 'data' => $results];
+cron_emit($payload, $isCli);
+
 function run_deadline_reminders(): array {
-    $pendingStatuses = [
-        'pending_board_approval',
-        'ops_plan_pending_board_approval',
-        'mou_pending_board_approval',
-        'pre_financial_pending_board_approval',
-        'volunteer_posting_pending_board_approval',
-        'post_financial_pending_board_approval'
-    ];
-    $placeholders = implode(',', array_fill(0, count($pendingStatuses), '?'));
-    $stmt = db()->prepare("SELECT e.id, e.name, e.status, e.start_date, en.name AS entity_name FROM endeavours e JOIN entities en ON e.entity_id = en.id WHERE e.status IN ({$placeholders}) AND e.start_date IS NOT NULL AND e.start_date <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
-    $stmt->execute($pendingStatuses);
-    $endeavours = $stmt->fetchAll();
-    $recipients = role_emails(['admin', 'board']);
-    $sent = 0;
-    foreach ($endeavours as $endeavour) {
-        foreach ($recipients as $email) {
-            if (!should_send_notification('deadline_reminder', 'endeavour', (int)$endeavour['id'], $email)) {
-                continue;
-            }
-            $subject = 'Endeavour deadline reminder: ' . $endeavour['name'];
-            $body = sprintf(
-                '<p>Reminder: %s (%s) is awaiting action. Start date: %s</p>',
-                htmlspecialchars($endeavour['name'], ENT_QUOTES, 'UTF-8'),
-                htmlspecialchars($endeavour['entity_name'], ENT_QUOTES, 'UTF-8'),
-                htmlspecialchars($endeavour['start_date'], ENT_QUOTES, 'UTF-8')
-            );
-            if (send_email($email, $subject, $body, true)) {
-                mark_notification_sent('deadline_reminder', 'endeavour', (int)$endeavour['id'], $email);
-                $sent++;
-            }
-        }
-    }
-    return ['processed' => count($endeavours), 'sent' => $sent];
+    return disabled_automated_email_job_result('deadline_reminders');
 }
 
 function run_consent_reminders(): array {
-    $stmt = db()->query('SELECT id, parent_email FROM consents WHERE status = "pending" AND created_at <= DATE_SUB(NOW(), INTERVAL 2 DAY)');
-    $consents = $stmt->fetchAll();
-    $sent = 0;
-    foreach ($consents as $consent) {
-        $email = $consent['parent_email'];
-        if (!should_send_notification('consent_reminder', 'consent', (int)$consent['id'], $email)) {
-            continue;
-        }
-        $subject = 'Reminder: Parent consent pending';
-        $body = '<p>This is a reminder to complete the parent consent form for the Nixor endeavour.</p>';
-        if (send_email($email, $subject, $body, true)) {
-            mark_notification_sent('consent_reminder', 'consent', (int)$consent['id'], $email);
-            $sent++;
-        }
-    }
-    return ['processed' => count($consents), 'sent' => $sent];
+    return disabled_automated_email_job_result('consent_reminders');
 }
 
 function run_daily_digest(): array {
-    $recipients = role_emails(['admin']);
-    if (!$recipients) {
-        return ['processed' => 0, 'sent' => 0];
+    return disabled_automated_email_job_result('daily_digest');
+}
+
+function run_full_cron(): array {
+    return [
+        'deadline_reminders' => run_deadline_reminders(),
+        'consent_reminders' => run_consent_reminders(),
+        'daily_digest' => run_daily_digest(),
+        'connect_entitlement_outbox' => dispatch_connect_entitlement_outbox(),
+    ];
+}
+
+function disabled_automated_email_job_result(string $job): array {
+    error_log('Automated email job disabled; no emails sent.');
+    return [
+        'processed' => 0,
+        'sent' => 0,
+        'disabled' => true,
+        'message' => 'Automated email job disabled; no emails sent.',
+        'job' => $job,
+    ];
+}
+
+function cron_parse_cli_args(array $argv): array {
+    $args = array_values(array_slice($argv, 1));
+    if (!$args) {
+        return ['command' => 'full'];
     }
-    $pending = db()->query('SELECT COUNT(*) as total FROM endeavours WHERE status NOT IN ("completed", "rejected")')->fetch();
-    $consents = db()->query('SELECT COUNT(*) as total FROM consents WHERE status = "pending"')->fetch();
-    $sent = 0;
-    foreach ($recipients as $email) {
-        if (!should_send_notification('daily_digest', 'system', 0, $email)) {
+
+    $command = null;
+    $pushNotificationId = 0;
+    foreach ($args as $arg) {
+        $arg = trim((string)$arg);
+        if ($arg === '') {
             continue;
         }
-        $subject = 'Nixor Portal daily digest';
-        $body = sprintf(
-            '<p>Pending endeavours: %d</p><p>Pending consents: %d</p>',
-            (int)$pending['total'],
-            (int)$consents['total']
-        );
-        if (send_email($email, $subject, $body, true)) {
-            mark_notification_sent('daily_digest', 'system', 0, $email);
-            $sent++;
+
+        if (in_array($arg, ['--connect_entitlement_outbox', 'connect_entitlement_outbox', 'connect_entitlement_outbox=1', 'connect_entitlement_outbox=true', '--connect-entitlement-outbox'], true)) {
+            if ($command !== null && $command !== 'connect_entitlement_outbox') {
+                return ['error' => 'Conflicting cron arguments supplied.'];
+            }
+            $command = 'connect_entitlement_outbox';
+            continue;
         }
-    }
-    return ['processed' => count($recipients), 'sent' => $sent];
-}
 
-function should_send_notification(string $type, string $entityType, int $entityId, string $recipient): bool {
-    $stmt = db()->prepare('SELECT id FROM reminder_notifications WHERE notification_type = ? AND entity_type = ? AND entity_id = ? AND recipient = ? AND sent_on = CURDATE()');
-    $stmt->execute([$type, $entityType ?: '', $entityId, $recipient]);
-    return !$stmt->fetch();
-}
-
-function mark_notification_sent(string $type, string $entityType, int $entityId, string $recipient): void {
-    $stmt = db()->prepare('INSERT INTO reminder_notifications (notification_type, entity_type, entity_id, recipient, sent_on) VALUES (?, ?, ?, ?, CURDATE())');
-    try {
-        $stmt->execute([$type, $entityType ?: '', $entityId, $recipient]);
-    } catch (PDOException $e) {
-        error_log('Failed to log reminder notification: ' . $e->getMessage());
-    }
-}
-
-function role_emails(array $roles): array {
-    if (!$roles) {
-        return [];
-    }
-    $placeholders = implode(',', array_fill(0, count($roles), '?'));
-    $stmt = db()->prepare("SELECT email FROM users WHERE status = 'active' AND global_role IN ({$placeholders})");
-    $stmt->execute($roles);
-    $emails = [];
-    foreach ($stmt->fetchAll() as $row) {
-        if (!empty($row['email'])) {
-            $emails[] = $row['email'];
+        foreach (['push_notification_id=', '--push_notification_id=', '--push-notification-id='] as $prefix) {
+            if (str_starts_with($arg, $prefix)) {
+                $value = trim(substr($arg, strlen($prefix)));
+                if (!ctype_digit($value) || (int)$value <= 0) {
+                    return ['error' => 'Malformed push_notification_id argument.'];
+                }
+                if ($command !== null && $command !== 'push_notification') {
+                    return ['error' => 'Conflicting cron arguments supplied.'];
+                }
+                $command = 'push_notification';
+                $pushNotificationId = (int)$value;
+                continue 2;
+            }
         }
+
+        return ['error' => 'Unknown cron argument: ' . $arg];
     }
-    return array_values(array_unique($emails));
+
+    if ($command === 'push_notification') {
+        return ['command' => 'push_notification', 'push_notification_id' => $pushNotificationId];
+    }
+    if ($command === 'connect_entitlement_outbox') {
+        return ['command' => 'connect_entitlement_outbox'];
+    }
+    return ['command' => 'full'];
 }
 
-function cron_cli_int_arg(array $argv, string $name): int {
-    $prefix = $name . '=';
-    foreach ($argv as $arg) {
-        if (str_starts_with((string)$arg, $prefix)) {
-            $value = trim(substr((string)$arg, strlen($prefix)));
-            return ctype_digit($value) ? (int)$value : 0;
-        }
+function cron_emit(array $payload, bool $isCli): void {
+    if ($isCli) {
+        echo json_encode($payload, JSON_PRETTY_PRINT) . PHP_EOL;
+        return;
     }
-    return 0;
-}
-
-function cron_cli_bool_arg(array $argv, string $name): bool {
-    foreach ($argv as $arg) {
-        if ((string)$arg === $name || (string)$arg === $name . '=1' || (string)$arg === $name . '=true') {
-            return true;
-        }
-    }
-    return false;
+    echo json_encode($payload);
 }

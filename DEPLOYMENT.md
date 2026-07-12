@@ -29,7 +29,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - `BASE_URL` (production URL)
    - `PUBLIC_BASE_URL=https://ncp.nixorcorporate.com` (public link generation for copied/shared URLs)
    - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`
-   - `SMTP_*` (if SMTP is configured)
+   - `MAIL_TRANSPORT=smtp`, `AUTOMATED_EMAILS_ENABLED=false`, and `SMTP_*` if explicit transactional email is configured. Automated cron/digest/reminder email is disabled in code and must remain off.
    - `UPLOAD_PATH` (absolute path outside web root, e.g. `/home/<cpanel_user>/portal_uploads`)
    - `LOG_PATH` (absolute path, e.g. `/home/<cpanel_user>/portal_logs`)
    - `TRUSTED_PROXIES` (Cloudflare or other proxies if used)
@@ -64,7 +64,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - Keep `GOOGLE_AUTO_PROVISION=false` unless `GOOGLE_ALLOWED_DOMAIN=nixorcollege.edu.pk` is set and verified Nixor College Google users should be created automatically with the default `volunteer` role.
 
 ## 7) Configure cron jobs
-Add a cPanel cron entry that calls:
+Add a cPanel cron entry for non-email maintenance that calls:
 ```bash
 /usr/bin/php -q /home/<cpanel_user>/public_html/portal/cron/run.php
 ```
@@ -72,6 +72,7 @@ If CLI is unavailable, call the HTTP endpoint:
 ```bash
 https://your-domain.com/portal/cron/run.php?token=<CRON_TOKEN>
 ```
+This cron entry does not send digest, reminder, summary, assignment, or bulk email. If an older cPanel job exists only to send `Nixor Portal daily digest` or reminder email, remove that job; the code is safe even if the generic cron above remains configured.
 
 ## 8) File permissions
 Ensure the following paths are writable by the PHP user:
@@ -95,7 +96,7 @@ The portal falls back to polling automatically, but if you enable websockets:
 - Entity drive upload + download
 - Calendar event creation
 - Social posts + comments
-- Cron reminders send/log correctly
+- Cron runs without sending digest or reminder email
 
 ## 11) Manual QA data cleanup
 The repo includes `scripts/cleanup_bad_calendar_and_qa_data.sql` for reviewing and removing QA leftovers such as the `sfef` entity, year-1111 calendar events, and `QA_TEST_DO_NOT_USE_*` records. The script runs inside a transaction and ends with `ROLLBACK` by default; review the SELECT previews and row counts before changing it to `COMMIT` in production.

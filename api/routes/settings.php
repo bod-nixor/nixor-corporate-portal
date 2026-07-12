@@ -13,7 +13,6 @@ function handle_settings(string $method, array $segments): void {
         $data = read_json();
         $allowed = [
             'platform_enabled',
-            'email_enabled',
             'push_enabled',
             'approvals_enabled',
             'volunteering_enabled',
@@ -36,7 +35,7 @@ function handle_settings(string $method, array $segments): void {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 platform_enabled = VALUES(platform_enabled),
-                email_enabled = VALUES(email_enabled),
+                email_enabled = 0,
                 push_enabled = VALUES(push_enabled),
                 approvals_enabled = VALUES(approvals_enabled),
                 volunteering_enabled = VALUES(volunteering_enabled),
@@ -46,7 +45,7 @@ function handle_settings(string $method, array $segments): void {
         $stmt->execute([
             $user['id'],
             $values['platform_enabled'],
-            $values['email_enabled'],
+            0,
             $values['push_enabled'],
             $values['approvals_enabled'],
             $values['volunteering_enabled'],
@@ -63,7 +62,7 @@ function handle_settings(string $method, array $segments): void {
 function settings_notification_preferences(int $userId): array {
     $defaults = [
         'platform_enabled' => 1,
-        'email_enabled' => 1,
+        'email_enabled' => 0,
         'push_enabled' => 1,
         'approvals_enabled' => 1,
         'volunteering_enabled' => 1,
@@ -79,5 +78,6 @@ function settings_notification_preferences(int $userId): array {
     foreach ($defaults as $key => $default) {
         $defaults[$key] = isset($row[$key]) ? (int)$row[$key] : $default;
     }
+    $defaults['email_enabled'] = 0;
     return $defaults;
 }

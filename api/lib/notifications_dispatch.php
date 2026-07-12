@@ -25,7 +25,7 @@ function portal_notification_preference_column_for_type(string $type): string {
 function portal_notification_preferences_for_user(int $userId): array {
     $defaults = [
         'platform_enabled' => 1,
-        'email_enabled' => 1,
+        'email_enabled' => 0,
         'push_enabled' => 1,
         'approvals_enabled' => 1,
         'volunteering_enabled' => 1,
@@ -44,6 +44,7 @@ function portal_notification_preferences_for_user(int $userId): array {
     } catch (PDOException $e) {
         return $defaults;
     }
+    $defaults['email_enabled'] = 0;
     return $defaults;
 }
 

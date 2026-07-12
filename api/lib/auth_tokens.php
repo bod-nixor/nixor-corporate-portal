@@ -180,47 +180,16 @@ HTML;
 function auth_send_password_token_email(array $user, string $type, string $token): bool {
     $email = trim((string)($user['email'] ?? ''));
 
-    file_put_contents(
-        dirname(__DIR__, 2) . '/logs/reset-debug.log',
-        '[' . date('c') . "] auth_send: email={$email}\n",
-        FILE_APPEND
-    );
-
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        file_put_contents(
-            dirname(__DIR__, 2) . '/logs/reset-debug.log',
-            '[' . date('c') . "] auth_send: invalid email\n",
-            FILE_APPEND
-        );
+        error_log('auth_send_password_token_email: invalid recipient for user_id=' . (int)($user['id'] ?? 0));
         return false;
     }
 
     $url = auth_password_flow_url($token);
-
-    file_put_contents(
-        dirname(__DIR__, 2) . '/logs/reset-debug.log',
-        '[' . date('c') . "] auth_send: url={$url}\n",
-        FILE_APPEND
-    );
-
     $subject = auth_password_token_email_subject($type);
     $body = auth_password_token_email_body($user, $type, $url);
 
-    file_put_contents(
-        dirname(__DIR__, 2) . '/logs/reset-debug.log',
-        '[' . date('c') . "] auth_send: before send_email\n",
-        FILE_APPEND
-    );
-
-    $result = send_email($email, $subject, $body, true);
-
-    file_put_contents(
-        dirname(__DIR__, 2) . '/logs/reset-debug.log',
-        '[' . date('c') . '] auth_send: send_email returned ' . ($result ? 'true' : 'false') . "\n",
-        FILE_APPEND
-    );
-
-    return $result;
+    return send_transactional_email($email, $subject, $body, true);
 }
 
 function auth_fetch_password_token_row(PDO $pdo, string $token, bool $forUpdate = false): ?array {

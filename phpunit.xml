@@ -9,6 +9,9 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="ENV_FILE_PATH" value=".env.testing"/>
+        <env name="MAIL_TRANSPORT" value="fake"/>
+        <env name="AUTOMATED_EMAILS_ENABLED" value="false"/>
+        <env name="LOG_PATH" value="/tmp/nixor_portal_test_logs"/>
         <env name="TEST_BASE_URL" value="http://127.0.0.1:8001"/>
     </php>
 </phpunit>

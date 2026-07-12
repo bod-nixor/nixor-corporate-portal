@@ -37,7 +37,7 @@ Nixor Corporate Portal is a PHP 8.1+ and static-JS internal portal for entity op
 
 ### Realtime / async
 - `ws/server.py`: optional websocket broadcaster.
-- `cron/run.php`: cron-safe reminders/maintenance entrypoint.
+- `cron/run.php`: cron-safe maintenance entrypoint; automated digest/reminder email jobs are disabled.
 
 ## Repo Layout
 - `api/`

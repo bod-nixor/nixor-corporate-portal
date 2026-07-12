@@ -41,9 +41,10 @@ final class ApiTest extends TestCase {
 
         // Clear rate limits
         array_map('unlink', glob(sys_get_temp_dir() . '/nixor_rate_*'));
-        $mailLog = rtrim((string)env_value('LOG_PATH', sys_get_temp_dir()), "\\/") . '/mail.log';
-        if (is_file($mailLog)) {
-            unlink($mailLog);
+        foreach ([$this->mailLogPath(), $this->fakeMailPath()] as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
         }
     }
 
@@ -189,11 +190,81 @@ final class ApiTest extends TestCase {
         $this->assertMatchesRegularExpression('/^[a-f0-9]{64}$/', $tokens[0]['token_hash']);
         $this->assertNull($tokens[0]['used_at']);
 
-        $mailLog = rtrim((string)env_value('LOG_PATH', sys_get_temp_dir()), "\\/") . '/mail.log';
+        $mail = $this->fakeMailEntries();
+        $this->assertCount(1, $mail);
+        $this->assertSame('transactional', $mail[0]['purpose']);
+        $this->assertSame('Nixor Corporate Portal: Reset your password', $mail[0]['subject']);
+        $this->assertSame(mail_recipient_hash('reset-user@example.com'), $mail[0]['recipient_hash']);
+
+        $mailLog = $this->mailLogPath();
         $this->assertFileExists($mailLog);
-        $mail = file_get_contents($mailLog);
-        $this->assertStringContainsString('reset-user@example.com', $mail);
-        $this->assertStringNotContainsString($tokens[0]['token_hash'], $mail);
+        $log = file_get_contents($mailLog);
+        $this->assertStringNotContainsString('reset-user@example.com', $log);
+        $this->assertStringNotContainsString($tokens[0]['token_hash'], $log);
+    }
+
+    public function testAutomatedMailGuardBlocksDigestAndReminderGeneration(): void {
+        $this->assertFalse(send_automated_email('digest-recipient@example.com', 'Nixor Portal daily digest', '<p>Pending endeavours: 1</p>'));
+        $this->assertFalse(send_automated_email('reminder-recipient@example.com', 'Reminder: Parent consent pending', '<p>Reminder</p>'));
+        $this->assertSame([], $this->fakeMailEntries());
+    }
+
+    public function testFullCronDoesNotGenerateAutomatedEmail(): void {
+        $creatorId = $this->createUser('cron-admin@example.com', 'Password123!', 'admin');
+        $this->createUser('cron-board@example.com', 'Password123!', 'board');
+        $entityId = $this->createEntity('Cron Silence Entity');
+        $endeavourId = $this->createEndeavourWithDates(
+            $entityId,
+            $creatorId,
+            'Cron Pending Endeavour',
+            gmdate('Y-m-d H:i:s', strtotime('+3 days')),
+            gmdate('Y-m-d H:i:s', strtotime('+3 days +2 hours'))
+        );
+        db()->prepare('UPDATE endeavours SET status = "pending_board_approval" WHERE id = ?')->execute([$endeavourId]);
+        $this->createPendingConsentOlderThanTwoDays($creatorId, $entityId);
+
+        $cron = $this->runCron();
+
+        $this->assertSame(0, $cron['exit_code']);
+        $this->assertTrue((bool)($cron['data']['ok'] ?? false));
+        foreach (['deadline_reminders', 'consent_reminders', 'daily_digest'] as $job) {
+            $this->assertTrue((bool)($cron['data']['data'][$job]['disabled'] ?? false), $job . ' should be disabled');
+            $this->assertSame(0, (int)($cron['data']['data'][$job]['sent'] ?? -1));
+        }
+        $this->assertSame([], $this->fakeMailEntries());
+    }
+
+    public function testConnectEntitlementOutboxCronDoesNotFallThroughToEmailJobs(): void {
+        $creatorId = $this->createUser('connect-admin@example.com', 'Password123!', 'admin');
+        $entityId = $this->createEntity('Connect Outbox Entity');
+        $this->createEndeavourWithDates(
+            $entityId,
+            $creatorId,
+            'Connect Should Not Digest',
+            gmdate('Y-m-d H:i:s', strtotime('+2 days')),
+            gmdate('Y-m-d H:i:s', strtotime('+2 days +1 hour'))
+        );
+
+        $cron = $this->runCron(['--connect_entitlement_outbox']);
+
+        $this->assertSame(0, $cron['exit_code']);
+        $this->assertTrue((bool)($cron['data']['ok'] ?? false));
+        $this->assertArrayHasKey('connect_entitlement_outbox', $cron['data']['data']);
+        $this->assertArrayNotHasKey('daily_digest', $cron['data']['data']);
+        $this->assertSame([], $this->fakeMailEntries());
+    }
+
+    public function testUnknownOrMalformedCronArgumentsCannotTriggerEmailJobs(): void {
+        $this->createUser('unknown-cron-admin@example.com', 'Password123!', 'admin');
+
+        $unknown = $this->runCron(['--definitely-not-a-cron-mode']);
+        $malformed = $this->runCron(['push_notification_id=abc']);
+
+        $this->assertSame(2, $unknown['exit_code']);
+        $this->assertFalse((bool)($unknown['data']['ok'] ?? true));
+        $this->assertSame(2, $malformed['exit_code']);
+        $this->assertFalse((bool)($malformed['data']['ok'] ?? true));
+        $this->assertSame([], $this->fakeMailEntries());
     }
 
     public function testPasswordResetTokenValidationExpiryReuseAndStrength(): void {
@@ -936,7 +1007,12 @@ final class ApiTest extends TestCase {
         $afterShortlist = $execClient->request('GET', "/api/endeavours/{$endeavourId}/registrations");
         $this->assertSame('shortlisted', $afterShortlist['data']['data'][0]['status']);
 
-        $this->setEndeavourPhase($endeavourId, 'ON_DAY');
+        $closeShortlisting = $execClient->request('POST', "/api/endeavours/{$endeavourId}/close_shortlisting", [], ["X-CSRF-Token: {$execClient->csrfToken}"]);
+        $this->assertSame(200, $closeShortlisting['status']);
+        $this->assertSame([], $this->fakeMailEntries());
+        $notificationCount = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND type = "volunteer_shortlisted"');
+        $notificationCount->execute([$volunteerId]);
+        $this->assertSame(1, (int)$notificationCount->fetchColumn());
 
         $lateShortlist = $execClient->request('POST', "/api/endeavours/{$endeavourId}/registrations/shortlist", [
             'registration_id' => $registrationId
@@ -1774,6 +1850,79 @@ final class ApiTest extends TestCase {
         );
         $stmt->execute([$userId, $type, hash('sha256', $token), $expiresAt, '127.0.0.1']);
         return (int)db()->lastInsertId();
+    }
+
+    private function mailLogPath(): string {
+        return mail_log_path();
+    }
+
+    private function fakeMailPath(): string {
+        return fake_mail_path();
+    }
+
+    private function fakeMailEntries(): array {
+        $path = $this->fakeMailPath();
+        if (!is_file($path)) {
+            return [];
+        }
+        $entries = [];
+        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $decoded = json_decode($line, true);
+            if (is_array($decoded)) {
+                $entries[] = $decoded;
+            }
+        }
+        return $entries;
+    }
+
+    private function runCron(array $args = []): array {
+        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(dirname(__DIR__) . '/cron/run.php');
+        foreach ($args as $arg) {
+            $command .= ' ' . escapeshellarg($arg);
+        }
+
+        $descriptors = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+        $env = array_filter(array_merge($_ENV, $_SERVER), fn($v) => is_scalar($v));
+        $env['APP_ENV'] = 'testing';
+        $env['MAIL_TRANSPORT'] = 'fake';
+        $env['AUTOMATED_EMAILS_ENABLED'] = 'false';
+        $env['LOG_PATH'] = dirname($this->mailLogPath());
+
+        $process = proc_open($command, $descriptors, $pipes, dirname(__DIR__), $env);
+        if (!is_resource($process)) {
+            throw new RuntimeException('Failed to start cron process');
+        }
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+        $decoded = json_decode($stdout, true);
+
+        return [
+            'exit_code' => $exitCode,
+            'stdout' => $stdout,
+            'stderr' => $stderr,
+            'data' => is_array($decoded) ? $decoded : [],
+        ];
+    }
+
+    private function createPendingConsentOlderThanTwoDays(int $creatorId, int $entityId): void {
+        $studentUserId = $this->createUser('cron-student@example.com', 'Password123!', 'volunteer');
+        $studentId = $this->createStudent($studentUserId, 'cron-student');
+        $endeavourId = $this->createEndeavour($entityId, $creatorId, 'Cron Consent Event', 'VOLUNTEER_REGISTRATION', true, '+5 days');
+        $postId = $this->createVolunteerPost($endeavourId, $creatorId);
+        $applicationId = $this->createVolunteerApplication($postId, $studentId);
+        $stmt = db()->prepare(
+            'INSERT INTO consents (volunteer_application_id, parent_email, token, status, created_at)
+             VALUES (?, ?, ?, "pending", DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY))'
+        );
+        $stmt->execute([$applicationId, 'cron-parent@example.com', bin2hex(random_bytes(24))]);
     }
 
     private function loginClient(string $email, string $password): object {
