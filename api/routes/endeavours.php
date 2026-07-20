@@ -222,34 +222,37 @@ function handle_endeavours(string $method, array $segments): void {
         $endDate = substr($eventEnd, 0, 10);
         $transportEnabled = !empty($data['transport_fee_required']);
         $transportAmount = $transportEnabled ? normalize_money($data['transport_fee_amount'] ?? ($data['transport_payment_required'] ?? null), 'transport_fee_amount') : null;
-        $stmt = db()->prepare('INSERT INTO endeavours (public_id, entity_id, created_by, name, type_id, description, long_description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, transport_fee_amount, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        $stmt->execute([
-            generate_public_id('end'),
-            $entityId,
-            $user['id'],
-            $name,
-            $data['type_id'] ?? null,
-            sanitize_text($description, 5000),
-            sanitize_text($data['long_description'] ?? $description, 10000),
-            sanitize_text($venue, 190),
-            sanitize_text($data['schedule'] ?? '', 500),
-            $startDate,
-            $endDate,
-            $transportAmount ?? 0,
-            'PRE_EVENT',
-            !empty($data['volunteering_enabled']) ? 1 : 0,
-            $transportEnabled ? 1 : 0,
-            $transportAmount,
-            validate_datetime($data['volunteer_registration_deadline'] ?? null, 'volunteer_registration_deadline'),
-            date('Y-m-d H:i:s', strtotime($eventStart . ' -48 hours')),
-            date('Y-m-d H:i:s', strtotime($eventEnd . ' +72 hours')),
-            $eventStart,
-            $eventEnd,
-            'draft'
-        ]);
-        $endeavourId = (int)db()->lastInsertId();
+        $endeavourId = connect_transactional(function () use ($entityId, $user, $name, $data, $description, $venue, $startDate, $endDate, $transportAmount, $transportEnabled, $eventStart, $eventEnd): int {
+            $stmt = db()->prepare('INSERT INTO endeavours (public_id, entity_id, created_by, name, type_id, description, long_description, venue, schedule, start_date, end_date, transport_payment_required, phase, volunteering_enabled, transport_fee_required, transport_fee_amount, volunteer_registration_deadline, pre_financial_deadline, post_financial_deadline, event_start_at, event_end_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $stmt->execute([
+                generate_public_id('end'),
+                $entityId,
+                $user['id'],
+                $name,
+                $data['type_id'] ?? null,
+                sanitize_text($description, 5000),
+                sanitize_text($data['long_description'] ?? $description, 10000),
+                sanitize_text($venue, 190),
+                sanitize_text($data['schedule'] ?? '', 500),
+                $startDate,
+                $endDate,
+                $transportAmount ?? 0,
+                'PRE_EVENT',
+                !empty($data['volunteering_enabled']) ? 1 : 0,
+                $transportEnabled ? 1 : 0,
+                $transportAmount,
+                validate_datetime($data['volunteer_registration_deadline'] ?? null, 'volunteer_registration_deadline'),
+                date('Y-m-d H:i:s', strtotime($eventStart . ' -48 hours')),
+                date('Y-m-d H:i:s', strtotime($eventEnd . ' +72 hours')),
+                $eventStart,
+                $eventEnd,
+                'draft'
+            ]);
+            $endeavourId = (int)db()->lastInsertId();
+            connect_enqueue_entitlement_change_for_user((int)$user['id'], 'project_created', ['endeavour_id' => $endeavourId]);
+            return $endeavourId;
+        });
         log_activity($user['id'], 'endeavour', $endeavourId, 'created', 'Executive created endeavour', ['phase' => 'PRE_EVENT']);
-        connect_enqueue_entitlement_change_safely((int)$user['id'], 'project_created', ['endeavour_id' => $endeavourId]);
         emit_ws_event('endeavour.created', ['id' => $endeavourId]);
         respond(['ok' => true, 'data' => ['id' => $endeavourId, 'public_id' => public_id_for_row('endeavours', $endeavourId)]]);
     }
@@ -341,9 +344,12 @@ function handle_endeavours(string $method, array $segments): void {
         if (!empty($endeavour['volunteer_registration_deadline']) && strtotime($endeavour['volunteer_registration_deadline']) < time()) {
             respond(['ok' => false, 'error' => 'Volunteer registration deadline has passed'], 400);
         }
-        $stmt = db()->prepare('INSERT INTO volunteer_registrations (endeavour_id, entity_id, user_id) VALUES (?, ?, ?)');
         try {
-            $stmt->execute([$id, (int)$endeavour['entity_id'], $user['id']]);
+            connect_transactional(function () use ($id, $endeavour, $user): void {
+                $stmt = db()->prepare('INSERT INTO volunteer_registrations (endeavour_id, entity_id, user_id) VALUES (?, ?, ?)');
+                $stmt->execute([$id, (int)$endeavour['entity_id'], $user['id']]);
+                connect_enqueue_entitlement_change_for_user((int)$user['id'], 'project_registration_created', ['endeavour_id' => $id]);
+            });
         } catch (PDOException $e) {
             if ($e->getCode() === '23000') {
                 respond(['ok' => true, 'data' => ['registered' => true]]);
@@ -351,7 +357,6 @@ function handle_endeavours(string $method, array $segments): void {
             throw $e;
         }
         log_activity($user['id'], 'endeavour', $id, 'registered', 'Volunteer registered');
-        connect_enqueue_entitlement_change_safely((int)$user['id'], 'project_registration_created', ['endeavour_id' => $id]);
         respond(['ok' => true, 'data' => ['registered' => true]]);
     }
 
@@ -648,9 +653,11 @@ function handle_endeavours(string $method, array $segments): void {
                 respond(['ok' => false, 'error' => 'Shortlisting not active'], 400);
             }
             require_permission('volunteering.shortlist', (int)$endeavour['entity_id'], $user);
-            $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "shortlisted" WHERE id = ?');
-            $stmt->execute([$registrationId]);
-            connect_enqueue_entitlement_change_safely((int)$registration['user_id'], 'project_registration_shortlisted', ['endeavour_id' => $id, 'registration_id' => $registrationId, 'actor_id' => (int)$user['id']]);
+            connect_transactional(function () use ($registrationId, $registration, $id, $user): void {
+                $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "shortlisted" WHERE id = ?');
+                $stmt->execute([$registrationId]);
+                connect_enqueue_entitlement_change_for_user((int)$registration['user_id'], 'project_registration_shortlisted', ['endeavour_id' => $id, 'registration_id' => $registrationId, 'actor_id' => (int)$user['id']]);
+            });
             respond(['ok' => true]);
         }
         if ($subAction === 'reject') {
@@ -658,9 +665,11 @@ function handle_endeavours(string $method, array $segments): void {
                 respond(['ok' => false, 'error' => 'Shortlisting not active'], 400);
             }
             require_permission('volunteering.shortlist', (int)$endeavour['entity_id'], $user);
-            $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "rejected" WHERE id = ?');
-            $stmt->execute([$registrationId]);
-            connect_enqueue_entitlement_change_safely((int)$registration['user_id'], 'project_registration_rejected', ['endeavour_id' => $id, 'registration_id' => $registrationId, 'actor_id' => (int)$user['id']]);
+            connect_transactional(function () use ($registrationId, $registration, $id, $user): void {
+                $stmt = db()->prepare('UPDATE volunteer_registrations SET status = "rejected" WHERE id = ?');
+                $stmt->execute([$registrationId]);
+                connect_enqueue_entitlement_change_for_user((int)$registration['user_id'], 'project_registration_rejected', ['endeavour_id' => $id, 'registration_id' => $registrationId, 'actor_id' => (int)$user['id']]);
+            });
             respond(['ok' => true]);
         }
         if ($subAction === 'attendance') {
@@ -1421,8 +1430,11 @@ function rbac_user_ids_with_permission(string $permission, ?int $entityId = null
 
 
 function update_status(int $endeavourId, string $status): void {
-    $stmt = db()->prepare('UPDATE endeavours SET status = ? WHERE id = ?');
-    $stmt->execute([$status, $endeavourId]);
+    connect_transactional(function () use ($endeavourId, $status): void {
+        $stmt = db()->prepare('UPDATE endeavours SET status = ? WHERE id = ?');
+        $stmt->execute([$status, $endeavourId]);
+        connect_enqueue_entitlement_changes_for_endeavour($endeavourId, 'project_status_changed', ['status' => $status]);
+    });
 }
 
 function update_phase(int $endeavourId, string $phase): void {
@@ -1541,7 +1553,10 @@ function evaluate_phase_transition(int $endeavourId): void {
         $epilogue = latest_endeavour_submission($endeavourId, 'epilogue');
         if ($hasAll('post_financial') && ($epilogue || !empty($endeavour['epilogue_file_id']))) {
             update_phase($endeavourId, 'COMPLETED');
-            db()->prepare('UPDATE endeavours SET status = "completed", completed_at = NOW() WHERE id = ?')->execute([$endeavourId]);
+            connect_transactional(function () use ($endeavourId): void {
+                update_status($endeavourId, 'completed');
+                db()->prepare('UPDATE endeavours SET completed_at = NOW() WHERE id = ?')->execute([$endeavourId]);
+            });
         }
     }
 }

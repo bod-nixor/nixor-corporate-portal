@@ -50,18 +50,21 @@ function handle_members(string $method, array $segments): void {
         if ($stmt->fetch()) {
             respond(['ok' => false, 'error' => 'Membership already exists'], 409);
         }
-        $stmt = db()->prepare('INSERT INTO entity_memberships (entity_id, user_id, department, role, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)');
-        $stmt->execute([
-            $entityId,
-            $userId,
-            $department,
-            $role,
-            $data['start_date'] ?? null,
-            $data['end_date'] ?? null
-        ]);
-        $membershipId = (int)db()->lastInsertId();
+        $membershipId = connect_transactional(function () use ($entityId, $userId, $department, $role, $data, $user): int {
+            $stmt = db()->prepare('INSERT INTO entity_memberships (entity_id, user_id, department, role, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)');
+            $stmt->execute([
+                $entityId,
+                $userId,
+                $department,
+                $role,
+                $data['start_date'] ?? null,
+                $data['end_date'] ?? null
+            ]);
+            $membershipId = (int)db()->lastInsertId();
+            connect_enqueue_entitlement_change_for_user($userId, 'entity_membership_created', ['membership_id' => $membershipId, 'entity_id' => $entityId, 'actor_id' => (int)$user['id']]);
+            return $membershipId;
+        });
         log_activity($user['id'], 'member', $membershipId, 'created', 'Membership created');
-        connect_enqueue_entitlement_change_safely($userId, 'entity_membership_created', ['membership_id' => $membershipId, 'entity_id' => $entityId, 'actor_id' => (int)$user['id']]);
         respond(['ok' => true, 'data' => ['id' => $membershipId]]);
     }
 
@@ -72,10 +75,15 @@ function handle_members(string $method, array $segments): void {
         if (!$membership) {
             respond(['ok' => false, 'error' => 'Membership not found'], 404);
         }
-        $stmt = db()->prepare('DELETE FROM entity_memberships WHERE id = ?');
-        $stmt->execute([$id]);
+        connect_transactional(function () use ($id, $membership, $user): void {
+            $stmt = db()->prepare('DELETE FROM entity_memberships WHERE id = ?');
+            $stmt->execute([$id]);
+            if ($stmt->rowCount() !== 1) {
+                throw new RuntimeException('Membership changed before it could be deleted.');
+            }
+            connect_enqueue_entitlement_change_for_user((int)$membership['user_id'], 'entity_membership_deleted', ['membership_id' => (int)$id, 'entity_id' => (int)$membership['entity_id'], 'actor_id' => (int)$user['id']]);
+        });
         log_activity($user['id'], 'member', (int)$id, 'deleted', 'Membership deleted');
-        connect_enqueue_entitlement_change_safely((int)$membership['user_id'], 'entity_membership_deleted', ['membership_id' => (int)$id, 'entity_id' => (int)$membership['entity_id'], 'actor_id' => (int)$user['id']]);
         respond(['ok' => true]);
     }
 

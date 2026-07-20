@@ -11,6 +11,8 @@ vendor/
 package-lock.json
 *.lock
 !package-lock.json
+!composer.lock
+.phpunit.result.cache
 .playwright-cli/
 output/
 

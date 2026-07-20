@@ -1,4 +1,8 @@
 {
+  "name": "bod-nixor/nixor-corporate-portal",
+  "description": "Nixor Corporate Portal and authoritative Nixor Connect entitlement service.",
+  "type": "project",
+  "license": "proprietary",
   "require": {
     "php": "^8.1",
     "google/apiclient": "^2.16",

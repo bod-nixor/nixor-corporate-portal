@@ -19,6 +19,16 @@ Use this checklist for release candidates, major feature work, and any agent-dri
 - Logout clears the active session.
 - Protected routes return `401` or `403` cleanly without fatal output.
 
+## Nixor Connect identity and entitlements
+- Missing, weak, or incorrect service credentials never authorize either Connect service endpoint.
+- A verified known Google subject resolves; unknown, unverified, suspended, and mismatched subjects fail closed.
+- Multiple lookup identifiers must refer to the same NCP user; mixed identifiers return `identifier_mismatch`.
+- Matrix IDs are stable across repeated resolution and collision-safe for equal/sanitized email localparts.
+- Matrix-only lookup never guesses by stripping punctuation from an email address.
+- Unchanged desired state returns the same entitlement version and `updated_at`; a real membership change updates both.
+- Reconciliation queues one event for missed state and does not duplicate an unchanged version.
+- Outbox delivery is single-claim, stale leases recover, errors redact credentials, and exhausted events dead-letter.
+
 ## Dashboard
 - Entity selector loads.
 - Metrics, meetings, deadlines, and announcements render for a valid entity.

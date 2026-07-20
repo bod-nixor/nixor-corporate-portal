@@ -3,15 +3,18 @@ use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/TestClient.php';
 require_once __DIR__ . '/../api/routes/auth.php';
+require_once __DIR__ . '/../api/lib/public_ids.php';
+require_once __DIR__ . '/../api/lib/rbac.php';
+require_once __DIR__ . '/../api/lib/connect.php';
 
 final class ApiTest extends TestCase {
     private static $serverProcess;
     private static string $baseUrl;
 
     public static function setUpBeforeClass(): void {
-        $_ENV['NCP_API_SHARED_SECRET'] = 'test-connect-shared-secret';
-        $_SERVER['NCP_API_SHARED_SECRET'] = 'test-connect-shared-secret';
-        putenv('NCP_API_SHARED_SECRET=test-connect-shared-secret');
+        $_ENV['NCP_API_SHARED_SECRET'] = 'test-connect-shared-secret-32-bytes-minimum';
+        $_SERVER['NCP_API_SHARED_SECRET'] = 'test-connect-shared-secret-32-bytes-minimum';
+        putenv('NCP_API_SHARED_SECRET=test-connect-shared-secret-32-bytes-minimum');
         self::$baseUrl = getenv('TEST_BASE_URL') ?: 'http://127.0.0.1:8001';
         apply_migrations(db(), __DIR__ . '/../sql/migrations');
         self::startServer();
@@ -38,6 +41,15 @@ final class ApiTest extends TestCase {
         } finally {
             $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
         }
+        $pdo->exec(
+            'INSERT INTO connect_resource_mappings (source_type, source_id, resource_key, resource_type, display_name)
+             VALUES
+             ("root", "root", "root", "space", "Nixor Connect"),
+             ("announcements", "announcements", "announcements", "channel", "Announcements"),
+             ("board", "board", "board", "channel", "Board"),
+             ("leadership", "leadership", "leadership", "channel", "Leadership")'
+        );
+        $pdo->exec('INSERT INTO connect_entitlement_reconciliation_state (id, last_user_id) VALUES (1, 0)');
 
         // Clear rate limits
         array_map('unlink', glob(sys_get_temp_dir() . '/nixor_rate_*'));
@@ -726,6 +738,7 @@ final class ApiTest extends TestCase {
         $this->assertSame(['ok' => false, 'error' => 'not_allowed'], $suspended['data']);
 
         $localUserId = $this->createUser('connect.user@nixorcollege.edu.pk', 'Password123!', 'staff');
+        db()->prepare('UPDATE users SET full_name = ? WHERE id = ?')->execute(['NCP Connect User', $localUserId]);
         $entityId = $this->createEntity('AAO');
         $this->addMembership($entityId, $localUserId, 'operations', 'executive');
         $endeavourId = $this->createEndeavour($entityId, $localUserId, 'Connect Project', 'PRE_EVENT', false, '+5 days');
@@ -736,7 +749,7 @@ final class ApiTest extends TestCase {
         $user = $allowed['data']['user'];
         $this->assertStringStartsWith('usr_', $user['id']);
         $this->assertSame('connect.user@nixorcollege.edu.pk', $user['email']);
-        $this->assertSame('Connect User', $user['display_name']);
+        $this->assertSame('NCP Connect User', $user['display_name']);
         $this->assertSame('active', $user['account_status']);
         $this->assertSame('@connect.user:connect.nixorcorporate.com', $user['matrix_user_id']);
         $this->assertFalse($user['is_school_admin']);
@@ -788,9 +801,165 @@ final class ApiTest extends TestCase {
         $this->assertSame([['server_public_id' => 'srv_developer', 'role' => 'owner']], $developerUser['memberships']);
     }
 
+    public function testConnectResolutionRejectsIdentifierMixupsAndPersistsStableVersions(): void {
+        $client = new TestClient(self::$baseUrl);
+        $firstUserId = $this->createUser('identity.first@nixorcollege.edu.pk', 'Password123!', 'staff');
+        $secondUserId = $this->createUser('identity.second@nixorcollege.edu.pk', 'Password123!', 'staff');
+        db()->prepare('UPDATE users SET full_name = ? WHERE id = ?')->execute(['First NCP User', $firstUserId]);
+        db()->prepare('UPDATE users SET full_name = ? WHERE id = ?')->execute(['Second NCP User', $secondUserId]);
+
+        $first = $client->request('POST', '/api/connect/identity/resolve-google', [
+            'google_sub' => 'google-sub-identity-first',
+            'email' => 'identity.first@nixorcollege.edu.pk',
+            'name' => 'Manipulated Google Name',
+            'email_verified' => true,
+        ], $this->connectServiceHeaders());
+        $second = $client->request('POST', '/api/connect/identity/resolve-google', [
+            'google_sub' => 'google-sub-identity-second',
+            'email' => 'identity.second@nixorcollege.edu.pk',
+            'email_verified' => true,
+        ], $this->connectServiceHeaders());
+        $this->assertSame(200, $first['status']);
+        $this->assertSame(200, $second['status']);
+        $this->assertSame('First NCP User', $first['data']['user']['display_name']);
+
+        $mismatch = $client->request('POST', '/api/connect/entitlements/resolve', [
+            'ncp_user_id' => $first['data']['user']['id'],
+            'google_sub' => 'google-sub-identity-second',
+        ], $this->connectServiceHeaders());
+        $this->assertSame(409, $mismatch['status']);
+        $this->assertSame(['ok' => false, 'error' => 'identifier_mismatch'], $mismatch['data']);
+
+        $lookup = [
+            'ncp_user_id' => $first['data']['user']['id'],
+            'google_sub' => 'google-sub-identity-first',
+            'email' => 'identity.first@nixorcollege.edu.pk',
+            'matrix_user_id' => $first['data']['user']['matrix_user_id'],
+        ];
+        $current = $client->request('POST', '/api/connect/entitlements/resolve', $lookup, $this->connectServiceHeaders());
+        $unchanged = $client->request('POST', '/api/connect/entitlements/resolve', $lookup, $this->connectServiceHeaders());
+        $this->assertSame(200, $current['status']);
+        $this->assertTrue($current['data']['allowed']);
+        $this->assertSame($current['data']['entitlement_version'], $unchanged['data']['entitlement_version']);
+        $this->assertSame($current['data']['updated_at'], $unchanged['data']['updated_at']);
+
+        $entityId = $this->createEntity('Versioned Membership Entity');
+        $this->addMembership($entityId, $firstUserId, 'operations', 'member');
+        $changed = $client->request('POST', '/api/connect/entitlements/resolve', $lookup, $this->connectServiceHeaders());
+        $this->assertSame(200, $changed['status']);
+        $this->assertNotSame($current['data']['entitlement_version'], $changed['data']['entitlement_version']);
+        $this->assertNotSame($current['data']['updated_at'], $changed['data']['updated_at']);
+        $this->assertContains(
+            ['resource_type' => 'space', 'resource_key' => 'entity.versioned.membership.entity', 'role' => 'member'],
+            $changed['data']['managed_memberships']
+        );
+    }
+
+    public function testConnectMatrixIdsAreCollisionSafeAndMatrixLookupNeverGuessesFromEmail(): void {
+        $client = new TestClient(self::$baseUrl);
+        $this->createUser('matrix.collision@first.example', 'Password123!', 'staff');
+        $this->createUser('matrix.collision@second.example', 'Password123!', 'staff');
+
+        $first = $client->request('POST', '/api/connect/identity/resolve-google', [
+            'google_sub' => 'google-sub-matrix-first',
+            'email' => 'matrix.collision@first.example',
+            'email_verified' => true,
+        ], $this->connectServiceHeaders());
+        $second = $client->request('POST', '/api/connect/identity/resolve-google', [
+            'google_sub' => 'google-sub-matrix-second',
+            'email' => 'matrix.collision@second.example',
+            'email_verified' => true,
+        ], $this->connectServiceHeaders());
+
+        $this->assertSame(200, $first['status']);
+        $this->assertSame(200, $second['status']);
+        $firstMatrixId = $first['data']['user']['matrix_user_id'];
+        $secondMatrixId = $second['data']['user']['matrix_user_id'];
+        $this->assertMatchesRegularExpression('/^@matrix\.collision-[a-f0-9]{16}:connect\.nixorcorporate\.com$/', $firstMatrixId);
+        $this->assertMatchesRegularExpression('/^@matrix\.collision-[a-f0-9]{16}:connect\.nixorcorporate\.com$/', $secondMatrixId);
+        $this->assertNotSame($firstMatrixId, $secondMatrixId);
+
+        $byMatrix = $client->request('POST', '/api/connect/entitlements/resolve', [
+            'matrix_user_id' => $secondMatrixId,
+        ], $this->connectServiceHeaders());
+        $this->assertSame(200, $byMatrix['status']);
+        $this->assertSame($second['data']['user']['id'], $byMatrix['data']['identity']['ncp_user_id']);
+
+        $this->createUser('john.smith@alias.example', 'Password123!', 'staff');
+        $guessed = $client->request('POST', '/api/connect/entitlements/resolve', [
+            'matrix_user_id' => '@johnsmith:connect.nixorcorporate.com',
+        ], $this->connectServiceHeaders());
+        $this->assertSame(200, $guessed['status']);
+        $this->assertFalse($guessed['data']['allowed']);
+    }
+
+    public function testConnectOutboxClaimsOnceRecoversLeasesAndDeadLettersSafely(): void {
+        $userId = $this->createUser('outbox-connect@example.com', 'Password123!', 'staff');
+        $firstEvent = connect_enqueue_entitlement_change_for_user($userId, 'test_delivery');
+        $deliveries = [];
+        $sender = function (array $payload) use (&$deliveries): void {
+            $deliveries[] = $payload['event_id'];
+        };
+
+        $firstRun = dispatch_connect_entitlement_outbox(50, $sender);
+        $secondRun = dispatch_connect_entitlement_outbox(50, $sender);
+        $this->assertSame(1, $firstRun['sent']);
+        $this->assertSame(0, $secondRun['processed']);
+        $this->assertSame([$firstEvent], $deliveries);
+
+        $staleEvent = connect_enqueue_entitlement_change_for_user($userId, 'stale_claim');
+        db()->prepare(
+            'UPDATE connect_entitlement_outbox
+             SET status = "sending", claim_token = ?, claimed_at = DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 2 HOUR), attempts = 1
+             WHERE event_id = ?'
+        )->execute([str_repeat('a', 32), $staleEvent]);
+        $recovered = dispatch_connect_entitlement_outbox(50, $sender);
+        $this->assertSame(1, $recovered['recovered']);
+        $this->assertSame(1, $recovered['sent']);
+
+        $deadEvent = connect_enqueue_entitlement_change_for_user($userId, 'dead_letter');
+        db()->prepare('UPDATE connect_entitlement_outbox SET attempts = 9 WHERE event_id = ?')->execute([$deadEvent]);
+        $dead = dispatch_connect_entitlement_outbox(50, static function (): void {
+            throw new RuntimeException('Bearer must-not-be-stored downstream body');
+        });
+        $this->assertSame(1, $dead['dead_lettered']);
+        $row = db()->prepare('SELECT status, attempts, claim_token, last_error FROM connect_entitlement_outbox WHERE event_id = ?');
+        $row->execute([$deadEvent]);
+        $deadRow = $row->fetch();
+        $this->assertSame('dead_letter', $deadRow['status']);
+        $this->assertSame(10, (int)$deadRow['attempts']);
+        $this->assertNull($deadRow['claim_token']);
+        $this->assertStringNotContainsString('must-not-be-stored', (string)$deadRow['last_error']);
+        $this->assertStringContainsString('[redacted]', (string)$deadRow['last_error']);
+    }
+
+    public function testConnectEntitlementReconciliationRepairsMissedChangesWithoutDuplicates(): void {
+        $this->createUser('reconcile-connect@example.com', 'Password123!', 'staff');
+        $first = reconcile_connect_entitlement_versions(250);
+        $queuedAfterFirst = (int)db()->query('SELECT COUNT(*) FROM connect_entitlement_outbox')->fetchColumn();
+        $second = reconcile_connect_entitlement_versions(250);
+        $queuedAfterSecond = (int)db()->query('SELECT COUNT(*) FROM connect_entitlement_outbox')->fetchColumn();
+
+        $this->assertSame(1, $first['processed']);
+        $this->assertSame(1, $first['changed']);
+        $this->assertSame(0, $first['failed']);
+        $this->assertSame(1, $queuedAfterFirst);
+        $this->assertSame(0, $second['changed']);
+        $this->assertSame($queuedAfterFirst, $queuedAfterSecond);
+    }
+
     public function testAdminConnectEntitlementsValidateMembershipRolesAndTestResolve(): void {
-        $this->createUser('admin@example.com', 'Password123!', 'admin');
+        $adminId = $this->createUser('admin@example.com', 'Password123!', 'admin');
         $admin = $this->loginClient('admin@example.com', 'Password123!');
+
+        $mismatchedLink = $admin->request('POST', '/api/admin/connect-entitlements', [
+            'user_id' => $adminId,
+            'email' => 'different-person@nixorcollege.edu.pk',
+            'display_name' => 'Different Person',
+            'is_allowed' => true,
+        ], ["X-CSRF-Token: {$admin->csrfToken}"]);
+        $this->assertSame(409, $mismatchedLink['status']);
+        $this->assertSame('Connect identity email must match the linked NCP user', $mismatchedLink['data']['error']);
 
         $invalidCreate = $admin->request('POST', '/api/admin/connect-entitlements', [
             'email' => 'invalid-role@nixorcollege.edu.pk',
@@ -977,7 +1146,7 @@ final class ApiTest extends TestCase {
         $volunteerId = $this->createUser('volunteer@example.com', 'Password123!', 'staff');
         $otherUserId = $this->createUser('other@example.com', 'Password123!', 'staff');
         $entityId = $this->createEntity('Registration Entity');
-        $this->addMembership($entityId, $execId, 'operations', 'executive');
+        $this->addMembership($entityId, $execId, 'hr', 'executive');
         $this->addMembership($entityId, $volunteerId, 'operations', 'member');
         $endeavourId = $this->createEndeavour($entityId, $execId, 'Registration Managed', 'VOLUNTEER_SHORTLISTING', true, '+5 days');
         $this->setEndeavourTransportFeeRequired($endeavourId);
@@ -1234,6 +1403,7 @@ final class ApiTest extends TestCase {
         $userId = $this->createUser('notify-user@example.com', 'Password123!', 'staff');
         $entityId = $this->createEntity('Notification Entity');
         $endeavourId = $this->createEndeavour($entityId, $userId, 'Long Community Service Endeavour', 'PRE_EVENT', false, '+2 days');
+        $endeavourPublicId = public_id_for_row('endeavours', $endeavourId);
         db()->prepare('INSERT INTO notifications (user_id, type, payload_json) VALUES (?, ?, ?)')
             ->execute([
                 $userId,
@@ -1252,7 +1422,7 @@ final class ApiTest extends TestCase {
         $this->assertNotSame('Notification', $first['title'] ?? '');
         $this->assertStringContainsString('Budget plan', $first['message'] ?? '');
         $this->assertStringContainsString('Long Community Service Endeavour', $first['message'] ?? '');
-        $this->assertSame('/endeavour_view.html?id=' . $endeavourId, $first['target_url'] ?? null);
+        $this->assertSame('/endeavour_view.html?e=' . $endeavourPublicId, $first['target_url'] ?? null);
     }
 
     public function testAnnouncementEditAndDeleteRequireAnnouncementPermission(): void {
@@ -1958,7 +2128,7 @@ final class ApiTest extends TestCase {
         return (int)db()->lastInsertId();
     }
 
-    private function connectServiceHeaders(string $token = 'test-connect-shared-secret'): array {
+    private function connectServiceHeaders(string $token = 'test-connect-shared-secret-32-bytes-minimum'): array {
         return ["Authorization: Bearer {$token}"];
     }
 

@@ -298,44 +298,54 @@ function execute_migration_statement(PDO $pdo, string $statement): void {
     }
 }
 
-function apply_migrations(PDO $pdo, string $directory): array {
+function apply_migration_file(PDO $pdo, string $directory, string $file): array {
+    if ($file !== basename($file) || !preg_match('/^[0-9]{12,14}_[A-Za-z0-9_-]+\.sql$/', $file)) {
+        throw new InvalidArgumentException('Invalid migration filename.');
+    }
+    if (!in_array($file, migration_files($directory), true)) {
+        throw new RuntimeException("Migration file not found: {$file}");
+    }
+
     $applied = applied_migrations($pdo);
-    $files = migration_files($directory);
-    $results = [];
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    foreach ($files as $file) {
-        $path = $directory . '/' . $file;
-        $contents = file_get_contents($path);
-        if ($contents === false) {
-            throw new RuntimeException("Failed to read migration {$file}");
+    $path = $directory . '/' . $file;
+    $contents = file_get_contents($path);
+    if ($contents === false) {
+        throw new RuntimeException("Failed to read migration {$file}");
+    }
+    $checksum = hash('sha256', $contents);
+    if (isset($applied[$file])) {
+        if ($applied[$file] !== $checksum) {
+            throw new RuntimeException("Checksum mismatch for migration {$file}");
         }
-        $checksum = hash('sha256', $contents);
-        if (isset($applied[$file])) {
-            if ($applied[$file] !== $checksum) {
-                throw new RuntimeException("Checksum mismatch for migration {$file}");
-            }
-            $results[] = ['file' => $file, 'status' => 'skipped'];
-            continue;
+        return ['file' => $file, 'status' => 'skipped'];
+    }
+
+    $statements = split_sql_statements($contents);
+    $pdo->beginTransaction();
+    try {
+        foreach ($statements as $statement) {
+            execute_migration_statement($pdo, $statement);
         }
-        $statements = split_sql_statements($contents);
-        $pdo->beginTransaction();
-        try {
-            foreach ($statements as $statement) {
-                execute_migration_statement($pdo, $statement);
-            }
-            $insert = $pdo->prepare('INSERT INTO migrations (filename, checksum) VALUES (?, ?)');
-            $insert->execute([$file, $checksum]);
-            if ($pdo->inTransaction()) {
-                $pdo->commit();
-            }
-            $results[] = ['file' => $file, 'status' => 'applied'];
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            error_log('Migration failed: ' . $file . ' ' . $e->getMessage());
-            throw $e;
+        $insert = $pdo->prepare('INSERT INTO migrations (filename, checksum) VALUES (?, ?)');
+        $insert->execute([$file, $checksum]);
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
         }
+        return ['file' => $file, 'status' => 'applied'];
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('Migration failed: ' . $file . ' ' . $e->getMessage());
+        throw $e;
+    }
+}
+
+function apply_migrations(PDO $pdo, string $directory): array {
+    $results = [];
+    foreach (migration_files($directory) as $file) {
+        $results[] = apply_migration_file($pdo, $directory, $file);
     }
     return $results;
 }

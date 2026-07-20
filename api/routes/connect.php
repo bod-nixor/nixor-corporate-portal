@@ -6,6 +6,9 @@ function handle_connect(string $method, array $segments): void {
 
     if ($method === 'POST' && $area === 'identity' && $action === 'resolve-google' && count($segments) === 3) {
         $data = read_json();
+        if (!connect_service_secret_is_configured()) {
+            respond(['ok' => false, 'error' => 'service_unavailable'], 503);
+        }
         if (!connect_request_has_valid_service_token()) {
             connect_log_resolution_denied((string)($data['email'] ?? ''), 'unauthorized');
             respond(['ok' => false, 'error' => 'unauthorized'], 401);
@@ -16,6 +19,9 @@ function handle_connect(string $method, array $segments): void {
 
     if ($method === 'POST' && $area === 'entitlements' && $action === 'resolve' && count($segments) === 3) {
         $data = read_json();
+        if (!connect_service_secret_is_configured()) {
+            respond(['ok' => false, 'error' => 'service_unavailable'], 503);
+        }
         if (!connect_request_has_valid_service_token()) {
             connect_log_resolution_denied((string)($data['email'] ?? ($data['ncp_user_id'] ?? '')), 'unauthorized');
             respond(['ok' => false, 'error' => 'unauthorized'], 401);
