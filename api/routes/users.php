@@ -63,6 +63,7 @@ function handle_users(string $method, array $segments): void {
             $stmt->execute([generate_public_id('usr'), $email, $fullName, $role, $status]);
             $userId = (int)$pdo->lastInsertId();
             $token = auth_create_password_token($userId, 'password_setup', (int)$user['id']);
+            connect_enqueue_entitlement_change_for_user($userId, 'user_created', ['actor_id' => (int)$user['id']]);
             $pdo->commit();
         } catch (PDOException $e) {
             if ($pdo->inTransaction()) {
@@ -87,7 +88,6 @@ function handle_users(string $method, array $segments): void {
             );
         }
         log_activity($user['id'], 'user', $userId, 'created', 'User created with password setup required', ['invite_email_attempted' => $sendInvite && $status === 'active', 'invite_email_sent' => $emailSent]);
-        connect_enqueue_entitlement_change_safely($userId, 'user_created', ['actor_id' => (int)$user['id']]);
         respond(['ok' => true, 'data' => ['id' => $userId, 'password_setup_required' => true, 'invite_email_sent' => $emailSent]]);
     }
 
@@ -133,7 +133,10 @@ function handle_users(string $method, array $segments): void {
         $values[] = $userId;
         $stmt = db()->prepare('UPDATE users SET ' . implode(', ', $fields) . ' WHERE id = ?');
         try {
-            $stmt->execute($values);
+            connect_transactional(function () use ($stmt, $values, $userId, $user): void {
+                $stmt->execute($values);
+                connect_enqueue_entitlement_change_for_user($userId, 'user_updated', ['actor_id' => (int)$user['id']]);
+            });
         } catch (PDOException $e) {
             if ($e->getCode() === '23000') {
                 respond(['ok' => false, 'error' => 'Email already exists'], 409);
@@ -141,19 +144,23 @@ function handle_users(string $method, array $segments): void {
             throw $e;
         }
         log_activity($user['id'], 'user', $userId, 'updated', 'User updated');
-        connect_enqueue_entitlement_change_safely($userId, 'user_updated', ['actor_id' => (int)$user['id']]);
         respond(['ok' => true]);
     }
 
     if ($method === 'DELETE' && $id) {
         $userId = (int)$id;
-        $stmt = db()->prepare('UPDATE users SET status = "deleted" WHERE id = ?');
-        $stmt->execute([$userId]);
-        if ($stmt->rowCount() === 0) {
+        $updated = connect_transactional(function () use ($userId, $user): int {
+            $stmt = db()->prepare('UPDATE users SET status = "deleted" WHERE id = ?');
+            $stmt->execute([$userId]);
+            if ($stmt->rowCount() > 0) {
+                connect_enqueue_entitlement_change_for_user($userId, 'user_deleted', ['actor_id' => (int)$user['id']]);
+            }
+            return $stmt->rowCount();
+        });
+        if ($updated === 0) {
             respond(['ok' => false, 'error' => 'User not found'], 404);
         }
         log_activity($user['id'], 'user', $userId, 'deleted', 'User soft-deleted');
-        connect_enqueue_entitlement_change_safely($userId, 'user_deleted', ['actor_id' => (int)$user['id']]);
         respond(['ok' => true]);
     }
 
@@ -249,22 +256,30 @@ function handle_user_role_assignments(string $method, int $userId, array $segmen
                 respond(['ok' => false, 'error' => 'Entity not found'], 404);
             }
         }
-        $stmt = db()->prepare('INSERT INTO rbac_user_roles (user_id, role_id, entity_id, assigned_by) VALUES (?, ?, ?, ?)');
-        $stmt->execute([$userId, $roleId, $entityId, $actor['id']]);
-        $newId = (int)db()->lastInsertId();
+        $newId = connect_transactional(function () use ($userId, $roleId, $entityId, $actor): int {
+            $stmt = db()->prepare('INSERT INTO rbac_user_roles (user_id, role_id, entity_id, assigned_by) VALUES (?, ?, ?, ?)');
+            $stmt->execute([$userId, $roleId, $entityId, $actor['id']]);
+            $newId = (int)db()->lastInsertId();
+            connect_enqueue_entitlement_change_for_user($userId, 'role_assigned', ['assignment_id' => $newId, 'role_id' => $roleId, 'entity_id' => $entityId, 'actor_id' => (int)$actor['id']]);
+            return $newId;
+        });
         log_activity($actor['id'], 'user', $userId, 'role_assigned', 'RBAC role assigned', ['assignment_id' => $newId, 'role_id' => $roleId, 'entity_id' => $entityId]);
-        connect_enqueue_entitlement_change_safely($userId, 'role_assigned', ['assignment_id' => $newId, 'role_id' => $roleId, 'entity_id' => $entityId, 'actor_id' => (int)$actor['id']]);
         respond(['ok' => true, 'data' => ['id' => $newId]]);
     }
 
     if ($method === 'DELETE' && $assignmentId) {
-        $stmt = db()->prepare('DELETE FROM rbac_user_roles WHERE id = ? AND user_id = ?');
-        $stmt->execute([$assignmentId, $userId]);
-        if ($stmt->rowCount() === 0) {
+        $deleted = connect_transactional(function () use ($assignmentId, $userId, $actor): int {
+            $stmt = db()->prepare('DELETE FROM rbac_user_roles WHERE id = ? AND user_id = ?');
+            $stmt->execute([$assignmentId, $userId]);
+            if ($stmt->rowCount() > 0) {
+                connect_enqueue_entitlement_change_for_user($userId, 'role_removed', ['assignment_id' => $assignmentId, 'actor_id' => (int)$actor['id']]);
+            }
+            return $stmt->rowCount();
+        });
+        if ($deleted === 0) {
             respond(['ok' => false, 'error' => 'Assignment not found'], 404);
         }
         log_activity($actor['id'], 'user', $userId, 'role_removed', 'RBAC role assignment removed', ['assignment_id' => $assignmentId]);
-        connect_enqueue_entitlement_change_safely($userId, 'role_removed', ['assignment_id' => $assignmentId, 'actor_id' => (int)$actor['id']]);
         respond(['ok' => true]);
     }
 

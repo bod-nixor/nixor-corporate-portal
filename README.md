@@ -184,6 +184,8 @@ Use the checklist in [QA_CHECKLIST.md](QA_CHECKLIST.md) for manual regression co
 
 See [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) for the detailed rules and patterns used in this repo.
 
+For Nixor Connect production rollout, use the targeted migration, configuration, worker, monitoring, and rollback procedure in [CONNECT_OPERATIONS.md](CONNECT_OPERATIONS.md). Do not run the full historical NCP migration set in production until its ledger has been independently baselined.
+
 ## Deployment Assumptions
 - Shared hosting / cPanel friendly.
 - Apache routes public traffic into `public/`.
@@ -219,6 +221,7 @@ Authenticated pages should render the shared shell from `public/assets/sidebar.j
 
 ## Related Docs
 - [agents.md](agents.md)
+- [CONNECT_OPERATIONS.md](CONNECT_OPERATIONS.md)
 - [DEPLOYMENT.md](DEPLOYMENT.md)
 - [ENTITY_DRIVE_NOTES.md](ENTITY_DRIVE_NOTES.md)
 - [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)

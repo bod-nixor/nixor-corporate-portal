@@ -18,6 +18,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    ```bash
    /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/migrate.php
    ```
+   For the existing NCP production database, whose historical ledger must not be assumed complete, follow [CONNECT_OPERATIONS.md](CONNECT_OPERATIONS.md) and apply only `202607190001_connect_identity_delivery_hardening.sql` with `--only`.
 3. (Dev-only) Seed reference/sample data (requires APP_ENV=development and ALLOW_DEV_SEED=true):
    ```bash
    APP_ENV=development ALLOW_DEV_SEED=true /usr/bin/php -q /home/<cpanel_user>/public_html/portal/scripts/seed_dev.php
@@ -41,6 +42,7 @@ This guide assumes a shared hosting environment with Apache + PHP, MariaDB, and 
    - `APP_DEEP_LINK_SCHEME`, `APP_UNIVERSAL_LINK_BASE`, `IOS_APP_STORE_URL`, `ANDROID_PLAY_STORE_URL`, and `SHOW_OPEN_APP_BANNER` for mobile web handoff
    - `PUSH_REGISTRATION_ENABLED` plus `PUSH_PROVIDER` and provider webhook/FCM settings if device push delivery is enabled. Leave `PUSH_PROVIDER=none` until credentials are ready.
    - `SETUP_TOKEN` (required in production to call `/api/admin/setup`)
+   - `NCP_API_SHARED_SECRET`, `CONNECT_ENTITLEMENT_WEBHOOK_URL`, `CONNECT_ENTITLEMENT_WEBHOOK_SECRET`, and the Connect worker limits documented in `CONNECT_OPERATIONS.md`. The two secrets are independent and at least 32 printable characters.
 
 ## 5) Run the setup endpoint
 1. Send a `POST` request to `/api/admin/setup` with JSON:
@@ -74,6 +76,8 @@ https://your-domain.com/portal/cron/run.php?token=<CRON_TOKEN>
 ```
 This cron entry does not send digest, reminder, summary, assignment, or bulk email. If an older cPanel job exists only to send `Nixor Portal daily digest` or reminder email, remove that job; the code is safe even if the generic cron above remains configured.
 
+The generic cron also advances the bounded Connect entitlement reconciliation cursor and dispatches the durable Panapticon webhook outbox. Use the two explicit Connect cron flags from `CONNECT_OPERATIONS.md` for isolated diagnosis.
+
 ## 8) File permissions
 Ensure the following paths are writable by the PHP user:
 - `UPLOAD_PATH` (e.g., `/home/<cpanel_user>/portal_uploads`)
@@ -97,6 +101,9 @@ The portal falls back to polling automatically, but if you enable websockets:
 - Calendar event creation
 - Social posts + comments
 - Cron runs without sending digest or reminder email
+- `scripts/check-connect-readiness.php` passes without printing secrets
+- Conflicting Connect lookup identifiers fail closed; unchanged entitlement versions remain stable
+- One synthetic entitlement change is delivered once and acknowledged by Panapticon
 
 ## 11) Manual QA data cleanup
 The repo includes `scripts/cleanup_bad_calendar_and_qa_data.sql` for reviewing and removing QA leftovers such as the `sfef` entity, year-1111 calendar events, and `QA_TEST_DO_NOT_USE_*` records. The script runs inside a transaction and ends with `ROLLBACK` by default; review the SELECT previews and row counts before changing it to `COMMIT` in production.

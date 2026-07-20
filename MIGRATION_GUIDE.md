@@ -20,6 +20,7 @@ This repo uses manual SQL migrations for MariaDB/MySQL deployments.
 
 ## Runner Behavior
 - The PHP migration runner stores a checksum for each applied file.
+- `php scripts/migrate.php --only <timestamped-file.sql>` applies or checksum-verifies one exact repository migration without scanning older unapplied files. This is the required mode for the current NCP production Connect rollout.
 - The runner now supports guarded `ALTER TABLE` operations such as:
   - `ADD COLUMN IF NOT EXISTS`
   - `ADD INDEX IF NOT EXISTS`
@@ -31,6 +32,8 @@ This repo uses manual SQL migrations for MariaDB/MySQL deployments.
 3. Run migrations against a database that already has prior migrations applied.
 4. Verify the affected user flow in the browser.
 5. Document any manual rollout notes in `README.md` or `DEPLOYMENT.md` if the change is operationally meaningful.
+
+For an existing production database whose historical ledger has not been verified, do not run the unfiltered migration command. Back up and rehearse first, then use `--only` for the reviewed new migration. Never manufacture prior checksum rows.
 
 ## Rollback Guidance
 - Where feasible, document the reverse SQL in the pull request or release notes.

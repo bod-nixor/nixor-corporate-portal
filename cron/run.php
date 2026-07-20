@@ -44,6 +44,11 @@ if ($command['command'] === 'connect_entitlement_outbox') {
     exit;
 }
 
+if ($command['command'] === 'connect_entitlement_reconciliation') {
+    cron_emit(['ok' => true, 'data' => ['connect_entitlement_reconciliation' => reconcile_connect_entitlement_versions(connect_entitlement_reconciliation_batch_size())]], $isCli);
+    exit;
+}
+
 $results = run_full_cron();
 
 $payload = ['ok' => true, 'data' => $results];
@@ -66,8 +71,13 @@ function run_full_cron(): array {
         'deadline_reminders' => run_deadline_reminders(),
         'consent_reminders' => run_consent_reminders(),
         'daily_digest' => run_daily_digest(),
+        'connect_entitlement_reconciliation' => reconcile_connect_entitlement_versions(connect_entitlement_reconciliation_batch_size()),
         'connect_entitlement_outbox' => dispatch_connect_entitlement_outbox(),
     ];
+}
+
+function connect_entitlement_reconciliation_batch_size(): int {
+    return min(1000, max(1, (int)env_value('CONNECT_ENTITLEMENT_RECONCILIATION_BATCH_SIZE', '250')));
 }
 
 function disabled_automated_email_job_result(string $job): array {
@@ -103,6 +113,14 @@ function cron_parse_cli_args(array $argv): array {
             continue;
         }
 
+        if (in_array($arg, ['--connect_entitlement_reconciliation', 'connect_entitlement_reconciliation', 'connect_entitlement_reconciliation=1', 'connect_entitlement_reconciliation=true', '--connect-entitlement-reconciliation'], true)) {
+            if ($command !== null && $command !== 'connect_entitlement_reconciliation') {
+                return ['error' => 'Conflicting cron arguments supplied.'];
+            }
+            $command = 'connect_entitlement_reconciliation';
+            continue;
+        }
+
         foreach (['push_notification_id=', '--push_notification_id=', '--push-notification-id='] as $prefix) {
             if (str_starts_with($arg, $prefix)) {
                 $value = trim(substr($arg, strlen($prefix)));
@@ -126,6 +144,9 @@ function cron_parse_cli_args(array $argv): array {
     }
     if ($command === 'connect_entitlement_outbox') {
         return ['command' => 'connect_entitlement_outbox'];
+    }
+    if ($command === 'connect_entitlement_reconciliation') {
+        return ['command' => 'connect_entitlement_reconciliation'];
     }
     return ['command' => 'full'];
 }
